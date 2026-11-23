@@ -1664,6 +1664,120 @@ _bit_dir_list:                      // x0 = путь, x1 = строка → mas 
     mov x2, x20
     bl _bit_errpath
 
+_bit_lkind:                         // x0 = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    sub sp, sp, #160
+    mov x1, sp
+    bl _lstat
+    cbnz w0, 1f
+    ldrh w1, [sp, #4]
+    and w1, w1, #0xF000
+    mov x0, #3
+    cmp w1, #0x8000
+    b.ne 2f
+    mov x0, #1
+    b 3f
+2:  cmp w1, #0x4000
+    b.ne 3f
+    mov x0, #2
+    b 3f
+1:  mov x0, #0
+3:  add sp, sp, #160
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_file_mtime:                    // x0 = путь, x1 = строка → время изменения (секунды с 1970)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #160
+    mov x19, x0
+    mov x20, x1
+    mov x1, sp
+    bl _stat
+    cbnz w0, 9f
+    ldr x0, [sp, #48]
+    add sp, sp, #160
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:
+    adrp x0, Lrt_eread@PAGE
+    add x0, x0, Lrt_eread@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_dir_walk:                      // x0 = путь, x1 = строка → mas путей ко всем файлам внутри
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x0, #-1
+    mov x1, #0
+    bl _bit_mas_new
+    mov x21, x0
+    mov x0, x19
+    mov x1, x21
+    mov x2, x20
+    bl _bit_walk_into
+    mov x0, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_walk_into:                     // x0 = путь, x1 = mas, x2 = строка
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x1, x21
+    bl _bit_dir_list
+    mov x22, x0
+    mov x23, #0
+1:  ldr x9, [x22, #8]
+    cmp x23, x9
+    b.ge 5f
+    mov x0, x19
+    adrp x1, Lrt_slash@PAGE
+    add x1, x1, Lrt_slash@PAGEOFF
+    bl _bit_cat
+    ldr x9, [x22]
+    ldr x1, [x9, x23, lsl #3]
+    bl _bit_cat
+    mov x24, x0
+    bl _bit_lkind
+    cmp x0, #2
+    b.ne 2f
+    mov x0, x24
+    mov x1, x20
+    mov x2, x21
+    bl _bit_walk_into
+    b 4f
+2:  mov x0, x24
+    bl _bit_kind
+    cmp x0, #1
+    b.ne 4f
+    mov x0, x20
+    mov x1, x24
+    mov x2, x21
+    bl _bit_mas_add
+4:  add x23, x23, #1
+    b 1b
+5:  ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_basename:                      // x0 = путь → имя после последнего /
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -3893,6 +4007,7 @@ Lrt_w: .asciz "w"
 Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
+Lrt_slash: .asciz "/"
 Lrt_cls: .asciz "\033[2J\033[H"
 Lrt_memsize: .asciz "hw.memsize"
 Lrt_eopen: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \321\204\320\260\320\271\320\273: "

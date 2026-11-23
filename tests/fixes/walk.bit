@@ -1,0 +1,33 @@
+# walk обходит вложенные папки, modified даёт время изменения файла
+host {
+    dir d = "bit_walk_test";
+    dir sub = d >> dir("a");
+    dir deep = sub >> dir("b");
+    do(deep >> make);
+    file f1 = d >> file("x.txt");
+    file f2 = sub >> file("y.txt");
+    file f3 = deep >> file("z.txt");
+    do(f1 >> write("1"));
+    do(f2 >> write("2"));
+    do(f3 >> write("3"));
+    mas found = d >> walk;
+    print(found);
+    num age = os >> now - f1 >> modified;
+    print("свежий: {age >= 0 and age < 600}");
+    dir empty = d >> dir("пусто");
+    do(empty >> make);
+    print("пустая: {empty >> walk >> sz}");
+    recover {
+        file nope = d >> file("нет.txt");
+        print(nope >> modified);
+    } else {
+        print("сбой: {term >> error}");
+    }
+    do(f3 >> delete);
+    do(deep >> delete);
+    do(f2 >> delete);
+    do(sub >> delete);
+    do(empty >> delete);
+    do(f1 >> delete);
+    do(d >> delete);
+}

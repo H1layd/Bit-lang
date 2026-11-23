@@ -1,0 +1,5 @@
+(bit_walk_test/a/b/z.txt, bit_walk_test/a/y.txt, bit_walk_test/x.txt)
+свежий: true
+пустая: 0
+сбой: не могу прочитать файл: bit_walk_test/нет.txt
+0 

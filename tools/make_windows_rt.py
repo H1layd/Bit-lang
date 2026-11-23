@@ -41,7 +41,7 @@ FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines
          "_bit_dir_exists", "_bit_file_exists", "_bit_file_remove", "_bit_dir_remove",
          "_bit_move", "_bit_copy_temp", "_bit_copy", "_bit_dir_make", "_bit_basename",
          "_bit_file_line", "_bit_file_slice", "_bit_file_load", "_bit_file_save",
-         "_bit_file_load_at", "_bit_file_save_at",
+         "_bit_file_load_at", "_bit_file_save_at", "_bit_dir_walk", "_bit_walk_into",
          "_bit_errpath",
          "_bit_input_num", "_bit_input_dec", "_bit_input_str", "_bit_input_bool",
          "_bit_os_host", "_bit_os_user", "_bit_os_now", "_bit_os_procs",
@@ -627,6 +627,58 @@ _bit_kind:                          // rdi = путь → 0/1/2
     ret
 0:  xor eax, eax
     ret
+
+// ── как _bit_kind, но ссылка/точка соединения — 3: обход по ней не заходит ──
+_bit_lkind:                         // rdi = путь → 0/1/2/3
+    sub rsp, 40
+    mov rcx, rdi
+    call GetFileAttributesA
+    add rsp, 40
+    cmp eax, -1
+    je 0f
+    test eax, 0x400
+    jnz 3f
+    test eax, 16
+    jnz 2f
+    mov eax, 1
+    ret
+2:  mov eax, 2
+    ret
+3:  mov eax, 3
+    ret
+0:  xor eax, eax
+    ret
+
+// ── время изменения файла (GetFileAttributesEx, FILETIME → секунды с 1970) ──
+_bit_file_mtime:                    // rdi = путь, rsi = строка → секунды
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 80
+    mov rbx, rdi
+    mov r12, rsi
+    mov rcx, rdi
+    xor edx, edx
+    lea r8, [rsp + 32]
+    call GetFileAttributesExA
+    test eax, eax
+    jz 9f
+    mov rax, qword ptr [rsp + 52]
+    xor edx, edx
+    mov rcx, 10000000
+    div rcx
+    mov rcx, 11644473600
+    sub rax, rcx
+    add rsp, 80
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
 
 // ── список папки (через FindFirstFile/FindNextFile) ──
 _bit_dir_list:                      // rdi = путь, rsi = строка → mas имён по алфавиту
@@ -2557,7 +2609,7 @@ NEWSTR = {
     "Lrt_erecv_args": "recv: razmer 1..2147483647, ozhidanie 0..2147483647 ms",
     "Lrt_enotdir": "eto ne papka: ", "Lrt_erm": "ne mogu udalit: ",
     "Lrt_emv": "ne mogu peremestit: ", "Lrt_emk": "ne mogu sozdat papku: ",
-    "Lrt_edir": "ne mogu prochitat papku: ",
+    "Lrt_edir": "ne mogu prochitat papku: ", "Lrt_slash": "/",
     "Lrt_w": "w", "Lrt_a": "a", "Lrt_erun": "ne mogu zapustit komandu: ",
     "Lrt_cls": "\x1b[2J\x1b[H", "Lrt_dashdash": " -- ", "Lrt_gp": "%.*g",
     "Lrt_cpucmd": "", "Lrt_memsize": "", "Lrt_vmps": "",

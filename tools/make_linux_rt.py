@@ -14,7 +14,7 @@ t = t.replace(".section __DATA,__data", ".data")
 t = t.replace(".section __TEXT,__cstring,cstring_literals", ".section .rodata")
 t = t.replace("___stderrp@GOTPCREL", "stderr@GOTPCREL").replace("___stdinp@GOTPCREL", "stdin@GOTPCREL")
 t = t.replace('call "_opendir$INODE64"', "call opendir@PLT").replace('call "_readdir$INODE64"', "call readdir@PLT")
-t = t.replace('call "_stat$INODE64"', "call stat@PLT")
+t = t.replace('call "_stat$INODE64"', "call stat@PLT").replace('call "_lstat$INODE64"', "call lstat@PLT")
 t = re.sub(r"\b(call|jmp) _(?!bit_|_)([a-z_0-9]+)\b", r"\1 \2@PLT", t)
 t = t.replace("call ___error", "call __errno_location@PLT")
 # POSIX pipe flags and errno values differ from Darwin.
@@ -23,6 +23,8 @@ t = t.replace("    // EAGAIN on Darwin\n    cmp eax, 35", "    // EAGAIN\n    cm
 # struct dirent: имя с 19-го байта, struct stat: st_mode с 24-го
 t = t.replace("lea rdi, [rax + 21]", "lea rdi, [rax + 19]")
 t = t.replace("movzx ecx, word ptr [rsp + 4]", "mov ecx, dword ptr [rsp + 24]")
+# struct stat: st_mtime с 88-го байта
+t = t.replace("mov rax, qword ptr [rsp + 48]       // st_mtime", "mov rax, qword ptr [rsp + 88]       // st_mtime")
 
 t = func_replace(t, "_bit_open_update", """
 _bit_open_update:

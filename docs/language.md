@@ -441,6 +441,7 @@ print(words >> sort >> join(", "));
 | `f >> get(i)` / `get(a:b)` | line(s) by number |
 | `f >> sz` | size in bytes |
 | `f >> exists` | whether it exists |
+| `f >> modified` | last change time (seconds since 1970, like `os >> now`) |
 | `f >> delete` | delete the file |
 | `f >> copy(path)` / `move(path)` | copy / move |
 | `f >> save(bytes)` | write bytes as they are |
@@ -471,6 +472,7 @@ do(f >> delete);
 |---|---|
 | `d >> make` | create (with any missing parents) |
 | `d >> list` | `mas` of names inside (sorted) |
+| `d >> walk` | `mas` of paths to every file inside, nested folders included |
 | `d >> file(name)` | a `file` inside the folder |
 | `d >> dir(name)` | a nested `dir` |
 | `d >> exists` | whether it exists |
@@ -483,6 +485,20 @@ do(d >> make);
 file f = d >> file("today.txt");
 do(f >> write("..."));
 print(d >> list);
+```
+
+`walk` goes into nested folders depth first, each folder in alphabetical order. Paths start with
+the folder's own path. Links to folders are not followed, so a link back to a parent cannot loop;
+links to files are listed.
+
+```
+dir src = "src";
+for p in src >> walk {
+    file f = p >> open;
+    if os >> now - f >> modified < 3600 {
+        print("changed in the last hour: {p}");
+    }
+}
 ```
 
 ### bytes (raw memory)

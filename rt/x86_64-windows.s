@@ -628,6 +628,58 @@ _bit_kind:                          // rdi = путь → 0/1/2
 0:  xor eax, eax
     ret
 
+// ── как _bit_kind, но ссылка/точка соединения — 3: обход по ней не заходит ──
+_bit_lkind:                         // rdi = путь → 0/1/2/3
+    sub rsp, 40
+    mov rcx, rdi
+    call GetFileAttributesA
+    add rsp, 40
+    cmp eax, -1
+    je 0f
+    test eax, 0x400
+    jnz 3f
+    test eax, 16
+    jnz 2f
+    mov eax, 1
+    ret
+2:  mov eax, 2
+    ret
+3:  mov eax, 3
+    ret
+0:  xor eax, eax
+    ret
+
+// ── время изменения файла (GetFileAttributesEx, FILETIME → секунды с 1970) ──
+_bit_file_mtime:                    // rdi = путь, rsi = строка → секунды
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 80
+    mov rbx, rdi
+    mov r12, rsi
+    mov rcx, rdi
+    xor edx, edx
+    lea r8, [rsp + 32]
+    call GetFileAttributesExA
+    test eax, eax
+    jz 9f
+    mov rax, qword ptr [rsp + 52]
+    xor edx, edx
+    mov rcx, 10000000
+    div rcx
+    mov rcx, 11644473600
+    sub rax, rcx
+    add rsp, 80
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
 // ── список папки (через FindFirstFile/FindNextFile) ──
 _bit_dir_list:                      // rdi = путь, rsi = строка → mas имён по алфавиту
     push rbp
@@ -4273,6 +4325,83 @@ _bit_file_save_at:                  // path, bytes, offset, source line
     mov rsi, r14
     call _bit_die
 
+_bit_dir_walk:                      // rdi = путь, rsi = строка → mas путей ко всем файлам внутри
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rsi
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    push rax
+    push rax
+    mov rdi, rbx
+    mov rsi, rax
+    mov rdx, r12
+    call _bit_walk_into
+    pop rax
+    pop rcx
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_walk_into:                     // rdi = путь, rsi = mas, rdx = строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov rsi, r13
+    call _bit_dir_list
+    mov r14, rax
+    xor r15d, r15d
+1:  cmp r15, [r14 + 8]
+    jge 5f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_slash]
+    call _bit_cat
+    mov rdi, rax
+    mov rcx, [r14]
+    mov rsi, [rcx + r15*8]
+    call _bit_cat
+    mov [rsp], rax
+    mov rdi, rax
+    call _bit_lkind
+    cmp rax, 2
+    jne 2f
+    mov rdi, [rsp]
+    mov rsi, r12
+    mov rdx, r13
+    call _bit_walk_into
+    jmp 4f
+2:  mov rdi, [rsp]
+    call _bit_kind
+    cmp rax, 1
+    jne 4f
+    mov rdi, r12
+    mov rsi, [rsp]
+    mov rdx, r13
+    call _bit_mas_add
+4:  inc r15
+    jmp 1b
+5:  add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы
     push rbp
     mov rbp, rsp
@@ -5668,6 +5797,7 @@ Lrt_erm: .asciz "ne mogu udalit: "
 Lrt_emv: .asciz "ne mogu peremestit: "
 Lrt_emk: .asciz "ne mogu sozdat papku: "
 Lrt_edir: .asciz "ne mogu prochitat papku: "
+Lrt_slash: .asciz "/"
 Lrt_w: .asciz "w"
 Lrt_a: .asciz "a"
 Lrt_erun: .asciz "ne mogu zapustit komandu: "

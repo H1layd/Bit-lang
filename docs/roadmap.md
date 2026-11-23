@@ -83,6 +83,26 @@ wait.
 - [x] **`proc` on Windows** through the system API (`OpenProcess`, `ReadProcessMemory`,
   `WriteProcessMemory`, `VirtualQueryEx`), checked on native Windows 11. The same program works on Linux.
 - [ ] Run the updated runtimes on native Linux and Windows. Cross-assembly and linking checks are separate.
+- [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
+  to folders; **`f >> modified`** — last change time.
+
+## Next — the plan
+
+In order. Each step ends with tests, updated seeds and both references.
+
+1. **Native test runs.** A script that builds the whole test suite for Windows and Linux, runs it on a
+   real machine over SSH and compares with the expected output. Closes the "verify on native Linux
+   and Windows" items above.
+2. **Processes on macOS.** `start`, `pid`, `name`, `alive`, `wait`, `kill` and `"name" >> proc` work
+   without special rights; only memory access (`read`, `write`, `scan`, `maps`) needs a debugger
+   entitlement. Bring the process part of `proc` to macOS and keep a clear message for memory.
+3. **Working folder and environment.** Read and change the current folder; set environment
+   variables for programs started by `run` and `start`.
+4. **File system to the end.** Permissions (read, change), folder removal with its contents as an
+   explicit, visible action, file size and time in `walk` results without a second system call.
+5. **Reclaim strings that may escape their scope** — long-running programs should not grow.
+6. **The language design milestone** above: names, declarations, one rule for `do` and `>>`. These
+   are decisions for the language's author; the code follows them.
 
 ## Core language features
 
