@@ -1916,6 +1916,7 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
     pop rbp
     ret
 
+
 _bit_basename:                      // rdi = путь → имя после последнего /
     push rbp
     mov rbp, rsp
@@ -4520,6 +4521,9 @@ _bit_proc_kill:                     // rdi = pid, rsi = строка: проси
     push r12
     mov rbx, rdi
     mov r12, rsi
+    // pid <= 0 у kill значит «группа» или «все процессы» — не трогаем
+    test rdi, rdi
+    jle 8f
     mov esi, 15
     call kill@PLT
     test eax, eax
@@ -4528,6 +4532,12 @@ _bit_proc_kill:                     // rdi = pid, rsi = строка: проси
     pop rbx
     pop rbp
     ret
+8:  mov rdi, rbx
+    call _bit_num_str
+    lea rdi, [rip + Lrt_mekill]
+    mov rsi, rax
+    mov rdx, r12
+    call _bit_errpath
 9:  mov rdi, rbx
     lea rsi, [rip + Lrt_fpid]
     call _bit_proc_path
@@ -4540,6 +4550,9 @@ _bit_proc_wait:                     // rdi = pid → код выхода
     push rbp
     mov rbp, rsp
     sub rsp, 16
+    // pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс
+    test rdi, rdi
+    jle 1f
     mov rsi, rsp
     xor edx, edx
     call waitpid@PLT
@@ -4548,7 +4561,7 @@ _bit_proc_wait:                     // rdi = pid → код выхода
     mov edi, dword ptr [rsp]
     call _bit_wstatus
     jmp 2f
-1:  mov eax, -1
+1:  mov rax, -1
 2:  mov rsp, rbp
     pop rbp
     ret
@@ -4837,6 +4850,11 @@ Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
 Lrt_slash: .asciz "/"
+Lrt_msh: .asciz "sh"
+Lrt_mdashc: .asciz "-c"
+Lrt_mbinsh: .asciz "/bin/sh"
+Lrt_mespawn: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\321\203\321\201\321\202\320\270\321\202\321\214: "
+Lrt_mekill: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\277\321\200\320\276\321\206\320\265\321\201\321\201 "
 Lrt_cls: .asciz "\033[2J\033[H"
 Lrt_memsize: .asciz "hw.memsize"
 Lrt_eopen: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \321\204\320\260\320\271\320\273: "

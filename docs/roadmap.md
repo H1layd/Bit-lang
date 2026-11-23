@@ -96,9 +96,10 @@ In order. Each step ends with tests, updated seeds and both references.
 
 1. **Native test runs.** Done for Windows (`tests_win.sh`). Next: the same for Linux, and Windows
    versions of the tests that now need POSIX tools.
-2. **Processes on macOS.** `start`, `pid`, `name`, `alive`, `wait`, `kill` and `"name" >> proc` work
-   without special rights; only memory access (`read`, `write`, `scan`, `maps`) needs a debugger
-   entitlement. Bring the process part of `proc` to macOS and keep a clear message for memory.
+2. ~~**Processes on macOS.**~~ Done: `start`, `pid`, `name`, `alive`, `wait`, `kill` and
+   `"name" >> proc` work on macOS (libproc, `sysctl` for system processes); memory access is a clear
+   build error there. Along the way: `kill` on a missing process (pid `-1`) on Linux would have
+   signalled every process of the user — now it is a failure.
 3. **Working folder and environment.** Read and change the current folder; set environment
    variables for programs started by `run` and `start`.
 4. **File system to the end.** Permissions (read, change), folder removal with its contents as an

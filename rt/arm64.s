@@ -1778,6 +1778,240 @@ _bit_walk_into:                     // x0 = путь, x1 = mas, x2 = строк�
     ldp x29, x30, [sp], #16
     ret
 
+// ── proc (macOS): процессы без доступа к их памяти ──
+_bit_mac_pname:                     // x0 = pid, x1 = буфер 256 байт → длина имени или 0
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #688
+    mov x19, x0
+    mov x20, x1
+    mov w2, #256
+    bl _proc_name
+    cmp w0, #0
+    b.gt 9f
+    // чужие системные процессы: имя через sysctl (как у ps)
+    mov w9, #1
+    str w9, [sp]
+    mov w9, #14
+    str w9, [sp, #4]
+    mov w9, #1
+    str w9, [sp, #8]
+    str w19, [sp, #12]
+    mov x9, #648
+    str x9, [sp, #16]
+    mov x0, sp
+    mov w1, #4
+    add x2, sp, #32
+    add x3, sp, #16
+    mov x4, #0
+    mov x5, #0
+    bl _sysctl
+    cbnz w0, 0f
+    ldr x9, [sp, #16]
+    cmp x9, #648
+    b.ne 0f
+    mov x0, x20
+    add x1, sp, #275
+    mov x2, #17
+    bl _strlcpy
+    cmp x0, #0
+    b.gt 9f
+0:  mov x0, #0
+9:  add sp, sp, #688
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_proc_start:                    // x0 = команда, x1 = строка → pid (через /bin/sh -c)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #48
+    mov x19, x0
+    mov x20, x1
+    mov x0, #0
+    bl _fflush
+    adrp x9, Lrt_msh@PAGE
+    add x9, x9, Lrt_msh@PAGEOFF
+    str x9, [sp, #8]
+    adrp x9, Lrt_mdashc@PAGE
+    add x9, x9, Lrt_mdashc@PAGEOFF
+    str x9, [sp, #16]
+    str x19, [sp, #24]
+    str xzr, [sp, #32]
+    mov x0, sp
+    adrp x1, Lrt_mbinsh@PAGE
+    add x1, x1, Lrt_mbinsh@PAGEOFF
+    mov x2, #0
+    mov x3, #0
+    add x4, sp, #8
+    adrp x9, _environ@GOTPAGE
+    ldr x9, [x9, _environ@GOTPAGEOFF]
+    ldr x5, [x9]
+    bl _posix_spawn
+    cbnz w0, 9f
+    ldrsw x0, [sp]
+    add sp, sp, #48
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_mespawn@PAGE
+    add x0, x0, Lrt_mespawn@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_proc_find:                     // x0 = имя, x1 = строка → pid первого процесса с таким именем или -1
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    sub sp, sp, #256
+    mov x19, x0
+    mov x20, x1
+    mov x0, #262144
+    bl _malloc
+    cbz x0, 8f
+    mov x21, x0
+    mov w1, #262144
+    bl _proc_listallpids
+    sxtw x22, w0
+    mov x23, #0
+1:  cmp x23, x22
+    b.ge 7f
+    ldr w0, [x21, x23, lsl #2]
+    cmp w0, #0
+    b.le 2f
+    mov x1, sp
+    mov w2, #256
+    bl _bit_mac_pname
+    cmp w0, #0
+    b.le 2f
+    mov x0, sp
+    mov x1, x19
+    bl _strcmp
+    cbz w0, 6f
+2:  add x23, x23, #1
+    b 1b
+6:  ldrsw x24, [x21, x23, lsl #2]
+    b 5f
+7:  mov x24, #-1
+5:  mov x0, x21
+    bl _free
+    mov x0, x24
+    b 4f
+8:  mov x0, #-1
+4:  add sp, sp, #256
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_proc_alive:                    // x0 = pid → 1 если процесс работает (завершённый, но не дождавшийся — нет)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #144
+    mov x19, x0
+    cmp x0, #0
+    b.le 0f
+    mov w1, #3
+    mov x2, #0
+    mov x3, sp
+    mov w4, #136
+    bl _proc_pidinfo
+    cmp w0, #136
+    b.ne 3f
+    ldr w1, [sp, #4]
+    cmp w1, #5
+    b.eq 0f
+    mov x0, #1
+    b 9f
+3:  mov x0, x19
+    mov w1, #0
+    bl _kill
+    cbz w0, 1f
+    bl ___error
+    ldr w1, [x0]
+    cmp w1, #1
+    b.ne 0f
+1:  mov x0, #1
+    b 9f
+0:  mov x0, #0
+9:  add sp, sp, #144
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_proc_name:                     // x0 = pid → имя процесса или ""
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    sub sp, sp, #272
+    cmp x0, #0
+    b.le 1f
+    mov x1, sp
+    mov w2, #256
+    bl _bit_mac_pname
+    cmp w0, #0
+    b.le 1f
+    mov x0, sp
+    adrp x1, Lrt_empty@PAGE
+    add x1, x1, Lrt_empty@PAGEOFF
+    bl _bit_cat
+    b 2f
+1:  adrp x0, Lrt_empty@PAGE
+    add x0, x0, Lrt_empty@PAGEOFF
+    mov x1, x0
+    bl _bit_cat
+2:  add sp, sp, #272
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_proc_wait:                     // x0 = pid → код выхода (-1, если это не наш процесс)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    sub sp, sp, #16
+    cmp x0, #0
+    b.le 1f
+    mov x1, sp
+    mov w2, #0
+    bl _waitpid
+    cmp w0, #0
+    b.lt 1f
+    ldr w0, [sp]
+    bl _bit_wstatus
+    b 2f
+1:  mov x0, #-1
+2:  add sp, sp, #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_proc_kill:                     // x0 = pid, x1 = строка: просит процесс завершиться (SIGTERM)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    cmp x0, #0
+    b.le 9f
+    mov w1, #15
+    bl _kill
+    cbnz w0, 9f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  mov x0, x19
+    bl _bit_num_str
+    mov x1, x0
+    adrp x0, Lrt_mekill@PAGE
+    add x0, x0, Lrt_mekill@PAGEOFF
+    mov x2, x20
+    bl _bit_errpath
+// ── конец proc (macOS) ──
+
 _bit_basename:                      // x0 = путь → имя после последнего /
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -4008,6 +4242,11 @@ Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
 Lrt_slash: .asciz "/"
+Lrt_msh: .asciz "sh"
+Lrt_mdashc: .asciz "-c"
+Lrt_mbinsh: .asciz "/bin/sh"
+Lrt_mespawn: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\321\203\321\201\321\202\320\270\321\202\321\214: "
+Lrt_mekill: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\277\321\200\320\276\321\206\320\265\321\201\321\201 "
 Lrt_cls: .asciz "\033[2J\033[H"
 Lrt_memsize: .asciz "hw.memsize"
 Lrt_eopen: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \321\204\320\260\320\271\320\273: "

@@ -4884,13 +4884,13 @@ fn vm(string t, string m) {
             return vset("", "", "string", false);
         }
     }
-    if (IS_LINUX or IS_WINDOWS) and (t == "string" or t == "num") and m == "proc" {
+    if (t == "string" or t == "num") and m == "proc" {
         if t == "num" {
             return vset("", "", "proc", false);
         }
         return vset("_bit_proc_find", "", "proc", true);
     }
-    if (IS_LINUX or IS_WINDOWS) and t == "string" and m == "start" {
+    if t == "string" and m == "start" {
         return vset("_bit_proc_start", "", "proc", true);
     }
     if t == "string" and m == "connect" {
@@ -4926,7 +4926,7 @@ fn vm(string t, string m) {
     if t == "string" and m == "hex" {
         return vset("_bit_str_hex", "", "num", false);
     }
-    if (IS_LINUX or IS_WINDOWS) and t == "proc" {
+    if t == "proc" {
         if m == "pid" {
             return vset("", "", "num", false);
         }
@@ -4936,6 +4936,11 @@ fn vm(string t, string m) {
         if m == "alive" {
             return vset("_bit_proc_alive", "", "bool", false);
         }
+        if m == "wait" {
+            return vset("_bit_proc_wait", "", "num", false);
+        }
+    }
+    if (IS_LINUX or IS_WINDOWS) and t == "proc" {
         if m == "maps" {
             return vset("_bit_proc_maps", "", "mas:string", true);
         }
@@ -4944,9 +4949,6 @@ fn vm(string t, string m) {
         }
         if m == "grab" {
             return vset("_bit_proc_read", "num,num", "bytes", true);
-        }
-        if m == "wait" {
-            return vset("_bit_proc_wait", "", "num", false);
         }
         if m == "scan" {
             return vset("_bit_proc_scan", "num", "mas:num", true);
@@ -5042,15 +5044,15 @@ fn am(string t, string m) {
     if t == "bytes" and m == "free" {
         return aset("_bit_bytes_free", "", false, "");
     }
+    if t == "proc" and m == "kill" {
+        return aset("_bit_proc_kill", "", true, "");
+    }
     if (IS_LINUX or IS_WINDOWS) and t == "proc" {
         if m == "write" {
             return aset("_bit_proc_write_num", "num,num", true, "");
         }
         if m == "paste" {
             return aset("_bit_proc_write", "num,bytes", true, "");
-        }
-        if m == "kill" {
-            return aset("_bit_proc_kill", "", true, "");
         }
     }
     if t == "dir" {
@@ -5765,8 +5767,8 @@ fn need_linux(string ot, string mn, num line) {
     if IS_LINUX or IS_WINDOWS {
         return;
     }
-    if ot == "proc" or mn == "start" or (mn == "proc" and (ot == "string" or ot == "num")) {
-        do(fail("работа с процессами и их памятью есть на Linux и Windows: собери с --os linux или --os windows", line));
+    if ot == "proc" and (mn == "read" or mn == "grab" or mn == "scan" or mn == "maps" or mn == "write" or mn == "paste") {
+        do(fail("память чужого процесса ({mn}) на macOS закрыта системой: нужны права отладчика. Собери с --os linux или --os windows", line));
     }
 }
 
@@ -9080,6 +9082,240 @@ fn rt_arm(mas o) {
     do(o >> add("    ldp x29, x30, [sp], #16"));
     do(o >> add("    ret"));
     do(o >> add(""));
+    do(o >> add("// ── proc (macOS): процессы без доступа к их памяти ──"));
+    do(o >> add("_bit_mac_pname:                     // x0 = pid, x1 = буфер 256 байт → длина имени или 0"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    sub sp, sp, #688"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x20, x1"));
+    do(o >> add("    mov w2, #256"));
+    do(o >> add("    bl _proc_name"));
+    do(o >> add("    cmp w0, #0"));
+    do(o >> add("    b.gt 9f"));
+    do(o >> add("    // чужие системные процессы: имя через sysctl (как у ps)"));
+    do(o >> add("    mov w9, #1"));
+    do(o >> add("    str w9, [sp]"));
+    do(o >> add("    mov w9, #14"));
+    do(o >> add("    str w9, [sp, #4]"));
+    do(o >> add("    mov w9, #1"));
+    do(o >> add("    str w9, [sp, #8]"));
+    do(o >> add("    str w19, [sp, #12]"));
+    do(o >> add("    mov x9, #648"));
+    do(o >> add("    str x9, [sp, #16]"));
+    do(o >> add("    mov x0, sp"));
+    do(o >> add("    mov w1, #4"));
+    do(o >> add("    add x2, sp, #32"));
+    do(o >> add("    add x3, sp, #16"));
+    do(o >> add("    mov x4, #0"));
+    do(o >> add("    mov x5, #0"));
+    do(o >> add("    bl _sysctl"));
+    do(o >> add("    cbnz w0, 0f"));
+    do(o >> add("    ldr x9, [sp, #16]"));
+    do(o >> add("    cmp x9, #648"));
+    do(o >> add("    b.ne 0f"));
+    do(o >> add("    mov x0, x20"));
+    do(o >> add("    add x1, sp, #275"));
+    do(o >> add("    mov x2, #17"));
+    do(o >> add("    bl _strlcpy"));
+    do(o >> add("    cmp x0, #0"));
+    do(o >> add("    b.gt 9f"));
+    do(o >> add("0:  mov x0, #0"));
+    do(o >> add("9:  add sp, sp, #688"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_start:                    // x0 = команда, x1 = строка → pid (через /bin/sh -c)"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    sub sp, sp, #48"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x20, x1"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    bl _fflush"));
+    do(o >> add("    adrp x9, Lrt_msh@PAGE"));
+    do(o >> add("    add x9, x9, Lrt_msh@PAGEOFF"));
+    do(o >> add("    str x9, [sp, #8]"));
+    do(o >> add("    adrp x9, Lrt_mdashc@PAGE"));
+    do(o >> add("    add x9, x9, Lrt_mdashc@PAGEOFF"));
+    do(o >> add("    str x9, [sp, #16]"));
+    do(o >> add("    str x19, [sp, #24]"));
+    do(o >> add("    str xzr, [sp, #32]"));
+    do(o >> add("    mov x0, sp"));
+    do(o >> add("    adrp x1, Lrt_mbinsh@PAGE"));
+    do(o >> add("    add x1, x1, Lrt_mbinsh@PAGEOFF"));
+    do(o >> add("    mov x2, #0"));
+    do(o >> add("    mov x3, #0"));
+    do(o >> add("    add x4, sp, #8"));
+    do(o >> add("    adrp x9, _environ@GOTPAGE"));
+    do(o >> add("    ldr x9, [x9, _environ@GOTPAGEOFF]"));
+    do(o >> add("    ldr x5, [x9]"));
+    do(o >> add("    bl _posix_spawn"));
+    do(o >> add("    cbnz w0, 9f"));
+    do(o >> add("    ldrsw x0, [sp]"));
+    do(o >> add("    add sp, sp, #48"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  adrp x0, Lrt_mespawn@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_mespawn@PAGEOFF"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    mov x2, x20"));
+    do(o >> add("    bl _bit_errpath"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_find:                     // x0 = имя, x1 = строка → pid первого процесса с таким именем или -1"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    stp x21, x22, [sp, #-16]!"));
+    do(o >> add("    stp x23, x24, [sp, #-16]!"));
+    do(o >> add("    sub sp, sp, #256"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x20, x1"));
+    do(o >> add("    mov x0, #262144"));
+    do(o >> add("    bl _malloc"));
+    do(o >> add("    cbz x0, 8f"));
+    do(o >> add("    mov x21, x0"));
+    do(o >> add("    mov w1, #262144"));
+    do(o >> add("    bl _proc_listallpids"));
+    do(o >> add("    sxtw x22, w0"));
+    do(o >> add("    mov x23, #0"));
+    do(o >> add("1:  cmp x23, x22"));
+    do(o >> add("    b.ge 7f"));
+    do(o >> add("    ldr w0, [x21, x23, lsl #2]"));
+    do(o >> add("    cmp w0, #0"));
+    do(o >> add("    b.le 2f"));
+    do(o >> add("    mov x1, sp"));
+    do(o >> add("    mov w2, #256"));
+    do(o >> add("    bl _bit_mac_pname"));
+    do(o >> add("    cmp w0, #0"));
+    do(o >> add("    b.le 2f"));
+    do(o >> add("    mov x0, sp"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    bl _strcmp"));
+    do(o >> add("    cbz w0, 6f"));
+    do(o >> add("2:  add x23, x23, #1"));
+    do(o >> add("    b 1b"));
+    do(o >> add("6:  ldrsw x24, [x21, x23, lsl #2]"));
+    do(o >> add("    b 5f"));
+    do(o >> add("7:  mov x24, #-1"));
+    do(o >> add("5:  mov x0, x21"));
+    do(o >> add("    bl _free"));
+    do(o >> add("    mov x0, x24"));
+    do(o >> add("    b 4f"));
+    do(o >> add("8:  mov x0, #-1"));
+    do(o >> add("4:  add sp, sp, #256"));
+    do(o >> add("    ldp x23, x24, [sp], #16"));
+    do(o >> add("    ldp x21, x22, [sp], #16"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_alive:                    // x0 = pid → 1 если процесс работает (завершённый, но не дождавшийся — нет)"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    sub sp, sp, #144"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    cmp x0, #0"));
+    do(o >> add("    b.le 0f"));
+    do(o >> add("    mov w1, #3"));
+    do(o >> add("    mov x2, #0"));
+    do(o >> add("    mov x3, sp"));
+    do(o >> add("    mov w4, #136"));
+    do(o >> add("    bl _proc_pidinfo"));
+    do(o >> add("    cmp w0, #136"));
+    do(o >> add("    b.ne 3f"));
+    do(o >> add("    ldr w1, [sp, #4]"));
+    do(o >> add("    cmp w1, #5"));
+    do(o >> add("    b.eq 0f"));
+    do(o >> add("    mov x0, #1"));
+    do(o >> add("    b 9f"));
+    do(o >> add("3:  mov x0, x19"));
+    do(o >> add("    mov w1, #0"));
+    do(o >> add("    bl _kill"));
+    do(o >> add("    cbz w0, 1f"));
+    do(o >> add("    bl ___error"));
+    do(o >> add("    ldr w1, [x0]"));
+    do(o >> add("    cmp w1, #1"));
+    do(o >> add("    b.ne 0f"));
+    do(o >> add("1:  mov x0, #1"));
+    do(o >> add("    b 9f"));
+    do(o >> add("0:  mov x0, #0"));
+    do(o >> add("9:  add sp, sp, #144"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_name:                     // x0 = pid → имя процесса или \"\""));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    sub sp, sp, #272"));
+    do(o >> add("    cmp x0, #0"));
+    do(o >> add("    b.le 1f"));
+    do(o >> add("    mov x1, sp"));
+    do(o >> add("    mov w2, #256"));
+    do(o >> add("    bl _bit_mac_pname"));
+    do(o >> add("    cmp w0, #0"));
+    do(o >> add("    b.le 1f"));
+    do(o >> add("    mov x0, sp"));
+    do(o >> add("    adrp x1, Lrt_empty@PAGE"));
+    do(o >> add("    add x1, x1, Lrt_empty@PAGEOFF"));
+    do(o >> add("    bl _bit_cat"));
+    do(o >> add("    b 2f"));
+    do(o >> add("1:  adrp x0, Lrt_empty@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_empty@PAGEOFF"));
+    do(o >> add("    mov x1, x0"));
+    do(o >> add("    bl _bit_cat"));
+    do(o >> add("2:  add sp, sp, #272"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_wait:                     // x0 = pid → код выхода (-1, если это не наш процесс)"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    sub sp, sp, #16"));
+    do(o >> add("    cmp x0, #0"));
+    do(o >> add("    b.le 1f"));
+    do(o >> add("    mov x1, sp"));
+    do(o >> add("    mov w2, #0"));
+    do(o >> add("    bl _waitpid"));
+    do(o >> add("    cmp w0, #0"));
+    do(o >> add("    b.lt 1f"));
+    do(o >> add("    ldr w0, [sp]"));
+    do(o >> add("    bl _bit_wstatus"));
+    do(o >> add("    b 2f"));
+    do(o >> add("1:  mov x0, #-1"));
+    do(o >> add("2:  add sp, sp, #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_kill:                     // x0 = pid, x1 = строка: просит процесс завершиться (SIGTERM)"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x20, x1"));
+    do(o >> add("    cmp x0, #0"));
+    do(o >> add("    b.le 9f"));
+    do(o >> add("    mov w1, #15"));
+    do(o >> add("    bl _kill"));
+    do(o >> add("    cbnz w0, 9f"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  mov x0, x19"));
+    do(o >> add("    bl _bit_num_str"));
+    do(o >> add("    mov x1, x0"));
+    do(o >> add("    adrp x0, Lrt_mekill@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_mekill@PAGEOFF"));
+    do(o >> add("    mov x2, x20"));
+    do(o >> add("    bl _bit_errpath"));
+    do(o >> add("// ── конец proc (macOS) ──"));
+    do(o >> add(""));
     do(o >> add("_bit_basename:                      // x0 = путь → имя после последнего /"));
     do(o >> add("    stp x29, x30, [sp, #-16]!"));
     do(o >> add("    mov x29, sp"));
@@ -11310,6 +11546,11 @@ fn rt_arm(mas o) {
     do(o >> add("Lrt_r: .asciz \"r\""));
     do(o >> add("Lrt_empty: .asciz \"\""));
     do(o >> add("Lrt_slash: .asciz \"/\""));
+    do(o >> add("Lrt_msh: .asciz \"sh\""));
+    do(o >> add("Lrt_mdashc: .asciz \"-c\""));
+    do(o >> add("Lrt_mbinsh: .asciz \"/bin/sh\""));
+    do(o >> add("Lrt_mespawn: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\267\\320\\260\\320\\277\\321\\203\\321\\201\\321\\202\\320\\270\\321\\202\\321\\214: \""));
+    do(o >> add("Lrt_mekill: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\201\\321\\202\\320\\260\\320\\275\\320\\276\\320\\262\\320\\270\\321\\202\\321\\214 \\320\\277\\321\\200\\320\\276\\321\\206\\320\\265\\321\\201\\321\\201 \""));
     do(o >> add("Lrt_cls: .asciz \"\\033[2J\\033[H\""));
     do(o >> add("Lrt_memsize: .asciz \"hw.memsize\""));
     do(o >> add("Lrt_eopen: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\202\\320\\272\\321\\200\\321\\213\\321\\202\\321\\214 \\321\\204\\320\\260\\320\\271\\320\\273: \""));
@@ -13240,6 +13481,242 @@ fn rt_x86(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("// ── proc (macOS): процессы без доступа к их памяти ──"));
+    do(o >> add("_bit_mac_pname:                     // rdi = pid, rsi = буфер 256 байт → длина имени или 0"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    sub rsp, 688"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov r12, rsi"));
+    do(o >> add("    mov edx, 256"));
+    do(o >> add("    call _proc_name"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jg 9f"));
+    do(o >> add("    // чужие системные процессы: имя через sysctl (как у ps)"));
+    do(o >> add("    mov dword ptr [rsp], 1"));
+    do(o >> add("    mov dword ptr [rsp + 4], 14"));
+    do(o >> add("    mov dword ptr [rsp + 8], 1"));
+    do(o >> add("    mov dword ptr [rsp + 12], ebx"));
+    do(o >> add("    mov qword ptr [rsp + 16], 648"));
+    do(o >> add("    lea rdi, [rsp]"));
+    do(o >> add("    mov esi, 4"));
+    do(o >> add("    lea rdx, [rsp + 32]"));
+    do(o >> add("    lea rcx, [rsp + 16]"));
+    do(o >> add("    xor r8d, r8d"));
+    do(o >> add("    xor r9d, r9d"));
+    do(o >> add("    call _sysctl"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 0f"));
+    do(o >> add("    cmp qword ptr [rsp + 16], 648"));
+    do(o >> add("    jne 0f"));
+    do(o >> add("    mov rdi, r12"));
+    do(o >> add("    lea rsi, [rsp + 275]"));
+    do(o >> add("    mov edx, 17"));
+    do(o >> add("    call _strlcpy"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jg 9f"));
+    do(o >> add("0:  xor eax, eax"));
+    do(o >> add("9:  add rsp, 688"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_start:                    // rdi = команда, rsi = строка → pid (через /bin/sh -c)"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    sub rsp, 48"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov r12, rsi"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    call _fflush"));
+    do(o >> add("    lea rax, [rip + Lrt_msh]"));
+    do(o >> add("    mov [rsp + 8], rax"));
+    do(o >> add("    lea rax, [rip + Lrt_mdashc]"));
+    do(o >> add("    mov [rsp + 16], rax"));
+    do(o >> add("    mov [rsp + 24], rbx"));
+    do(o >> add("    mov qword ptr [rsp + 32], 0"));
+    do(o >> add("    mov rdi, rsp"));
+    do(o >> add("    lea rsi, [rip + Lrt_mbinsh]"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("    xor ecx, ecx"));
+    do(o >> add("    lea r8, [rsp + 8]"));
+    do(o >> add("    mov rax, [rip + _environ@GOTPCREL]"));
+    do(o >> add("    mov r9, [rax]"));
+    do(o >> add("    call _posix_spawn"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 9f"));
+    do(o >> add("    movsxd rax, dword ptr [rsp]"));
+    do(o >> add("    add rsp, 48"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  lea rdi, [rip + Lrt_mespawn]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    mov rdx, r12"));
+    do(o >> add("    call _bit_errpath"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем или -1"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    push r13"));
+    do(o >> add("    push r14"));
+    do(o >> add("    push r15"));
+    do(o >> add("    sub rsp, 264"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov r12, rsi"));
+    do(o >> add("    mov edi, 262144"));
+    do(o >> add("    call _malloc"));
+    do(o >> add("    test rax, rax"));
+    do(o >> add("    jz 8f"));
+    do(o >> add("    mov r13, rax"));
+    do(o >> add("    mov rdi, r13"));
+    do(o >> add("    mov esi, 262144"));
+    do(o >> add("    call _proc_listallpids"));
+    do(o >> add("    movsxd r14, eax"));
+    do(o >> add("    xor r15d, r15d"));
+    do(o >> add("1:  cmp r15, r14"));
+    do(o >> add("    jge 7f"));
+    do(o >> add("    mov edi, dword ptr [r13 + r15*4]"));
+    do(o >> add("    test edi, edi"));
+    do(o >> add("    jle 2f"));
+    do(o >> add("    mov rsi, rsp"));
+    do(o >> add("    mov edx, 256"));
+    do(o >> add("    call _bit_mac_pname"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jle 2f"));
+    do(o >> add("    mov rdi, rsp"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    call _strcmp"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jz 6f"));
+    do(o >> add("2:  inc r15"));
+    do(o >> add("    jmp 1b"));
+    do(o >> add("6:  movsxd r14, dword ptr [r13 + r15*4]"));
+    do(o >> add("    jmp 5f"));
+    do(o >> add("7:  mov r14, -1"));
+    do(o >> add("5:  mov rdi, r13"));
+    do(o >> add("    call _free"));
+    do(o >> add("    mov rax, r14"));
+    do(o >> add("    jmp 4f"));
+    do(o >> add("8:  mov rax, -1"));
+    do(o >> add("4:  add rsp, 264"));
+    do(o >> add("    pop r15"));
+    do(o >> add("    pop r14"));
+    do(o >> add("    pop r13"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_alive:                    // rdi = pid → 1 если процесс работает (завершённый, но не дождавшийся — нет)"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 152"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 0f"));
+    do(o >> add("    mov esi, 3"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("    mov rcx, rsp"));
+    do(o >> add("    mov r8d, 136"));
+    do(o >> add("    call _proc_pidinfo"));
+    do(o >> add("    cmp eax, 136"));
+    do(o >> add("    jne 3f"));
+    do(o >> add("    cmp dword ptr [rsp + 4], 5"));
+    do(o >> add("    je 0f"));
+    do(o >> add("    mov eax, 1"));
+    do(o >> add("    jmp 9f"));
+    do(o >> add("3:  mov rdi, rbx"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    call _kill"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jz 1f"));
+    do(o >> add("    call ___error"));
+    do(o >> add("    cmp dword ptr [rax], 1"));
+    do(o >> add("    jne 0f"));
+    do(o >> add("1:  mov eax, 1"));
+    do(o >> add("    jmp 9f"));
+    do(o >> add("0:  xor eax, eax"));
+    do(o >> add("9:  add rsp, 152"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_name:                     // rdi = pid → имя процесса или \"\""));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    sub rsp, 272"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 1f"));
+    do(o >> add("    mov rsi, rsp"));
+    do(o >> add("    mov edx, 256"));
+    do(o >> add("    call _bit_mac_pname"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jle 1f"));
+    do(o >> add("    mov rdi, rsp"));
+    do(o >> add("    lea rsi, [rip + Lrt_empty]"));
+    do(o >> add("    call _bit_cat"));
+    do(o >> add("    jmp 2f"));
+    do(o >> add("1:  lea rdi, [rip + Lrt_empty]"));
+    do(o >> add("    mov rsi, rdi"));
+    do(o >> add("    call _bit_cat"));
+    do(o >> add("2:  mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_wait:                     // rdi = pid → код выхода (-1, если это не наш процесс)"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    sub rsp, 16"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 1f"));
+    do(o >> add("    mov rsi, rsp"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("    call _waitpid"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    js 1f"));
+    do(o >> add("    mov edi, dword ptr [rsp]"));
+    do(o >> add("    call _bit_wstatus"));
+    do(o >> add("    jmp 2f"));
+    do(o >> add("1:  mov rax, -1"));
+    do(o >> add("2:  mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_proc_kill:                     // rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov r12, rsi"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 9f"));
+    do(o >> add("    mov esi, 15"));
+    do(o >> add("    call _kill"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 9f"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  mov rdi, rbx"));
+    do(o >> add("    call _bit_num_str"));
+    do(o >> add("    lea rdi, [rip + Lrt_mekill]"));
+    do(o >> add("    mov rsi, rax"));
+    do(o >> add("    mov rdx, r12"));
+    do(o >> add("    call _bit_errpath"));
+    do(o >> add("// ── конец proc (macOS) ──"));
     do(o >> add(""));
     do(o >> add("_bit_basename:                      // rdi = путь → имя после последнего /"));
     do(o >> add("    push rbp"));
@@ -15623,6 +16100,11 @@ fn rt_x86(mas o) {
     do(o >> add("Lrt_r: .asciz \"r\""));
     do(o >> add("Lrt_empty: .asciz \"\""));
     do(o >> add("Lrt_slash: .asciz \"/\""));
+    do(o >> add("Lrt_msh: .asciz \"sh\""));
+    do(o >> add("Lrt_mdashc: .asciz \"-c\""));
+    do(o >> add("Lrt_mbinsh: .asciz \"/bin/sh\""));
+    do(o >> add("Lrt_mespawn: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\267\\320\\260\\320\\277\\321\\203\\321\\201\\321\\202\\320\\270\\321\\202\\321\\214: \""));
+    do(o >> add("Lrt_mekill: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\201\\321\\202\\320\\260\\320\\275\\320\\276\\320\\262\\320\\270\\321\\202\\321\\214 \\320\\277\\321\\200\\320\\276\\321\\206\\320\\265\\321\\201\\321\\201 \""));
     do(o >> add("Lrt_cls: .asciz \"\\033[2J\\033[H\""));
     do(o >> add("Lrt_memsize: .asciz \"hw.memsize\""));
     do(o >> add("Lrt_eopen: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\202\\320\\272\\321\\200\\321\\213\\321\\202\\321\\214 \\321\\204\\320\\260\\320\\271\\320\\273: \""));
@@ -17553,6 +18035,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
+    do(o >> add(""));
     do(o >> add(""));
     do(o >> add("_bit_basename:                      // rdi = путь → имя после последнего /"));
     do(o >> add("    push rbp"));
@@ -20158,6 +20641,9 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push r12"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
+    do(o >> add("    // pid <= 0 у kill значит «группа» или «все процессы» — не трогаем"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 8f"));
     do(o >> add("    mov esi, 15"));
     do(o >> add("    call kill@PLT"));
     do(o >> add("    test eax, eax"));
@@ -20166,6 +20652,12 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
+    do(o >> add("8:  mov rdi, rbx"));
+    do(o >> add("    call _bit_num_str"));
+    do(o >> add("    lea rdi, [rip + Lrt_mekill]"));
+    do(o >> add("    mov rsi, rax"));
+    do(o >> add("    mov rdx, r12"));
+    do(o >> add("    call _bit_errpath"));
     do(o >> add("9:  mov rdi, rbx"));
     do(o >> add("    lea rsi, [rip + Lrt_fpid]"));
     do(o >> add("    call _bit_proc_path"));
@@ -20178,6 +20670,9 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 16"));
+    do(o >> add("    // pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс"));
+    do(o >> add("    test rdi, rdi"));
+    do(o >> add("    jle 1f"));
     do(o >> add("    mov rsi, rsp"));
     do(o >> add("    xor edx, edx"));
     do(o >> add("    call waitpid@PLT"));
@@ -20186,7 +20681,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov edi, dword ptr [rsp]"));
     do(o >> add("    call _bit_wstatus"));
     do(o >> add("    jmp 2f"));
-    do(o >> add("1:  mov eax, -1"));
+    do(o >> add("1:  mov rax, -1"));
     do(o >> add("2:  mov rsp, rbp"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -20475,6 +20970,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("Lrt_r: .asciz \"r\""));
     do(o >> add("Lrt_empty: .asciz \"\""));
     do(o >> add("Lrt_slash: .asciz \"/\""));
+    do(o >> add("Lrt_msh: .asciz \"sh\""));
+    do(o >> add("Lrt_mdashc: .asciz \"-c\""));
+    do(o >> add("Lrt_mbinsh: .asciz \"/bin/sh\""));
+    do(o >> add("Lrt_mespawn: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\267\\320\\260\\320\\277\\321\\203\\321\\201\\321\\202\\320\\270\\321\\202\\321\\214: \""));
+    do(o >> add("Lrt_mekill: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\201\\321\\202\\320\\260\\320\\275\\320\\276\\320\\262\\320\\270\\321\\202\\321\\214 \\320\\277\\321\\200\\320\\276\\321\\206\\320\\265\\321\\201\\321\\201 \""));
     do(o >> add("Lrt_cls: .asciz \"\\033[2J\\033[H\""));
     do(o >> add("Lrt_memsize: .asciz \"hw.memsize\""));
     do(o >> add("Lrt_eopen: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\320\\276\\321\\202\\320\\272\\321\\200\\321\\213\\321\\202\\321\\214 \\321\\204\\320\\260\\320\\271\\320\\273: \""));
@@ -24948,6 +25448,8 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("// ── proc (macOS): процессы без доступа к их памяти ──"));
     do(o >> add(""));
     do(o >> add("_bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы"));
     do(o >> add("    push rbp"));

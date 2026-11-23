@@ -1916,6 +1916,242 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
     pop rbp
     ret
 
+// ── proc (macOS): процессы без доступа к их памяти ──
+_bit_mac_pname:                     // rdi = pid, rsi = буфер 256 байт → длина имени или 0
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 688
+    mov rbx, rdi
+    mov r12, rsi
+    mov edx, 256
+    call _proc_name
+    test eax, eax
+    jg 9f
+    // чужие системные процессы: имя через sysctl (как у ps)
+    mov dword ptr [rsp], 1
+    mov dword ptr [rsp + 4], 14
+    mov dword ptr [rsp + 8], 1
+    mov dword ptr [rsp + 12], ebx
+    mov qword ptr [rsp + 16], 648
+    lea rdi, [rsp]
+    mov esi, 4
+    lea rdx, [rsp + 32]
+    lea rcx, [rsp + 16]
+    xor r8d, r8d
+    xor r9d, r9d
+    call _sysctl
+    test eax, eax
+    jnz 0f
+    cmp qword ptr [rsp + 16], 648
+    jne 0f
+    mov rdi, r12
+    lea rsi, [rsp + 275]
+    mov edx, 17
+    call _strlcpy
+    test eax, eax
+    jg 9f
+0:  xor eax, eax
+9:  add rsp, 688
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_start:                    // rdi = команда, rsi = строка → pid (через /bin/sh -c)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 48
+    mov rbx, rdi
+    mov r12, rsi
+    xor edi, edi
+    call _fflush
+    lea rax, [rip + Lrt_msh]
+    mov [rsp + 8], rax
+    lea rax, [rip + Lrt_mdashc]
+    mov [rsp + 16], rax
+    mov [rsp + 24], rbx
+    mov qword ptr [rsp + 32], 0
+    mov rdi, rsp
+    lea rsi, [rip + Lrt_mbinsh]
+    xor edx, edx
+    xor ecx, ecx
+    lea r8, [rsp + 8]
+    mov rax, [rip + _environ@GOTPCREL]
+    mov r9, [rax]
+    call _posix_spawn
+    test eax, eax
+    jnz 9f
+    movsxd rax, dword ptr [rsp]
+    add rsp, 48
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_mespawn]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем или -1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 264
+    mov rbx, rdi
+    mov r12, rsi
+    mov edi, 262144
+    call _malloc
+    test rax, rax
+    jz 8f
+    mov r13, rax
+    mov rdi, r13
+    mov esi, 262144
+    call _proc_listallpids
+    movsxd r14, eax
+    xor r15d, r15d
+1:  cmp r15, r14
+    jge 7f
+    mov edi, dword ptr [r13 + r15*4]
+    test edi, edi
+    jle 2f
+    mov rsi, rsp
+    mov edx, 256
+    call _bit_mac_pname
+    test eax, eax
+    jle 2f
+    mov rdi, rsp
+    mov rsi, rbx
+    call _strcmp
+    test eax, eax
+    jz 6f
+2:  inc r15
+    jmp 1b
+6:  movsxd r14, dword ptr [r13 + r15*4]
+    jmp 5f
+7:  mov r14, -1
+5:  mov rdi, r13
+    call _free
+    mov rax, r14
+    jmp 4f
+8:  mov rax, -1
+4:  add rsp, 264
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_alive:                    // rdi = pid → 1 если процесс работает (завершённый, но не дождавшийся — нет)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 152
+    mov rbx, rdi
+    test rdi, rdi
+    jle 0f
+    mov esi, 3
+    xor edx, edx
+    mov rcx, rsp
+    mov r8d, 136
+    call _proc_pidinfo
+    cmp eax, 136
+    jne 3f
+    cmp dword ptr [rsp + 4], 5
+    je 0f
+    mov eax, 1
+    jmp 9f
+3:  mov rdi, rbx
+    xor esi, esi
+    call _kill
+    test eax, eax
+    jz 1f
+    call ___error
+    cmp dword ptr [rax], 1
+    jne 0f
+1:  mov eax, 1
+    jmp 9f
+0:  xor eax, eax
+9:  add rsp, 152
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_name:                     // rdi = pid → имя процесса или ""
+    push rbp
+    mov rbp, rsp
+    sub rsp, 272
+    test rdi, rdi
+    jle 1f
+    mov rsi, rsp
+    mov edx, 256
+    call _bit_mac_pname
+    test eax, eax
+    jle 1f
+    mov rdi, rsp
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    jmp 2f
+1:  lea rdi, [rip + Lrt_empty]
+    mov rsi, rdi
+    call _bit_cat
+2:  mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_proc_wait:                     // rdi = pid → код выхода (-1, если это не наш процесс)
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    test rdi, rdi
+    jle 1f
+    mov rsi, rsp
+    xor edx, edx
+    call _waitpid
+    test eax, eax
+    js 1f
+    mov edi, dword ptr [rsp]
+    call _bit_wstatus
+    jmp 2f
+1:  mov rax, -1
+2:  mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_proc_kill:                     // rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rsi
+    test rdi, rdi
+    jle 9f
+    mov esi, 15
+    call _kill
+    test eax, eax
+    jnz 9f
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  mov rdi, rbx
+    call _bit_num_str
+    lea rdi, [rip + Lrt_mekill]
+    mov rsi, rax
+    mov rdx, r12
+    call _bit_errpath
+// ── конец proc (macOS) ──
+
 _bit_basename:                      // rdi = путь → имя после последнего /
     push rbp
     mov rbp, rsp
@@ -4298,6 +4534,11 @@ Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
 Lrt_slash: .asciz "/"
+Lrt_msh: .asciz "sh"
+Lrt_mdashc: .asciz "-c"
+Lrt_mbinsh: .asciz "/bin/sh"
+Lrt_mespawn: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\321\203\321\201\321\202\320\270\321\202\321\214: "
+Lrt_mekill: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\277\321\200\320\276\321\206\320\265\321\201\321\201 "
 Lrt_cls: .asciz "\033[2J\033[H"
 Lrt_memsize: .asciz "hw.memsize"
 Lrt_eopen: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \321\204\320\260\320\271\320\273: "

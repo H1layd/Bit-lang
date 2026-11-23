@@ -4457,6 +4457,8 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
     pop rbp
     ret
 
+// ── proc (macOS): процессы без доступа к их памяти ──
+
 _bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы
     push rbp
     mov rbp, rsp

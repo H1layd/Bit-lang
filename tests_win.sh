@@ -8,7 +8,7 @@ rm -rf "$W"; mkdir -p "$W/got"
 bat="$W/all.bat"
 printf '@echo off\r\nchcp 65001 >nul\r\n' > "$bat"
 # Эти тесты вызывают POSIX-утилиты (sh, printf, mktemp) или пути вида /tmp — на Windows их нет.
-SKIP=" err_bad_dir fix_filechunks fix_filesafe fix_fsfix fix_runpipes fix_status "
+SKIP=" err_bad_dir fix_filechunks fix_filesafe fix_fsfix fix_runpipes fix_status fix_procs "
 add() {  # id файл вход ожидаемое с_кодом
     case "$SKIP" in *" $1 "*) return 0;; esac
     ./bitc build "$2" -o "$W/$1.exe" --os windows >/dev/null 2>&1 || return 0

@@ -114,7 +114,7 @@ host {
 | `dir` | a path to a folder | `dir d = "logs";` |
 | `conn` | a network connection | `conn c = "host:port" >> connect;` |
 | `server` | a listening socket | `server s = net >> listen(9100);` |
-| `proc` | another process (Linux, Windows) | see [proc](#proc-other-processes) |
+| `proc` | another process | see [proc](#proc-other-processes) |
 | `all` | type taken from the value | `all n = a >> get(0);` |
 
 `all` means "work it out": the compiler takes the real type from the right-hand side.
@@ -674,10 +674,11 @@ Join the chunks before processing text when a UTF-8 character can span two reads
 
 ### proc: other processes
 
-Linux and Windows. Read and write another process's memory, like a debugger: on Linux through
-`/proc/<pid>/mem`, on Windows through the system API (`OpenProcess`, `ReadProcessMemory`,
-`WriteProcessMemory`, `VirtualQueryEx`). A program that uses `proc` is the same on both systems;
-macOS is not supported.
+Find, start, wait for and stop processes — on macOS, Linux and Windows. On Linux and Windows `proc`
+also reads and writes another process's memory, like a debugger: on Linux through `/proc/<pid>/mem`,
+on Windows through the system API (`OpenProcess`, `ReadProcessMemory`, `WriteProcessMemory`,
+`VirtualQueryEx`). macOS closes other processes' memory without debugger rights, so there `read`,
+`grab`, `scan`, `maps`, `write` and `paste` are a build error with a clear message.
 
 | Form | What it does |
 |---|---|
@@ -704,10 +705,13 @@ print("exit code {p >> wait}");
 
 Reading or writing an address the process does not have is a failure that `recover` catches.
 
-Differences between the systems: on Linux `start` runs the command through the shell, on Windows
-the program starts directly; a leading `exec ` is ignored, so `"exec ./target"` works on both.
-On Linux `wait` works for processes the program started itself, and `maps` lines carry more fields
-after the permissions. Examples: [`examples/linux/`](../examples/linux/),
+Differences between the systems: on macOS and Linux `start` runs the command through the shell
+(`exec` makes the shell become the program, so the pid and name are the program's), on Windows the
+program starts directly and a leading `exec ` is ignored — `"exec ./target"` works everywhere.
+On macOS and Linux `wait` works for processes the program started itself (otherwise `-1`), and
+`maps` lines on Linux carry more fields after the permissions. `kill` asks the process to finish;
+right after it `alive` may still be `true`, `wait` waits for the end. A missing process (pid `-1`)
+is never signalled: `kill` on it is a failure that `recover` catches. Examples: [`examples/linux/`](../examples/linux/),
 [`examples/win/`](../examples/win/). In `gold_game.bit` and `gold_hack.bit` one program finds
 another by name, scans its memory for a value and replaces it.
 

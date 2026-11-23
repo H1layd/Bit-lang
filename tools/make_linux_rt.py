@@ -9,6 +9,8 @@ def func_replace(text, name, body):
     return text[:i + 1] + body.strip("\n") + "\n\n" + text[j + 1:]
 
 t = src
+# процессы macOS (libproc) Linux не нужны: ниже свой блок PROC через /proc
+t = re.sub(r"// ── proc \(macOS\).*?// ── конец proc \(macOS\) ──\n", "", t, flags=re.S)
 t = t.replace(".section __TEXT,__text,regular,pure_instructions", ".text")
 t = t.replace(".section __DATA,__data", ".data")
 t = t.replace(".section __TEXT,__cstring,cstring_literals", ".section .rodata")
@@ -408,6 +410,9 @@ _bit_proc_kill:                     // rdi = pid, rsi = строка: проси
     push r12
     mov rbx, rdi
     mov r12, rsi
+    // pid <= 0 у kill значит «группа» или «все процессы» — не трогаем
+    test rdi, rdi
+    jle 8f
     mov esi, 15
     call kill@PLT
     test eax, eax
@@ -416,6 +421,12 @@ _bit_proc_kill:                     // rdi = pid, rsi = строка: проси
     pop rbx
     pop rbp
     ret
+8:  mov rdi, rbx
+    call _bit_num_str
+    lea rdi, [rip + Lrt_mekill]
+    mov rsi, rax
+    mov rdx, r12
+    call _bit_errpath
 9:  mov rdi, rbx
     lea rsi, [rip + Lrt_fpid]
     call _bit_proc_path
@@ -428,6 +439,9 @@ _bit_proc_wait:                     // rdi = pid → код выхода
     push rbp
     mov rbp, rsp
     sub rsp, 16
+    // pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс
+    test rdi, rdi
+    jle 1f
     mov rsi, rsp
     xor edx, edx
     call waitpid@PLT
@@ -436,7 +450,7 @@ _bit_proc_wait:                     // rdi = pid → код выхода
     mov edi, dword ptr [rsp]
     call _bit_wstatus
     jmp 2f
-1:  mov eax, -1
+1:  mov rax, -1
 2:  mov rsp, rbp
     pop rbp
     ret
