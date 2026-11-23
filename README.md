@@ -1,132 +1,139 @@
 # bit
 
-**bit** — язык программирования, который должен быть легче Python, быстрее C++ и безопаснее Rust.
-Компилятор написан на самом bit, собирается с нуля (без C, без LLVM, без Python) и переводит
-код прямо в машинный — через системные `as` и `ld`.
+**English** · [Русский](README.ru.md)
+
+**bit** is a systems programming language built around one idea:
+**simple control over your computer, out of the box.**
+
+Files and folders, processes, the network, memory and the terminal are part of the language
+itself — no packages to install, no bindings to write, no setup. A program that walks a folder,
+runs a tool and reports the result is a few plain lines:
 
 ```
 host {
-    print("привет, мир");
+    dir logs = "logs";
+    do(logs >> make);
+    file report = logs >> file("report.txt");
+
+    string who = "whoami" >> run;                 # a shell command
+    mas cmd = ("git", "status", "--short");       # a program with its arguments, no shell
+    string changes = cmd >> run;
+
+    do(report >> write("user: {who}\n") >> append(changes));
+    print("{os >> host}: {os >> cpus} cores, saved to {report >> name}");
 }
 ```
 
-Философия языка: **всё видно, всё последовательно**. Что программа делает с данными, читается
-сверху вниз без скрытых механизмов. Поэтому каждое действие (то, что меняет мир — запись в файл,
-отправка в сеть, присваивание) оборачивается в `do(...)`, а присваивание — это `ch`. Значения и
-действия внешне различимы.
+The compiler is written in bit itself, builds from scratch (no C, no LLVM) and produces
+machine code directly through the system `as` and `ld`.
 
 ---
 
-## Чем интересен
+## Philosophy
 
-- **Компилятор с нуля.** `bitc.bit` компилирует сам себя. Загрузка (bootstrap) идёт из готового
-  ассемблера в `bootstrap/` → собирается первый компилятор → он собирает себя из исходника →
-  проверяется, что результат совпал.
-- **Прямо в машинный код.** Нет промежуточного C или виртуальной машины. Компилятор печатает
-  ассемблер (ARM64 или x86-64), который собирают системные `as`/`ld`.
-- **Три ОS, две архитектуры.** macOS (arm64 и x86-64), Linux (x86-64), Windows (x86-64).
-  Один и тот же исходник собирается под все.
-- **Безопасность на этапе сборки.** Выход за границы массива, переполнение `num`, чтение пустой
-  переменной ловятся компилятором — он доказывает, что индекс в диапазоне, прежде чем разрешить
-  доступ. Где доказать нельзя — ошибка сборки, а не падение в рантайме.
-- **Память видна.** Строки, которые создаёт сам язык, освобождаются автоматически, а сырая
-  память (`bytes`) — вручную и явно: `do(b >> free)`. Никаких скрытых владельцев: если трогаешь
-  память компьютера — это видно в коде, как любое другое действие.
-- **Батарейки в комплекте.** Файлы и папки, работа с памятью (`bytes`), сеть (TCP/UDP/DNS/HTTP),
-  сведения о системе, запуск процессов, ввод с консоли, чтение памяти чужих процессов (Linux).
+1. **Control over the system, out of the box.** System work is built in and reads as plain words:
+   `f >> read`, `d >> list`, `"example.com" >> ping`, `cmd >> run`, `mem >> take(16)`,
+   `os >> procs`. One program builds for macOS, Linux and Windows.
+2. **You can see what changes the world.** A *value* is just computed; an *action* (writing a file,
+   sending data, assigning a variable) is wrapped in `do(...)`, and assignment is `ch` (change).
+   Reading top to bottom, you always know where state changes.
+3. **Failures are yours to handle.** A failed system call stops the program by default, but inside
+   `recover { } else { }` the program decides itself: skip, retry, log, choose an exit code.
+4. **Mistakes are caught before the program runs.** Out-of-range indexes, `num` overflow and reading
+   an empty variable are compile errors: the compiler proves an index is in range instead of checking
+   it at run time.
+5. **Names you don't have to guess.** `shift_left`, not `shl`; `host { }`, not `fn main() {}`.
+   bit keeps its own small vocabulary (`do`, `ch`, `>>`, `keep`, `each`) instead of borrowing
+   C, C++ or Rust conventions.
+6. **The whole toolchain is its own.** `bitc.bit` compiles itself and emits ARM64 or x86-64 assembly.
 
 ---
 
-## Собрать компилятор
+## Build the compiler
 
-Нужны системные `as` и `ld` (на macOS — Command Line Tools, на Linux — binutils).
+You need the system `as` and `ld` (Command Line Tools on macOS, binutils on Linux).
 
 ```bash
 ./bootstrap.sh
 ```
 
-Это соберёт `./bitc` из `bootstrap/` и проверит самосборку. На выходе — рабочий компилятор `./bitc`.
+This builds `./bitc` from the assembly seeds in `bootstrap/` and checks that the compiler
+reproduces itself.
 
-## Собрать и запустить программу
+## Build and run a program
 
 ```bash
-./bitc run hello.bit              # собрать во временный файл и сразу запустить
-./bitc build hello.bit -o hello   # собрать в исполняемый файл
-./bitc asm hello.bit              # напечатать ассемблер (не собирая)
+./bitc run hello.bit              # build to a temporary file and run it
+./bitc build hello.bit -o hello   # build an executable
+./bitc asm hello.bit              # print the assembly
+./bitc run prog.bit -- arg1 arg2  # pass arguments to the program
 ```
 
-Под другую ОS или архитектуру:
+Other targets:
 
 ```bash
-./bitc build hello.bit -o hello.exe --os windows    # нужен x86_64-w64-mingw32-gcc
-./bitc build hello.bit -o hello --os linux          # собирать asm на Linux-машине
-./bitc build hello.bit -o hello --arch x86_64        # на arm-маке — x86-64 через Rosetta
-```
-
-Передать аргументы запускаемой программе — после `--`:
-
-```bash
-./bitc run prog.bit -- арг1 арг2
+./bitc build hello.bit -o hello.exe --os windows    # needs x86_64-w64-mingw32-gcc
+./bitc build hello.bit -o hello --os linux          # assemble on a Linux machine
+./bitc build hello.bit -o hello --arch x86_64       # x86-64 on an ARM Mac (runs via Rosetta)
 ```
 
 ---
 
-## Быстрый тур
+## A quick tour
 
 ```
 host {
-    # переменные: тип имя = значение
-    num x = 152;            # целое
-    dec p = 1.5;            # дробное
-    string s = "Привет";    # строка (кавычки " или ')
+    num x = 152;                    # whole number
+    dec p = 1.5;                    # fractional number
+    string s = "Hello";             # text, " or '
     bool ok = true;
 
-    # присваивание — это действие, поэтому через do(... >> ch(...))
-    do(x >> ch(x + 1));
+    do(x >> ch(x + 1));             # assignment is an action
 
-    # массивы
     mas a = (5, 3, 9, 1, 7);
-    print("больше 4: {a >> keep(it > 4)}");     # (5, 9, 7)
-    print("вдвое:    {a >> each(it * 2)}");     # (10, 6, 18, 2, 14)
-    print("сумма:    {a >> sum}, есть 9: {a >> has(9)}");
+    print("over 4: {a >> keep(it > 4)}");      # (5, 9, 7)
+    print("doubled: {a >> each(it * 2)}");     # (10, 6, 18, 2, 14)
+    print("sum: {a >> sum}, has 9: {a >> has(9)}");
 
-    # цепочки >> читаются слева направо
-    mas top = a >> sort >> get(3:4);
+    for i in 0:4 {                             # 0..4 inclusive
+        print("a[{i}] = {a >> get(i)}");       # in range, proven by the compiler
+    }
 
-    # условия и циклы
-    if x > 100 and ok {
-        print("большое");
-    }
-    for v in a {
-        print("элемент {v}");
-    }
-    for i in 0:4 {                              # 0..4 включительно
-        print("a[{i}] = {a >> get(i)}");        # границы доказаны компилятором
+    file f = "notes.txt";
+    recover {
+        print(f >> read);
+    } else {
+        print("could not read: {term >> error}");
     }
 }
 ```
 
-Больше примеров — в папке [`examples/`](examples/): работа с файлами, памятью, сетью, системой.
+More programs live in [`examples/`](examples/): files, memory, network, system.
 
 ---
 
-## Документация
+## Documentation
 
-Полный справочник языка — **[docs/язык.md](docs/язык.md)**: типы, объявления, `do`/`ch`,
-цепочки, все методы по типам (строки, массивы, файлы, папки, `bytes`, сеть, система, терминал),
-безопасность на этапе сборки и устройство компилятора.
+- **[Language reference](docs/language.md)**: syntax, types, every method by type, failures,
+  running programs, compile-time safety, how the compiler works.
+- **[Roadmap and principles](docs/roadmap.md)**: what is done and what comes next.
+
+## Status
+
+bit is young. It already handles system utilities, text processing and network tools well,
+but it has no structs, maps or modules yet, and no debugger. Compiler and runtime messages
+are currently in Russian. Targets: macOS (arm64, x86-64), Linux (x86-64), Windows (x86-64).
 
 ---
 
-## Устройство репозитория
+## Repository layout
 
-| Путь | Что это |
+| Path | What it is |
 |---|---|
-| `bitc.bit` | компилятор, написанный на bit (лексер, парсер, проверка типов, генерация кода) |
-| `rt/` | среда выполнения в ассемблере: `arm64.s`, `x86_64.s` (+ генераторы Linux/Windows) |
-| `tools/` | `embed_rt.bit` (встраивает среду в компилятор), генераторы рантайма под Linux/Windows, `build_opt.sh` (оптимизирующая сборка в `build/`) |
-| `docs/` | справочник языка — [`docs/язык.md`](docs/язык.md), план и принципы — [`docs/план.md`](docs/план.md), брифинг для тестировщика — [`docs/для-gpt.md`](docs/для-gpt.md) |
-| `bootstrap/` | готовый ассемблер для первичной сборки компилятора |
-| `bootstrap.sh` | сборка компилятора с нуля и проверка самосборки |
-| `tests.sh` | набор тестов (примеры + проверки ошибок), arm64 и x86-64 |
-| `examples/` | примеры программ |
+| `bitc.bit` | the compiler, written in bit (lexer, parser, type checks and proofs, code generation) |
+| `rt/` | runtime in assembly: `arm64.s`, `x86_64.s`, plus generated Linux and Windows versions |
+| `tools/` | `embed_rt.bit` (embeds the runtime into the compiler), runtime generators for Linux and Windows, `build_opt.sh` (experimental optimizing build into `build/`) |
+| `bootstrap/`, `bootstrap.sh` | assembly seeds and the from-scratch build with a self-hosting check |
+| `tests.sh`, `tests/` | test suite (examples and error checks) on arm64 and x86-64 |
+| `examples/` | example programs |
+| `docs/` | documentation in English (`*.md`) and Russian (`*.ru.md`) |

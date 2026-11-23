@@ -1,0 +1,611 @@
+# bit language reference
+
+**English** · [Русский](language.ru.md)
+
+The complete description of the language: philosophy, syntax, types, every method by type,
+failures, running programs, compile-time safety and building for other platforms.
+For a short overview see the [README](../README.md).
+
+> Compiler and runtime messages are currently in Russian.
+
+## Contents
+
+- [Philosophy: do and ch](#philosophy-do-and-ch)
+- [Syntax basics](#syntax-basics)
+- [Types](#types)
+- [Declaring variables](#declaring-variables)
+- [Chains and it](#chains-and-it)
+- [Operators](#operators)
+- [Control flow](#control-flow)
+- [Functions](#functions)
+- [Failures: recover and else](#failures-recover-and-else)
+- [Methods by type](#methods-by-type)
+  - [num and dec](#num-and-dec)
+  - [string](#string)
+  - [mas (array)](#mas-array)
+  - [file](#file)
+  - [dir (folder)](#dir-folder)
+  - [bytes (raw memory)](#bytes-raw-memory)
+  - [mem (computer memory)](#mem-computer-memory)
+  - [os (system)](#os-system)
+  - [term (terminal)](#term-terminal)
+  - [Running programs](#running-programs)
+  - [Network](#network)
+  - [proc: other processes (Linux)](#proc-other-processes-linux)
+- [Compile-time safety](#compile-time-safety)
+- [Building for other platforms](#building-for-other-platforms)
+- [How the compiler works](#how-the-compiler-works)
+
+---
+
+## Philosophy: do and ch
+
+bit is about **simple control over your computer, out of the box**, and about seeing what a program
+does. There are no hidden overloads, implicit conversions or concealed effects, so the language
+separates two things:
+
+- a **value** is something computed: `2 + 2`, `a >> get(0)`, `mem >> free`;
+- an **action** changes the world: writing a file, sending data, **assigning a variable**.
+
+Every action is wrapped in `do(...)`, and assignment itself is written `ch` (change):
+
+```
+num x = 10;
+do(x >> ch(x + 1));     # x is now 11
+```
+
+So the code always shows where something is merely computed and where state changes. `do` and `ch`
+are there on purpose: they are a signature under every change, not noise.
+
+---
+
+## Syntax basics
+
+- **Comments** start with `#` and run to the end of the line.
+- **Strings** use double `"..."` or single `'...'` quotes.
+- **Interpolation**: `{expression}` inside a string inserts a value. A literal brace is `{{` or `}}`.
+- **Numbers**: `152`, `-7`, hex `0xFF`, fractions `1.5`.
+- **Statements** end with `;`. Blocks are `{ ... }`.
+- **Entry point** is the `host { … }` block. The program starts there; there is no `main` function.
+
+```
+host {
+    string who = "world";
+    print("hello, {who}!");          # hello, world!
+    print("brace: {{ not interpolation }}");
+}
+```
+
+---
+
+## Types
+
+| Type | Holds | Example |
+|---|---|---|
+| `num` | whole number (64-bit) | `num x = 152;` |
+| `dec` | fractional number | `dec p = 1.5;` |
+| `string` | text (UTF-8) | `string s = "Hello";` |
+| `bool` | `true` / `false` | `bool ok = true;` |
+| `mas` | array of values of one kind | `mas a = (1, 2, 3);` |
+| `bytes` | a block of raw memory | `bytes b = mem >> take(16);` |
+| `file` | a path to a file | `file f = "data.txt";` |
+| `dir` | a path to a folder | `dir d = "logs";` |
+| `conn` | a network connection | `conn c = "host:port" >> connect;` |
+| `server` | a listening socket | `server s = net >> listen(9100);` |
+| `proc` | another process (Linux) | see [proc](#proc-other-processes-linux) |
+| `all` | type taken from the value | `all n = a >> get(0);` |
+
+`all` means "work it out": the compiler takes the real type from the right-hand side.
+
+---
+
+## Declaring variables
+
+```
+num x = 152;              # with a starting value
+num e();                  # empty: cannot be read until something is assigned
+all s = add(2, 3);        # type taken from the call
+
+string g = "global";      # declared outside functions: global
+mas names = (string);     # empty array of strings (kind in parentheses)
+mas a = (1, 2, 3);        # array with elements
+mas b(3) = (10, 20);      # with a capacity limit of 3
+mas c = ();               # empty; kind comes from the first add
+```
+
+An empty variable (`num e();`) has no value, and the compiler refuses to read it until data is
+assigned with `ch`:
+
+```
+num e();
+do(e >> ch(x * 2));       # now it can be read
+```
+
+Declarations outside functions are **global** and visible in every function.
+
+---
+
+## Chains and it
+
+`>>` passes a value from left to right; read it as "then". A chain can be as long as you like:
+
+```
+mas top = a >> sort >> get(3:4);                 # sort, then take a slice
+num n = path >> open >> append("x\n") >> sz;
+```
+
+When an action chain is assigned to a variable, `do` is not needed — the declaration wraps it:
+
+```
+mas even = nums >> keep(it % 2 == 0);      # a declaration, no do
+do(c >> add(7) >> add(8));                 # a pure action, needs do
+```
+
+`it` is the current element inside array methods (`keep`, `each`):
+
+```
+a >> keep(it > 4)          # keep elements greater than 4
+a >> each(it * 2)          # replace each with its double
+```
+
+---
+
+## Operators
+
+- **Arithmetic**: `+` `-` `*` `/` `%`
+- **Comparison**: `==` `!=` `<` `>` `<=` `>=`
+- **Logic**: `and` `or` `not`
+- **Range**: `a:b` — from `a` to `b` inclusive (in `for`, slices and `input`)
+- **Bits** are methods, not symbols: see [num and dec](#num-and-dec).
+
+```
+print("{x / 3}, remainder {x % 7}");
+if x > 100 and ok { print("yes"); }
+for i in 0:4 { ... }           # 0, 1, 2, 3, 4
+s >> get(0:5)                  # characters 0 to 5
+```
+
+---
+
+## Control flow
+
+```
+if x > 100 and ok {
+    print("big");
+} else {
+    print("small");
+}
+
+for v in a {                   # over the elements of an array
+    do(sum >> ch(sum + v));
+}
+
+for i in 0:4 {                 # over a range (inclusive)
+    print(a >> get(i));
+}
+
+num k = 0;
+while k < 3 {
+    do(k >> ch(k + 1));
+}
+```
+
+`break` leaves the nearest loop; `next` skips to its next iteration:
+
+```
+for v in a {
+    if v == 0 { next; }        # skip and go on
+    if v > 100 { break; }      # leave the loop
+    do(sum >> ch(sum + v));
+}
+```
+
+---
+
+## Functions
+
+```
+fn fib(num n) {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+fn add(num a, num b) {
+    return a + b;
+}
+
+fn show(mas m) {
+    print("{m >> sz} elements");
+}
+```
+
+Parameters are `type name`, separated by commas. `return` returns a value. A function without
+`return` returns nothing and is called through `do(...)` when it is an action.
+
+---
+
+## Failures: recover and else
+
+When a system operation fails (no such file, no such folder, no connection), the program stops by
+default with exit code 1 and a message. To decide yourself — skip, retry, log — wrap the operations
+in `recover`:
+
+```
+for p in files {
+    file f = p;
+    recover {
+        string d = f >> read;
+        do(report >> append(d));
+    } else {
+        do(report >> append("not read: {p}\n"));
+    }
+}
+```
+
+If anything inside `recover` fails, execution jumps to `else` and the program goes on. `recover`
+blocks can be nested; the nearest one catches the failure. Changes made inside `recover` before the
+failure are kept.
+
+`term >> error` tells what failed: the text of the last caught error (an empty string if nothing
+failed). The program picks its own exit code with `term >> exit(code)`:
+
+```
+recover {
+    do(f >> write(data));
+} else {
+    print("failed: {term >> error}");
+    do(term >> exit(3));
+}
+```
+
+---
+
+## Methods by type
+
+Methods are called with `>>`. The main ones for each type follow.
+
+### num and dec
+
+Arithmetic and comparison use operators. `num` is a 64-bit whole number (overflow is caught at
+build time); `dec` is a fractional number.
+
+| Method | What it does |
+|---|---|
+| `n >> abs` | absolute value (`num` or `dec`) |
+| `n >> sqrt` | square root, result is `dec` |
+| `n >> pow(k)` | `n` to the whole power `k` (`num` only) |
+| `a >> min(b)` / `a >> max(b)` | smaller / larger of two (`num` or `dec`) |
+
+Bit operations on `num`:
+
+| Method | What it does |
+|---|---|
+| `n >> shift_left(k)` | shift bits left by `k` |
+| `n >> shift_right(k)` | shift bits right by `k` (logical) |
+| `a >> bit_and(b)` / `bit_or(b)` / `bit_xor(b)` | bitwise AND / OR / XOR |
+| `n >> bit_not` | invert all bits |
+
+```
+num m = n >> shift_left(3) >> bit_and(0xFF);
+dec r = 2 >> sqrt;                 # 1.4142135623730951
+num c = 3 >> pow(4);               # 81
+```
+
+### string
+
+| Method | What it does |
+|---|---|
+| `s >> sz` | length in characters (not bytes) |
+| `s >> get(i)` | character at an index |
+| `s >> get(a:b)` | substring (by characters) |
+| `s >> num` | parse as a number |
+| `s >> lines` | `mas` of lines |
+| `s >> split(sep)` | `mas` of parts between separators |
+| `s >> trim` | without spaces, tabs and line breaks at both ends |
+| `s >> replace(from, to)` | every `from` replaced with `to` |
+| `s >> starts(p)` / `s >> ends(p)` | `true` if the text starts / ends with `p` |
+| `s >> bytes` | `mas` of the string's bytes |
+| `s >> run` | run as a shell command, return the output |
+
+Network methods of strings are under [Network](#network).
+
+```
+string s = "Hello, world";
+print("{s >> get(0)} | {s >> get(0:4)} | length {s >> sz}");
+mas parts = "a,b,c" >> split(",");            # (a, b, c)
+string t = "  text  " >> trim;                # "text"
+bool web = url >> starts("http://");
+```
+
+### mas (array)
+
+| Method | What it does |
+|---|---|
+| `a >> sz` | number of elements |
+| `a >> get(i)` | element at an index |
+| `a >> get(i, fallback)` | element, or the fallback if there is no such index |
+| `a >> get(a:b)` | slice (a new array) |
+| `a >> first` / `a >> last` | first / last element |
+| `a >> first(d)` / `a >> last(d)` | the same, or `d` if the array is empty |
+| `a >> add(v)` | append an element |
+| `a >> insert(i, v)` | insert `v` before index `i` |
+| `a >> remove(i)` | remove the element at index `i` |
+| `a >> pop` | remove the last element |
+| `a >> set(i, v)` | replace an element |
+| `a >> ch(other)` | replace the whole array |
+| `a >> keep(it ...)` | keep matching elements (filter) |
+| `a >> each(it ...)` | transform every element |
+| `a >> find(v)` | index of the first `v` (or -1) |
+| `a >> has(v)` | whether `v` is present |
+| `a >> sum` | sum (numbers) |
+| `a >> sort` | sort |
+| `a >> join(sep)` | join strings with a separator |
+| `a >> text(from, to)` | decode a slice of bytes as a string |
+
+`insert`, `remove`, `pop`, `add` and `set` are actions and go inside `do(...)`. Indexes for `get`,
+`set`, `insert` and `remove` must be provably in range. `first` and `last` without a fallback need
+an array the compiler knows is not empty; otherwise use `first(d)` / `last(d)`.
+
+A `mas` is data, not a copy: `mas b = a` gives the same elements a second name. `>> add` and
+`>> set` change the data itself, visible through any name; `>> ch` rebinds the variable (other names
+keep looking at the old data). So an array passed to a function can be changed there, and everyone
+who holds it sees the change.
+
+```
+mas a = (5, 3, 9, 1, 7);
+print(a >> keep(it > 4));          # (5, 9, 7)
+print(a >> each(it * 2));          # (10, 6, 18, 2, 14)
+do(a >> insert(0, 42) >> pop);
+mas words = ("cat", "dog", "ant");
+print(words >> sort >> join(", "));
+```
+
+### file
+
+| Method | What it does |
+|---|---|
+| `f >> write(text)` | write (overwrite) |
+| `f >> append(text)` | add to the end |
+| `f >> read` | the whole text |
+| `f >> lines` | `mas` of lines |
+| `f >> get(i)` / `get(a:b)` | line(s) by number |
+| `f >> sz` | size in bytes |
+| `f >> exists` | whether it exists |
+| `f >> delete` | delete the file |
+| `f >> copy(path)` / `move(path)` | copy / move |
+| `f >> save(bytes)` | write bytes as they are |
+| `f >> load` | read as `bytes` |
+| `f >> name` / `path` | name / full path |
+
+```
+file f = "notes.txt";
+do(f >> write("first\n") >> append("second\n"));
+print("{f >> lines >> sz} lines, {f >> sz} bytes");
+do(f >> delete);
+```
+
+### dir (folder)
+
+| Method | What it does |
+|---|---|
+| `d >> make` | create (with any missing parents) |
+| `d >> list` | `mas` of names inside (sorted) |
+| `d >> file(name)` | a `file` inside the folder |
+| `d >> dir(name)` | a nested `dir` |
+| `d >> exists` | whether it exists |
+| `d >> remove` | delete an empty folder |
+| `d >> name` / `path` | name / path |
+
+```
+dir d = "logs";
+do(d >> make);
+file f = d >> file("today.txt");
+do(f >> write("..."));
+print(d >> list);
+```
+
+### bytes (raw memory)
+
+`bytes` is a raw block of memory. Its bounds are checked at build time.
+
+| Method | What it does |
+|---|---|
+| `mem >> take(n)` | allocate `n` zeroed bytes |
+| `b >> set(i, v)` | write the byte `v` at offset `i` |
+| `b >> write(off, num)` | write a number (8 bytes) at an offset |
+| `b >> get(i)` | the byte at an offset |
+| `b >> read(off)` | the number (8 bytes) at an offset |
+| `b >> text` | the contents as a string |
+| `b >> sz` | size in bytes |
+| `b >> free` | release the memory (buffer and descriptor) |
+
+`bytes` is raw memory and is **not** released automatically. When it is no longer needed, release it
+explicitly, like any other action:
+
+```
+bytes b = mem >> take(1024);
+do(b >> set(0, 42));
+print("byte 0: {b >> get(0)}");
+do(b >> free);                       # do not touch b after free
+```
+
+This is the same rule as `do`: working with the computer's memory is visible in the code instead of
+hiding in an invisible owner. Strings (`string`) are released automatically — the language creates
+them itself. A `bytes` block can be freed only once; if two names refer to it, freeing it through
+either one is a program error.
+
+### mem (computer memory)
+
+| Method | What it does |
+|---|---|
+| `mem >> total` | total memory (bytes) |
+| `mem >> free` | free memory (a value; not the same as `b >> free`) |
+| `mem >> used` | memory used by the program |
+| `mem >> take(n)` | allocate `n` bytes → `bytes` |
+
+### os (system)
+
+| Method | What it does |
+|---|---|
+| `os >> host` | computer name |
+| `os >> user` | user name |
+| `os >> cpus` | number of cores |
+| `os >> now` | time (seconds since 1970) |
+| `os >> procs` | list of processes (text) |
+
+### term (terminal)
+
+| Value | What it gives |
+|---|---|
+| `term >> args` | command-line arguments (`mas`) |
+| `term >> env("NAME")` | an environment variable |
+| `term >> pid` | the current process id |
+| `term >> status` | exit code of the last command or program |
+| `term >> error` | text of the last error caught by `recover` |
+| `term >> stderr` | stderr of the last `mas >> run` |
+
+| Action | What it does |
+|---|---|
+| `term >> clear` | clear the screen |
+| `term >> wait(ms)` | pause for milliseconds |
+| `term >> exit(code)` | exit with a code |
+
+Console input is a declaration with `input`:
+
+```
+num i >> input(0:4);           # read a number 0..4 (asks again if out of range)
+string s >> input;             # read a line
+```
+
+The range of `input` is also a proof: after `num i >> input(0:4)` the compiler knows `i` is in 0..4,
+so `a >> get(i)` on a five-element array needs no run-time check.
+
+### Running programs
+
+A shell command is `string >> run`; it returns the output:
+
+```
+string who = "whoami" >> run;
+```
+
+A program **directly**, without a shell, is `mas >> run`. The first element is the program, the rest
+are its arguments; each arrives exactly as written, so spaces and quotes break nothing:
+
+```
+mas cmd = ("convert", "my photo.jpg", "out.png");
+string out = cmd >> run;              # the program's stdout
+string res = cmd >> run("input");     # the same, with text on stdin
+num code = term >> status;            # exit code (127 — program not found)
+string err = term >> stderr;          # stderr, separate from stdout
+do(cmd >> run);                       # output straight to the terminal, code in term >> status
+```
+
+On macOS and Linux, stdout and stderr are read at the same time, so a program never stalls however
+much it writes to both. On Windows they are read in turn through 1 MB pipes; a program that writes
+more than that to stderr before finishing stdout can stall. The same interface works on macOS, Linux
+and Windows.
+
+### Network
+
+Network calls that start external programs (`fetch`, `ping`, `post`, `download`) work **without a
+shell**: arguments are passed as an array, so a URL may safely contain any characters. HTTP uses
+`curl` and `ping` uses the system `ping`.
+
+**HTTP:**
+
+| Method | What it does |
+|---|---|
+| `"url" >> fetch` | GET — return the response body |
+| `"url" >> post(data)` | POST — return the response |
+| `"url" >> download("file")` | download into a file |
+| `"host" >> ping` | `true` if the host answers |
+
+**DNS:**
+
+| Method | What it does |
+|---|---|
+| `"host" >> ip` | resolve a name to an IP address |
+
+**TCP and UDP (sockets directly):**
+
+| Method | What it does |
+|---|---|
+| `net >> listen(port)` | open a listening `server` |
+| `s >> accept` | accept a connection → `conn` |
+| `"ip:port" >> connect` | connect over TCP → `conn` |
+| `"ip:port" >> udp` | open UDP → `conn` |
+| `c >> send("...")` | send |
+| `c >> recv` | receive a string |
+| `c >> close` / `s >> close` | close |
+
+```
+# server
+server s = net >> listen(9100);
+conn c = s >> accept;
+string msg = c >> recv;
+do(c >> send("echo: {msg}"));
+do(c >> close);
+do(s >> close);
+
+# client
+conn c = "127.0.0.1:9100" >> connect;
+do(c >> send("hello"));
+print(c >> recv);
+do(c >> close);
+```
+
+`recv` returns what a single read from the system gives; over TCP a long message may arrive in parts.
+
+### proc: other processes (Linux)
+
+Linux only. Read and write another process's memory, like a debugger, through `/proc/<pid>/mem`:
+find a process by name, read or write its memory, scan it for a value. See
+[`examples/linux/`](../examples/linux/).
+
+---
+
+## Compile-time safety
+
+The compiler proves correctness **before** the program runs:
+
+- **Array and string bounds.** `a >> get(i)` is allowed only if the compiler proved `i` is in range
+  (from `for i in 0:a>>sz-1`, from a check `if i < a >> sz`, from `input(0:4)` and so on). Otherwise
+  it is a build error, not a crash.
+- **`num` overflow.** Arithmetic that goes beyond 64 bits is caught.
+- **Empty variables.** `num e();` cannot be read before it is assigned.
+- **Types.** A type mismatch is a build error.
+
+The idea is the same as everywhere in the language: better to refuse doubtful code than to crash
+while running.
+
+---
+
+## Building for other platforms
+
+One source builds for every supported platform:
+
+```bash
+./bitc build prog.bit -o prog                  # current OS and architecture
+./bitc build prog.bit -o prog --arch x86_64     # x86-64 (on an ARM Mac — via Rosetta)
+./bitc build prog.bit -o prog --os linux        # Linux (assemble on Linux)
+./bitc build prog.bit -o prog.exe --os windows  # Windows (needs mingw-w64)
+```
+
+Inside, the language uses one calling convention (System V) everywhere; the differences of Windows
+(another calling convention, Winsock, argument quoting) are hidden in thin runtime wrappers.
+
+---
+
+## How the compiler works
+
+- `bitc.bit` is the compiler itself, written in bit: lexer → parser → type checks and proofs →
+  ARM64 or x86-64 assembly.
+- `rt/arm64.s`, `rt/x86_64.s` are the runtime in assembly (printing, strings, arrays, files, memory,
+  network, processes). The Linux and Windows runtimes are generated from them by the scripts in
+  `tools/`; the generated files are committed, so building needs no extra tools.
+- `tools/embed_rt.bit` embeds the runtime into the compiler, so a built `bitc` is self-contained.
+- `bootstrap/` holds the assembly of the compiler; `bootstrap.sh` builds everything from scratch
+  (`as` + `ld`) and checks that the compiler, building itself, gives the same result.
+- `tools/build_opt.sh` builds an experimental optimizing variant of the compiler into `build/`.
+
+Neither C nor LLVM takes part in the build.
