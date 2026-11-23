@@ -1,0 +1,3 @@
+Ошибка в examples/errors/write_no_do.bit, строка 2:
+  2 | file f = "a.txt"; f >> write("x");
+  действие нужно обернуть в do(...), например do(x >> ch(5));

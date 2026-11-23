@@ -1,0 +1,5 @@
+host {
+    num total = 0;
+    while not (term >> end) { num x >> input(); do(total >> ch(total + x)); }
+    print("сумма {total}");
+}

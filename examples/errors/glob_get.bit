@@ -1,0 +1,4 @@
+mas g = (1, 2);
+host {
+print("{g >> get(0)}");
+}

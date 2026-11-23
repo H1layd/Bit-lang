@@ -1,0 +1,31 @@
+# новое для компилятора: глобальные, (string), ch массива, get с запасным, set, bytes/text/join
+num count = 0;
+mas names = (string);
+
+fn remember(string n) {
+    do(names >> add(n));
+    do(count >> ch(count + 1));
+}
+
+host {
+    do(remember("ноль"));
+    do(remember("один"));
+    print("count={count} names={names} join={names >> join(' + ')}");
+    print("get(5, '?') = {names >> get(5, '?')}, get(1, '?') = {names >> get(1, '?')}");
+
+    mas a = (1, 2, 3);
+    do(a >> set(0, 100));
+    num i = 2;
+    if i < a >> sz { do(a >> set(i, 300)); }
+    print("a = {a}");
+
+    mas b = (string);
+    do(b >> add("x"));
+    mas c = (7, 8);
+    do(a >> ch(c));
+    print("a теперь {a}");
+
+    mas bs = "Привет!" >> bytes;
+    print("байтов {bs >> sz}: {bs}");
+    print("text(0, 4) = {bs >> text(0, 4)}, text(12, 99) = {bs >> text(12, 99)}");
+}

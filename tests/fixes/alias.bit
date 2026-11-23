@@ -1,0 +1,1 @@
+host { mas a = (); mas b = a; do(a >> add(1)); do(b >> add("x")); }

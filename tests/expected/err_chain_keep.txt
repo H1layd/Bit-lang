@@ -1,0 +1,3 @@
+Ошибка в examples/errors/chain_keep.bit, строка 2:
+  2 | mas a = (1, 2); do(a >> keep(it > 1));
+  keep — не действие, его результат надо сохранить: all x = ... >> keep;

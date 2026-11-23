@@ -1,0 +1,5 @@
+host {
+bytes b = mem >> take(4);
+num i >> input();
+do(b >> set(i, 1));
+}

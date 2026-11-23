@@ -1,0 +1,3 @@
+host {
+mas a = ("x"); num s = a >> sum;
+}

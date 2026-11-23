@@ -1,0 +1,2 @@
+fn loud() { print("запасное посчитано"); return 0; }
+host { mas a = (5, 6); print("{a >> get(1, loud())}"); print("{a >> get(9, loud())}"); }

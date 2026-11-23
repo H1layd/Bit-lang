@@ -1,0 +1,5 @@
+host {
+conn c = "127.0.0.1:9999" >> connect;
+do(c >> send("x"));
+print("подключился");
+}

@@ -1,0 +1,20 @@
+# контроллер: читает и меняет число в памяти чужого процесса напрямую
+host {
+    proc p = "exec ./mem_target" >> start;
+    do(term >> wait(400));
+
+    file fi = "/tmp/bit_mem_addr";
+    bytes info = fi >> load;
+    num addr = info >> read(0);
+    print("мишень pid {p >> pid}, имя '{p >> name}', буфер по адресу {addr}");
+
+    num v = p >> read(addr);                  # одно число прямо из чужой памяти
+    print("прочитал: {v}, ждали {0x1122334455667788}");
+
+    do(p >> write(addr, 0x00DEADBEEF000000)); # записал число туда же
+    print("записал новое значение");
+
+    num code = p >> wait;
+    print("мишень завершилась, код {code}");
+    do(fi >> delete);
+}

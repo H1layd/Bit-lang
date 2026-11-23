@@ -1,0 +1,4 @@
+host {
+    print("{'1f' >> hex} {'0xFF' >> hex} {'deadbeef' >> hex} {'7fffffffffffffff' >> hex}");
+    print("{'563a1b2c-' >> hex} {'' >> hex} {'  0x10 xyz' >> hex}");
+}

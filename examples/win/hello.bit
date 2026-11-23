@@ -1,0 +1,15 @@
+fn fib(num n) {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+host {
+    print("Privet iz bit na Windows!");
+    print("fib(20) = {fib(20)}");
+    print("2+2 = {2 + 2}, 10*5 = {10 * 5}");
+    dec x = 1.5;
+    print("dec: {x * 2}");
+    bool b = true;
+    print("bool: {b}, sravnenie: {5 > 3}");
+    string s = "abc";
+    print("dlina '{s}' = {s >> sz}");
+}

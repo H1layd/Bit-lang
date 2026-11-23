@@ -1,0 +1,7 @@
+# скачать страницу по HTTP/HTTPS
+host {
+    string page = "https://example.com" >> fetch;
+    print("скачал {page >> sz} символов");
+    mas b = page >> bytes;
+    print("начало: {b >> text(0, 60)}");
+}

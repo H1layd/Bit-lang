@@ -1,0 +1,13 @@
+host {
+    bytes b = mem >> take(16);
+    do(b >> set(0, 72) >> set(1, 105));
+    do(b >> write(8, 1000000));
+    print("b = {b}");
+    print("байт 0 = {b >> get(0)}, число = {b >> read(8)}");
+    print("как текст: {b >> get(0:1) >> text}");
+    num total = 0;
+    for x in b {
+        do(total >> ch(total + x));
+    }
+    print("сумма байтов {total}");
+}

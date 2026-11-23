@@ -1,0 +1,10 @@
+host {
+    num before = mem >> used;
+    for i in 0:20000 {
+        bytes b = mem >> take(8192);
+        do(b >> set(0, 1));
+        do(b >> free);
+    }
+    num grew = (mem >> used) - before;
+    print("утечка: {grew > 33554432}");
+}

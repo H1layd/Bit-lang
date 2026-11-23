@@ -1,0 +1,3 @@
+Ошибка в examples/errors/loop_ch.bit, строка 3:
+  3 | while i < 2 { print("{a >> get(1)}"); do(a >> ch(c)); do(i >> ch(i + 1)); }
+  в a может не быть ни одного элемента, а ты берёшь номер 1

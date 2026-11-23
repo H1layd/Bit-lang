@@ -1,0 +1,3 @@
+host {
+file f = "a.txt"; mas r = f >> lines; print(r >> get(0));
+}

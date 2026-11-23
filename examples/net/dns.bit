@@ -1,0 +1,7 @@
+# адрес по имени и проверка доступности
+host {
+    string addr = "example.com" >> ip;
+    print("example.com -> {addr}");
+    bool up = "8.8.8.8" >> ping;
+    print("8.8.8.8 отвечает: {up}");
+}

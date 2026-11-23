@@ -1,0 +1,39 @@
+# цепочки >> и новый get
+
+host {
+    string tmp = term >> env("TMPDIR");
+    string path = "{tmp}bit_chain.txt";
+
+    # действие возвращает свой объект — можно ставить >> сколько угодно
+    do(path >> open >> write("ноль\n") >> append("один\n") >> append("два\n") >> append("три\n"));
+
+    file f = path >> open;
+    print("строка 1: {f >> get(1)}");
+    print("строки 1..2: {f >> get(1:2)}");
+    print("нет строки 9: '{f >> get(9)}'");
+    print("2-й символ строки 0: {f >> get(0) >> get(1)}");
+    num size = f >> append("четыре\n") >> sz;
+    print("после append размер {size} байт, строк {f >> lines >> sz}");
+    print("файл удалён, есть: {f >> delete >> exists}");
+
+    # массивы: срезы, перебор с it, поиск, сортировка
+    mas a = (5, 3, 9, 1, 7);
+    print("a = {a}, a[1:3] = {a >> get(1:3)}");
+    print("больше 4: {a >> keep(it > 4)}, вдвое: {a >> each(it * 2)}");
+    print("где 9: {a >> find(9)}, есть 4: {a >> has(4)}, сумма: {a >> sum}");
+    print("отсортировано: {a >> sort}, первый теперь {a >> get(0)}");
+    print("добавили и взяли: {a >> add(100) >> add(200) >> get(6)}");
+
+    mas words = ("кот", "пёс", "ёж");
+    print("{words >> sort >> join(', ')} | с ё: {words >> keep(it >> get(0) == 'ё')}");
+    print("длины: {words >> each(it >> sz)}");
+
+    # строки: символы и куски (по символам, не байтам)
+    string s = "Привет, мир";
+    print("{s >> get(0)} | {s >> get(0:5)} | {s >> get(8:100)} | '{s >> get(50)}'");
+
+    # цепочка в переменной — do не нужен
+    mas nums = (4, 8, 15, 16, 23, 42);
+    mas even = nums >> keep(it % 2 == 0);
+    print("чётные: {even}");
+}

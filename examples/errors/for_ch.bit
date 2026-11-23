@@ -1,0 +1,5 @@
+host {
+mas a = (1, 2, 3);
+num i = 0;
+for k in i >> ch(10):12 { print("{a >> get(i)}"); }
+}

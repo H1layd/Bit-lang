@@ -1,0 +1,5 @@
+host {
+    mas a = (10, 20, 42);
+    num i >> input();
+    if i >= 0 and i < a >> sz and a >> get(i) == 42 { print("нашёл 42"); } else { print("нет"); }
+}

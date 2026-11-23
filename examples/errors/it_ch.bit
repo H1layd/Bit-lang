@@ -1,0 +1,3 @@
+host {
+mas a = (1, 2); mas b = a >> keep(it >> ch(5) > 1);
+}

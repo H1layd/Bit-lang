@@ -1,0 +1,23 @@
+# своя память: bytes — кусок байтов, границы проверяются при сборке
+host {
+    print("памяти всего {mem >> total}, свободно {mem >> free}");
+
+    bytes b = mem >> take(16);                # 16 байт нулями
+    do(b >> set(0, 72) >> set(1, 105));       # отдельные байты
+    do(b >> write(8, 1000000));               # число (8 байт) по смещению 8
+    print("b = {b}");
+    print("байт 0 = {b >> get(0)}, число по смещению 8 = {b >> read(8)}");
+    print("как текст: {b >> get(0:1) >> text}");
+
+    # бинарные файлы: load / save — байты как есть
+    string tmp = term >> env("TMPDIR");
+    file f = "{tmp}bit_mem.bin";
+    do(f >> save(b));
+    bytes back = f >> load;
+    print("с диска {back >> sz} байт, число на месте: {back >> read(8)}");
+    do(f >> delete);
+
+    # память сырая — освобождаем её сами, как и всё, что делаем с компьютером
+    do(b >> free);
+    do(back >> free);
+}

@@ -1,0 +1,3 @@
+host {
+mas a = (1, 2, 3); num i = 0; bool ok = true; if ok or i >> ch(10) > 0 { print("{a >> get(i)}"); }
+}

@@ -1,0 +1,8 @@
+# клиент: подключается, шлёт строку, читает ответ
+host {
+    conn c = "127.0.0.1:9100" >> connect;
+    do(c >> send("привет сервер"));
+    string answer = c >> recv;
+    print("ответ: {answer}");
+    do(c >> close);
+}

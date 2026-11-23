@@ -1,0 +1,3 @@
+Ошибка в examples/errors/it_ch.bit, строка 2:
+  2 | mas a = (1, 2); mas b = a >> keep(it >> ch(5) > 1);
+  переменную цикла менять нельзя

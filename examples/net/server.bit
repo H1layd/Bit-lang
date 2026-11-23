@@ -1,0 +1,12 @@
+# простой сервер: принимает одно подключение, отвечает эхом
+host {
+    server s = net >> listen(9100);
+    print("слушаю порт 9100");
+    conn c = s >> accept;
+    string msg = c >> recv;
+    print("пришло: {msg}");
+    do(c >> send("эхо: {msg}"));
+    do(c >> close);
+    do(s >> close);
+    print("готово");
+}

@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/decbounds.bit, строка 1:
+  1 | host { dec x >> input(2.0:1.5); }
+  в input(2.0:1.5) начало больше конца
+1 

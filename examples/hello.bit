@@ -1,0 +1,10 @@
+# первая программа на bit
+host {
+    string name = "host";        # строка
+    num x = 152;                 # число
+    mas a = (1, 2, 3, 4, 5);     # массив без лимита
+
+    all n = a >> get(0);         # тип выводится сам
+
+    print("test {x} {name}, number {n}");
+}

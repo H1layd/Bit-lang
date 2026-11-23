@@ -1,0 +1,2 @@
+fn mk() { mas a = (); return a; }
+host { mas x = mk(); }

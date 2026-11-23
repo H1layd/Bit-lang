@@ -1,0 +1,4 @@
+host {
+bytes b = mem >> take(4);
+print("{b >> get(4)}");
+}

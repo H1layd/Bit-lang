@@ -1,0 +1,4 @@
+host {
+    bytes b = mem >> take(8);
+    do(b >> free(1));
+}

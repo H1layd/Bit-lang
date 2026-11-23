@@ -1,0 +1,10 @@
+# имя процесса и его карта памяти (нужно чинилось name/maps на /proc)
+host {
+    proc me = term >> pid >> proc;
+    print("мой pid {me >> pid}, имя '{me >> name}', жив {me >> alive}");
+    mas m = me >> maps;
+    print("строк в карте памяти: {m >> sz}");
+    if m >> sz > 0 {
+        print("первая область: {m >> get(0)}");
+    }
+}

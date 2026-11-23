@@ -1,0 +1,3 @@
+Ошибка в examples/errors/chain_value.bit, строка 2:
+  2 | file f = "a.txt"; do(f >> read);
+  read — не действие, его результат надо сохранить: all x = ... >> read;

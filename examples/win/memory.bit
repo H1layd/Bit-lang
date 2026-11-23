@@ -1,0 +1,14 @@
+host {
+    mas a = (5, 3, 9, 1, 7);
+    print("massiv: {a}, summa: {a >> sum}, otsort: {a >> sort}");
+    print("bolshe 4: {a >> keep(it > 4)}, vdvoe: {a >> each(it * 2)}");
+
+    bytes b = mem >> take(16);
+    do(b >> set(0, 72) >> set(1, 105));
+    do(b >> write(8, 123456789));
+    print("bytes: {b}");
+    print("bajt 0: {b >> get(0)}, chislo po smeshcheniyu 8: {b >> read(8)}");
+
+    num gb = 1024 * 1024 * 1024;
+    print("pamyat vsego: {(mem >> total) / gb} GB, svobodno: {(mem >> free) / gb} GB");
+}

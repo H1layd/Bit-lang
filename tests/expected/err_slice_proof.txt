@@ -1,0 +1,3 @@
+Ошибка в examples/errors/slice_proof.bit, строка 2:
+  2 | mas a = (1, 2, 3); mas b = a >> get(0:1); print("{b >> get(1)}");
+  в b может не быть ни одного элемента, а ты берёшь номер 1

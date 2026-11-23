@@ -1,0 +1,4 @@
+Ошибка в examples/errors/and_ch.bit, строка 2:
+  2 | mas a = (1, 2, 3); num i = 0; bool ok = true; if ok or i >> ch(10) > 0 { print("{a >> get(i)}"); }
+  не могу доказать, что i попадает в a: в a точно есть 3 элементов (0..2), а i может быть от 0 до 10.
+  Ограничь его: input(0:2) или if i >= 0 and i < a >> sz { ... }

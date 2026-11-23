@@ -1,0 +1,49 @@
+# файлы, папки, терминал, память
+
+host {
+    # ── папки ──
+    # всё делаем во временной папке системы — чужие файлы не трогаем
+    string tmp = term >> env("TMPDIR");
+    dir top = "{tmp}bit_files_demo";
+    dir d = top >> dir("inner");
+    do(d >> make);                         # создаст и bit_files_demo, и inner
+    print("папка {d >> name} есть: {d >> exists}");
+
+    # ── файлы ──
+    file f = d >> file("notes.txt");       # .../inner/notes.txt
+    do(f >> write("первая строка\n"));
+    do(f >> append("вторая строка\n"));
+    do(f >> append("третья\n"));
+
+    print("файл {f >> name}, размер {f >> sz} байт, есть: {f >> exists}");
+    print("весь текст:\n{f >> read}");
+
+    mas rows = f >> lines;
+    print("строк: {rows >> sz}");
+    num i = 1;
+    if i < rows >> sz {
+        print("строка 1: {rows >> get(i)}");
+    }
+
+    file cp = top >> file("copy.txt");
+    do(f >> copy(cp >> path));
+    print("в {top >> name}: {top >> list}");
+
+    # ── терминал ──
+    string who = "whoami" >> run;          # вывод команды в переменную
+    print("я: {who}, дом: {term >> env('HOME')}");
+    print("аргументы: {term >> args}");
+    do("echo 'это пишет сама команда'" >> run);   # вывод прямо в терминал
+
+    # ── память ──
+    num used = mem >> used;
+    num total = mem >> total;
+    print("программа заняла {used / 1024} КБ, в компьютере {total / 1024 / 1024 / 1024} ГБ");
+
+    # ── уборка ──
+    do(f >> remove);
+    do(cp >> remove);
+    do(d >> remove);
+    do(top >> remove);
+    print("папка осталась: {top >> exists}");
+}

@@ -1,0 +1,3 @@
+Ошибка в examples/errors/bytes_free_args.bit, строка 3:
+  3 | do(b >> free(1));
+  free пишется без скобок и значений

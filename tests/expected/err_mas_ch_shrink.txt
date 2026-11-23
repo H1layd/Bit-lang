@@ -1,0 +1,3 @@
+Ошибка в examples/errors/mas_ch_shrink.bit, строка 3:
+  3 | mas a = (1, 2, 3); mas c = (9); do(a >> ch(c)); print("{a >> get(2)}");
+  в a точно есть 1 элементов (номера 0..0), а ты берёшь номер 2

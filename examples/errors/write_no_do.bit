@@ -1,0 +1,3 @@
+host {
+file f = "a.txt"; f >> write("x");
+}

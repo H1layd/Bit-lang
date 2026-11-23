@@ -1,0 +1,13 @@
+# найти в памяти чужого процесса, где лежит известное число
+host {
+    proc p = "exec ./mem_target" >> start;      # мишень держит 0x1122334455667788
+    do(term >> wait(400));
+
+    mas hits = p >> scan(0x1122334455667788);
+    print("нашёл адресов: {hits >> sz}");
+    if hits >> sz > 0 {
+        num a = hits >> get(0);
+        print("по адресу {a} лежит {p >> read(a)}");
+    }
+    do(p >> kill);
+}

@@ -1,0 +1,4 @@
+
+host {
+mas a = (1, 2, 3); mas c = (9); do(a >> ch(c)); print("{a >> get(2)}");
+}

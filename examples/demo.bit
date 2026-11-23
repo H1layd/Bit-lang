@@ -1,0 +1,70 @@
+# всё, что умеет bit сейчас
+
+fn fib(num n) {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+fn add(num a, num b) {
+    return a + b;
+}
+
+fn show(mas m) {
+    print("массив {m}, элементов {m >> sz}");
+}
+
+host {
+    string name = 'host';
+    num x = 152;
+    dec p = 1.5;
+    bool ok = true;
+    num e();                         # пустая
+
+    mas a = (1, 2, 3, 4, 5);
+    mas b(3) = (10, 20);
+    mas c = ();
+    do(c >> add(7));
+    do(c >> add(8));
+    mas words = ("привет", "мир");
+
+    do(x >> ch(200));
+    do(e >> ch(x * 2));
+    all n = a >> get(4);
+
+    print("x={x} e={e} p={p} ok={ok} n={n}");
+    print("a={a} b={b} c={c} words={words}");
+    print("p*2 = {p * 2}, x/3 = {x / 3}, x%7 = {x % 7}");
+
+    if x > 100 and ok {
+        print("большое");
+    } else {
+        print("маленькое");
+    }
+
+    num sum = 0;
+    for v in a {
+        do(sum >> ch(sum + v));
+    }
+    print("сумма a = {sum}");
+
+    for i in 0:4 {
+        print("a[{i}] = {a >> get(i)}");   # компилятор доказал: 0..4 в массиве
+    }
+
+    num k = 0;
+    while k < 3 {
+        do(k >> ch(k + 1));
+    }
+    print("k = {k}");
+
+    all s = add(2, 3);
+    print("add = {s}, fib(20) = {fib(20)}");
+    do(show(a));
+    print("длина слова: {name >> sz}, длина 'привет': {'привет' >> sz}");
+
+    num i >> input(0:4);
+    print("ты выбрал a[{i}] = {a >> get(i)}");
+
+    do(b >> add(30));
+    print("b = {b}");
+}

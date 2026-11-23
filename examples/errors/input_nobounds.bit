@@ -1,0 +1,3 @@
+host {
+mas a = (1, 2, 3); num i >> input(); print("{a >> get(i)}");
+}

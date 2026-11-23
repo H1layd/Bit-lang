@@ -1,0 +1,4 @@
+host {
+mas a = (1, 2, 3); mas c = (5); num i = 0;
+while i < 2 { print("{a >> get(1)}"); do(a >> ch(c)); do(i >> ch(i + 1)); }
+}

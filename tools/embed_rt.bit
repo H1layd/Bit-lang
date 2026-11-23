@@ -1,0 +1,57 @@
+# Встраивает среду выполнения (rt/arm64.s, rt/x86_64.s) в конец bitc.bit.
+# Запуск из папки проекта: bitc run tools/embed_rt.bit
+
+fn starts(string s, string p) {
+    mas q = p >> bytes;
+    return s >> bytes >> text(0, q >> sz) == p;
+}
+
+fn esc(string s) {
+    mas b = s >> bytes;
+    mas parts = (string);
+    for k in 0:(b >> sz) - 1 {
+        num c = b >> get(k, 0);
+        if c == 92 {
+            do(parts >> add("\\\\"));
+        } else if c == 34 {
+            do(parts >> add("\\\""));
+        } else if c == 123 {
+            do(parts >> add("{{"));
+        } else if c == 125 {
+            do(parts >> add("}}"));
+        } else {
+            do(parts >> add(b >> text(k, k + 1)));
+        }
+    }
+    return parts >> join("");
+}
+
+fn emit(mas out, string fname, string path) {
+    file f = path;
+    do(out >> add(""));
+    do(out >> add("fn {fname}(mas o) {{"));
+    for l in f >> lines {
+        do(out >> add("    do(o >> add(\"{esc(l)}\"));"));
+    }
+    do(out >> add("}}"));
+}
+
+host {
+    file src = "bitc.bit";
+    mas out = (string);
+    bool stop = false;
+    for l in src >> lines {
+        if not stop {
+            do(out >> add(l));
+            if starts(l, "# ═══════════════ среда выполнения") {
+                do(stop >> ch(true));
+            }
+        }
+    }
+    do(emit(out, "rt_arm", "rt/arm64.s"));
+    do(emit(out, "rt_x86", "rt/x86_64.s"));
+    do(emit(out, "rt_x86_linux", "rt/x86_64-linux.s"));
+    do(emit(out, "rt_x86_windows", "rt/x86_64-windows.s"));
+    do(src >> write(out >> join("\n") + "\n"));
+    print("среда выполнения встроена: {out >> sz} строк в bitc.bit");
+}

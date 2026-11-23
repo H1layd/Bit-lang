@@ -1,0 +1,15 @@
+host {
+    dir d = "{term >> env('TMPDIR')}bit_fsfix";
+    do(d >> make);
+    file f = d >> file("a.bin");
+    do("printf 'A\\000B\\000C' > {d}/a.bin" >> run);
+    do(f >> copy("{d}/b.bin"));
+    file g = d >> file("b.bin");
+    print("размер копии {g >> sz} (должно быть 5)");
+    file asfile = d >> path;
+    print("папка это файл? {asfile >> exists}");
+    do(f >> remove);
+    do(g >> remove);
+    do(d >> remove);
+    print("папка осталась: {d >> exists}");
+}

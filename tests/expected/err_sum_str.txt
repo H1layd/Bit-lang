@@ -1,0 +1,3 @@
+Ошибка в examples/errors/sum_str.bit, строка 2:
+  2 | mas a = ("x"); num s = a >> sum;
+  sum складывает массив чисел, а тут mas из string

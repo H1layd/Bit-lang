@@ -1,0 +1,11 @@
+# видим систему
+host {
+    print("компьютер: {os >> host}, пользователь: {os >> user}");
+    print("ядер: {os >> cpus}, время: {os >> now}");
+    string raw = os >> procs;
+    mas ps = raw >> lines;
+    print("процессов: {ps >> sz}");
+    if ps >> sz > 1 {
+        print("пример: {ps >> get(0)}");
+    }
+}
