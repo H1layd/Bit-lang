@@ -1,0 +1,31 @@
+host {
+    mas original = (5, 1, 3);
+    mas alias = original;
+    mas ordered = original >> sort;
+    print(ordered >> get(0));
+    print(original);
+
+    do(ordered >> set(0, 9));
+    print(ordered);
+    print(alias);
+    print(original >> sort >> get(2));
+    print(original >> sort >> add(8) >> get(3));
+    print(original >> sort >> pop >> last);
+
+    do(original >> sort);
+    print(alias);
+    mas chain = (4, 2);
+    do(chain >> sort >> add(6));
+    print(chain);
+
+    mas empty = (num);
+    mas empty_sorted = empty >> sort;
+    do(empty_sorted >> add(2));
+    print(empty >> sz);
+    print(empty_sorted);
+
+    all words = original;
+    do(words >> ch(ordered >> sort));
+    print(words >> get(2));
+    print(original);
+}

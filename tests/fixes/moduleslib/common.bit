@@ -1,0 +1,4 @@
+record Meter:
+    num value;
+
+num offset = 3;

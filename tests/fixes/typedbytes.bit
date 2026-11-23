@@ -1,0 +1,28 @@
+host {
+    bytes buffer = mem >> take(27);
+    do(buffer >> write(1, 4660, "u16", "big"));
+    do(buffer >> write(3, 4294967295, "u32", "little"));
+    do(buffer >> write(7, -2, "i64", "big"));
+    do(buffer >> write(15, 1.5, "f32", "big"));
+    do(buffer >> write(19, 2.25, "f64", "little"));
+
+    print(buffer);
+    print(buffer >> read(1, "u16", "big"));
+    print(buffer >> read(1, "u16", "little"));
+    print(buffer >> read(3, "u32", "little"));
+    print(buffer >> read(7, "i64", "big"));
+    print(buffer >> read(15, "f32", "big"));
+    print(buffer >> read(19, "f64", "little"));
+
+    recover {
+        do(buffer >> write(0, -1, "u16", "little"));
+    } else {
+        print("unsigned range");
+    }
+    recover {
+        print(buffer >> read(9223372036854775807, "u32", "big"));
+    } else {
+        print("buffer bounds");
+    }
+    do(buffer >> free);
+}

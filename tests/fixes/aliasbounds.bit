@@ -1,0 +1,34 @@
+host {
+    mas a = (10, 20, 30);
+    mas alias = a;
+    do(alias >> pop >> pop);
+    recover:
+        print(a >> get(1));
+    else:
+        print("get");
+    recover:
+        do(a >> set(1, 99));
+    else:
+        print("set");
+    recover:
+        do(a >> remove(1));
+    else:
+        print("remove");
+    recover:
+        do(a >> insert(1, 99));
+    else:
+        print("insert");
+    print(a >> first);
+    do(alias >> pop);
+    recover:
+        print(a >> last);
+    else:
+        print("last");
+
+    mas b = (1, 2, 3);
+    mas c = b;
+    for i in b:
+        print(i);
+        do(c >> pop >> pop >> pop);
+    print(b >> sz);
+}

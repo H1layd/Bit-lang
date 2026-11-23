@@ -17,9 +17,21 @@ t = t.replace('call "_opendir$INODE64"', "call opendir@PLT").replace('call "_rea
 t = t.replace('call "_stat$INODE64"', "call stat@PLT")
 t = re.sub(r"\b(call|jmp) _(?!bit_|_)([a-z_0-9]+)\b", r"\1 \2@PLT", t)
 t = t.replace("call ___error", "call __errno_location@PLT")
+# POSIX pipe flags and errno values differ from Darwin.
+t = t.replace("    // O_NONBLOCK on Darwin\n    or edx, 4", "    // O_NONBLOCK\n    or edx, 2048")
+t = t.replace("    // EAGAIN on Darwin\n    cmp eax, 35", "    // EAGAIN\n    cmp eax, 11")
 # struct dirent: имя с 19-го байта, struct stat: st_mode с 24-го
 t = t.replace("lea rdi, [rax + 21]", "lea rdi, [rax + 19]")
 t = t.replace("movzx ecx, word ptr [rsp + 4]", "mov ecx, dword ptr [rsp + 24]")
+
+t = func_replace(t, "_bit_open_update", """
+_bit_open_update:
+    // O_WRONLY | O_CREAT (Linux), mode 0666 filtered by umask
+    mov esi, 65
+    mov edx, 438
+    xor eax, eax
+    jmp open@PLT
+""")
 
 t = func_replace(t, "_bit_mem_used", """
 _bit_mem_used:                      // → пик памяти программы (Linux отдаёт в КБ)

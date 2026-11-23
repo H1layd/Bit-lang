@@ -12,20 +12,44 @@ A living document: where the language is going and by which rules. Updated as wo
 2. **Names you can guess the first time.** No assembler or C abbreviations; plain words in the spirit
    of `keep` / `each` / `has` / `sort`. Example: bit operations are `shift_left` / `shift_right` /
    `bit_and` / `bit_or` / `bit_xor` / `bit_not`, not `shl` / `shr` / `band`.
-3. **Its own look, not C / C++ / Rust.** bit builds on its own vocabulary (`do` / `ch` / `>>` / `host`)
-   instead of borrowing other conventions. Familiar syntax (braces, `;`) is not a problem in itself
-   and is not broken just to look different.
-4. **Everything visible and in order.** Actions (that change the world) go through `do` and `ch`;
-   values are simply computed. No hidden effects.
-5. **Safety is proven at build time,** not checked at run time. No new feature may break this.
+3. **Its own look.** bit has recognizable constructs, including `>>` chains and the `host` entry
+   point. Keep or change each form based on how easily a reader can understand the code.
+4. **Effects are visible in code.** Readers should be able to tell which operations change state.
+   Assignment keeps the form `do(x >> ch(value));`.
+5. **What can be proven is proven at build time:** types, empty variables, index ranges. Array length
+   is also checked at run time, because another name can change the array. No new feature may weaken
+   this.
 
-## Name readability pass
+## Simplify the whole language first
+
+The first design milestone revisits the basic rules of bit. A small set of consistent rules should
+be enough to learn the resulting language. Records, dictionaries, functions as values and modules
+already exist; the agreed rules will apply to them as well.
+
+- [ ] **Command names.** Find abbreviations and names whose meaning is hard to guess.
+  Start with methods and agree on each new name using examples of how it is called.
+- [ ] **Declarations.** Compare explicit and inferred types, uninitialized declarations and
+  array creation forms.
+- [x] **Blocks.** Keep `host { ... }`. Functions, conditions, loops and error handlers
+  support a colon and indentation.
+- [ ] **Expressions and actions.** Set one rule for `do`, `>>` and function calls. Some current
+  chains can mutate data inside an expression.
+- [ ] **Data operations.** Look for shared rules for indexing, slices, fallbacks, type conversions
+  and sharing on assignment.
+- [ ] **System operations and failures.** Compare files, sockets and processes. Identify which
+  differences in passing data, getting results and handling errors can be removed.
+- [ ] **Evaluate the result.** Compare before and after on a counter, array processing, copying a
+  file and running a process. Count required constructs and rules the reader must remember. Agree
+  on what to merge, make optional or remove. For accepted breaking changes, document migration
+  and update self-hosting, examples and tests.
+
+### Name readability
 
 - [x] entry point: `fn main() {}` → `host { }`
 - [x] bit operations: `shl…` → `shift_left` / `bit_and` / …
 - [ ] `dec` — not obvious that it is a fractional number (rename candidate)
 - [ ] `mas`, `conn`, `proc` — check that they read without guessing
-- [ ] `ch` — short, but not obvious to everyone that it means "change"
+- [x] `ch` stays in the assignment form `do(x >> ch(value));`
 
 ## Small additions — cheap, do not touch self-hosting
 
@@ -35,10 +59,9 @@ A living document: where the language is going and by which rules. Updated as wo
   fallback.
 - [x] **Strings**: `split`, `trim`, `replace`, `starts`, `ends`.
 - [x] **Math**: `sqrt`, `pow` (whole power), `abs`, `min` / `max`.
-- [ ] **`rand`** — needs a choice of generator and seed (fixed seed / time / `/dev/urandom`).
-- [ ] **Typed `bytes`**: read `u16` / `u32` / `float` at an offset, byte order.
-- [ ] **Parser details**: no `\r` escape; a string with `\n` inside `{...}` of another string does not
-  parse (workaround: use a variable).
+- [x] **`random`**: inclusive integer ranges. The seed is a hash of a word generated from OS entropy or set with `seed(word)`.
+- [x] **Typed `bytes`**: read and write `u16`, `u32`, `i64`, `f32` and `f64` with explicit byte order.
+- [x] **String escapes**: `\r` and escaped whitespace inside interpolated string expressions.
 
 ## Control over the system
 
@@ -48,28 +71,24 @@ wait.
 - [x] **Failures** — `recover { } else { }`: a failed operation goes to `else`, the program goes on;
   `term >> error` gives the error text, `term >> exit(code)` picks the exit code.
 - [x] **Running programs directly** — `mas >> run`, `mas >> run("input")`, `term >> stderr`,
-  `term >> status`, `do(cmd >> run)`. Arguments arrive exactly as written on every OS; stdout and
-  stderr never block each other on macOS and Linux.
+  `term >> status`, `do(cmd >> run)`. Both stdout and
+  stderr are read concurrently. The updated Windows capture still needs a native stress test.
 - [x] **`file >> move`**.
-- [ ] **Streaming**: read a file in chunks and at an offset; `recv` with a chunk size and a timeout,
-  assembling a message from several reads.
-- [ ] **`a >> sort` changes the array inside an expression** — decide: change only through
-  `do(a >> sort)`, or return a copy in an expression.
-- [ ] Run the Linux runtime on real hardware again after the latest changes (macOS and Windows 11
-  are checked).
+- [x] **Copy files** through a destination-directory temporary file and handle same-path operations.
+- [x] **Check current bounds**, strictly parse `string >> num` and unwind `recover` on control flow.
+- [ ] Reclaim strings that may escape their scope.
+- [x] **Streaming**: bounded file reads and offset writes; text `recv` with a size and a timeout.
+- [ ] Verify streaming on native Linux and Windows.
+- [x] **Sorting**: `a >> sort` returns a copy; `do(a >> sort)` sorts in place.
+- [ ] Run the updated runtimes on native Linux and Windows. Cross-assembly and linking checks are separate.
 
-## Larger work — order matters
+## Core language features
 
-Touches the parser, types, code generation and memory; must survive self-hosting.
-
-1. **Structs (records)** — the main gap: today everything is modelled with parallel arrays.
-2. **map (dictionary)** — almost free once structs exist.
-3. **Memory and sharing rules** — the current model is written in the reference (strings are freed
-   automatically, `bytes` explicitly with `free`, `mas` is shared on assignment). Structs and maps
-   must follow the same rules.
-4. **Functions as values** — `x -> x * 2`; the arrow `->` is reserved for this.
-5. **Modules** — for the compiler's own sake (17k+ lines in one file).
-6. **Optimizer** — an experimental optimizing build already exists (`tools/build_opt.sh`).
+- [x] **Records** with typed fields and shared updates.
+- [x] **Maps** with string keys, one value type and linear lookup.
+- [x] **Function values** with concrete signatures and arrow functions.
+- [x] **Multi-file programs** with relative `use` directives and a shared namespace.
+- [x] **Optimizing build**: constant positive powers of two use bit operations for `%`.
 
 ## Not now — honestly
 

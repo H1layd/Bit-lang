@@ -1,0 +1,44 @@
+fn return_inside():
+    recover:
+        string s = "a" + "b";
+        return s >> sz;
+    else:
+        return -1;
+
+fn fail_inside():
+    string s = "abc" + "def";
+    print(s >> sz);
+    print("bad" >> num);
+
+fn deep(num n):
+    recover:
+        if n == 0:
+            return "bad" >> num;
+        return deep(n - 1);
+    else:
+        return 23;
+
+host {
+    print(return_inside());
+    for i in 0:2:
+        recover:
+            string s = "a" + "bb";
+            print(s >> sz);
+            if i == 0:
+                next;
+            break;
+        else:
+            print("wrong handler");
+    print(deep(40));
+    for i in 0:1:
+        recover:
+            do(fail_inside());
+        else:
+            print("caller caught");
+    string a = ("a" + "b") + ("c" + "d");
+    print(a);
+    recover:
+        print("bad" >> num);
+    else:
+        print("end caught");
+}

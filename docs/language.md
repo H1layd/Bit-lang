@@ -3,7 +3,7 @@
 **English** · [Русский](language.ru.md)
 
 The complete description of the language: philosophy, syntax, types, every method by type,
-failures, running programs, compile-time safety and building for other platforms.
+failures, running programs, compiler checks and building for other platforms.
 For a short overview see the [README](../README.md).
 
 > Compiler and runtime messages are currently in Russian.
@@ -32,7 +32,7 @@ For a short overview see the [README](../README.md).
   - [Running programs](#running-programs)
   - [Network](#network)
   - [proc: other processes (Linux)](#proc-other-processes-linux)
-- [Compile-time safety](#compile-time-safety)
+- [Compiler checks](#compiler-checks)
 - [Building for other platforms](#building-for-other-platforms)
 - [How the compiler works](#how-the-compiler-works)
 
@@ -64,8 +64,12 @@ are there on purpose: they are a signature under every change, not noise.
 - **Comments** start with `#` and run to the end of the line.
 - **Strings** use double `"..."` or single `'...'` quotes.
 - **Interpolation**: `{expression}` inside a string inserts a value. A literal brace is `{{` or `}}`.
+- **Escapes**: `\n` (line feed), `\r` (carriage return), `\t` (tab), `\\`, `\"` and `\'`. Escapes also work in string expressions inside interpolation.
 - **Numbers**: `152`, `-7`, hex `0xFF`, fractions `1.5`.
-- **Statements** end with `;`. Blocks are `{ ... }`.
+- **Statements** end with `;`.
+- **Blocks** for functions, `if`, `else if`, `else`, `for`, `while` and `recover` can open
+  with a colon. The body starts on the next line and is indented. Returning to the header's
+  indentation ends the block. The existing `{ ... }` syntax is also supported.
 - **Entry point** is the `host { … }` block. The program starts there; there is no `main` function.
 
 ```
@@ -73,6 +77,24 @@ host {
     string who = "world";
     print("hello, {who}!");          # hello, world!
     print("brace: {{ not interpolation }}");
+}
+```
+
+In `for i in 0:3:`, the first colon forms the range and the second opens the block.
+With colon blocks, `else if` and `else` align with their `if` or `recover` header.
+
+```
+fn sum_to(num limit):
+    num total = 0;
+    for i in 0:limit:
+        do(total >> ch(total + i));
+    return total;
+
+host {
+    if sum_to(3) == 6:
+        print("matched");
+    else:
+        print("failed");
 }
 ```
 
@@ -224,6 +246,46 @@ Parameters are `type name`, separated by commas. `return` returns a value. A fun
 
 ---
 
+## Records, maps and function values
+
+`record` declares a record. The constructor takes values in field order. `p >> x` reads a field,
+and `do(p >> x(7))` updates it. Assignment gives the same record another name, and `ch` rebinds
+the variable. Fields can use concrete types, earlier record types and collections with an
+element type such as `mas(string)` or `map(num)`.
+
+A `map` has string keys and one value type. `set` adds or replaces an entry. `remove` ignores a
+missing key. `has` checks for a key and `sz` gives the key count. `get(key)` raises an error for
+a missing key. `get(key, fallback)` computes the fallback only when needed. Lookup is linear.
+
+A named function with concrete parameter types can be assigned to an `all` variable, passed
+or returned. In `x -> ...`, the parameter has type `num`. Supply types explicitly with
+`(num x, dec y) -> ...`. Anonymous functions can read globals. Pass local values as arguments.
+
+```bit
+record Point:
+    num x;
+    num y;
+
+fn apply(all operation, num value):
+    return operation(value);
+
+host {
+    Point p = Point(2, 3);
+    do(p >> x(7));
+    map counts = (num);
+    do(counts >> set("x", p >> x));
+
+    all twice = x -> x * 2;
+    print(apply(twice, counts >> get("x", 0)));
+}
+```
+
+## Including files
+
+`use "lib/math.bit";` resolves paths relative to the file that contains the directive.
+Included files share a namespace. Each path is loaded once, and cycles are errors.
+Only the entry file can contain `host { }`.
+
 ## Failures: recover and else
 
 When a system operation fails (no such file, no such folder, no connection), the program stops by
@@ -266,8 +328,8 @@ Methods are called with `>>`. The main ones for each type follow.
 
 ### num and dec
 
-Arithmetic and comparison use operators. `num` is a 64-bit whole number (overflow is caught at
-build time); `dec` is a fractional number.
+Arithmetic and comparison use operators. `num` is a signed 64-bit integer, and `dec` is a
+floating-point number. A `num` overflow that occurs at runtime can be handled with `recover`.
 
 | Method | What it does |
 |---|---|
@@ -298,7 +360,7 @@ num c = 3 >> pow(4);               # 81
 | `s >> sz` | length in characters (not bytes) |
 | `s >> get(i)` | character at an index |
 | `s >> get(a:b)` | substring (by characters) |
-| `s >> num` | parse as a number |
+| `s >> num` | parse a signed decimal integer, with surrounding ASCII whitespace allowed |
 | `s >> lines` | `mas` of lines |
 | `s >> split(sep)` | `mas` of parts between separators |
 | `s >> trim` | without spaces, tabs and line breaks at both ends |
@@ -306,6 +368,8 @@ num c = 3 >> pow(4);               # 81
 | `s >> starts(p)` / `s >> ends(p)` | `true` if the text starts / ends with `p` |
 | `s >> bytes` | `mas` of the string's bytes |
 | `s >> run` | run as a shell command, return the output |
+
+Invalid input or a value outside the `num` range raises an error that `recover` can handle.
 
 Network methods of strings are under [Network](#network).
 
@@ -338,18 +402,24 @@ bool web = url >> starts("http://");
 | `a >> find(v)` | index of the first `v` (or -1) |
 | `a >> has(v)` | whether `v` is present |
 | `a >> sum` | sum (numbers) |
-| `a >> sort` | sort |
+| `a >> sort` | return a sorted copy |
+| `do(a >> sort)` | sort the original array in place |
 | `a >> join(sep)` | join strings with a separator |
 | `a >> text(from, to)` | decode a slice of bytes as a string |
 
 `insert`, `remove`, `pop`, `add` and `set` are actions and go inside `do(...)`. Indexes for `get`,
 `set`, `insert` and `remove` must be provably in range. `first` and `last` without a fallback need
-an array the compiler knows is not empty; otherwise use `first(d)` / `last(d)`.
+an array the compiler knows is not empty. Use `first(d)` or `last(d)` for a fallback. If an
+alias shrinks an array, access checks its current length and raises a recoverable error. A
+`for` loop over an array checks both the original and current lengths.
 
 A `mas` is data, not a copy: `mas b = a` gives the same elements a second name. `>> add` and
 `>> set` change the data itself, visible through any name; `>> ch` rebinds the variable (other names
 keep looking at the old data). So an array passed to a function can be changed there, and everyone
 who holds it sees the change.
+
+Sorting in an expression creates a separate array. The original and its aliases keep their element
+order. In an action chain inside `do(...)`, sorting changes the receiver in place.
 
 ```
 mas a = (5, 3, 9, 1, 7);
@@ -375,7 +445,18 @@ print(words >> sort >> join(", "));
 | `f >> copy(path)` / `move(path)` | copy / move |
 | `f >> save(bytes)` | write bytes as they are |
 | `f >> load` | read as `bytes` |
+| `f >> load(offset, count)` | read up to `count` bytes starting at the zero-based offset |
+| `f >> save(bytes, offset)` | write a chunk at the zero-based offset, creating the file if needed |
 | `f >> name` / `path` | name / full path |
+
+`copy` streams data to a temporary file in the destination directory and replaces the destination
+after the write succeeds. `move` uses a system rename and falls back to copying and deleting the
+source across file systems. Passing the exact source path to either operation leaves the file in place.
+
+Both the offset and the count are non-negative. `load(offset, count)` returns a buffer
+whose size is the number of bytes actually read. At or past EOF it returns an empty
+buffer. Free each chunk with `do(chunk >> free)` when done. `save(chunk, offset)` preserves
+existing bytes outside the written range. Use `save(bytes)` to replace the entire file.
 
 ```
 file f = "notes.txt";
@@ -406,7 +487,7 @@ print(d >> list);
 
 ### bytes (raw memory)
 
-`bytes` is a raw block of memory. Its bounds are checked at build time.
+`bytes` is a raw block of memory. Indexed operations check the offset against its length.
 
 | Method | What it does |
 |---|---|
@@ -415,9 +496,17 @@ print(d >> list);
 | `b >> write(off, num)` | write a number (8 bytes) at an offset |
 | `b >> get(i)` | the byte at an offset |
 | `b >> read(off)` | the number (8 bytes) at an offset |
+| `b >> read(off, format, order)` | read a value in the specified format |
+| `do(b >> write(off, value, format, order))` | write a value in the specified format |
 | `b >> text` | the contents as a string |
 | `b >> sz` | size in bytes |
+| `b >> addr` | address of the data as a `num` |
 | `b >> free` | release the memory (buffer and descriptor) |
+
+The format and byte order are string literals. `"u16"`, `"u32"` and `"i64"` return `num`.
+`"f32"` and `"f64"` return `dec`. Use `"little"` or `"big"` for byte order.
+For example, `b >> read(0, "u16", "big")` reads the first two bytes. Bounds errors and
+out-of-range unsigned writes can be handled with `recover`.
 
 `bytes` is raw memory and is **not** released automatically. When it is no longer needed, release it
 explicitly, like any other action:
@@ -429,10 +518,10 @@ print("byte 0: {b >> get(0)}");
 do(b >> free);                       # do not touch b after free
 ```
 
-This is the same rule as `do`: working with the computer's memory is visible in the code instead of
-hiding in an invisible owner. Strings (`string`) are released automatically — the language creates
-them itself. A `bytes` block can be freed only once; if two names refer to it, freeing it through
-either one is a program error.
+Free a buffer once through any name that refers to it. All aliases and addresses into the buffer
+become invalid at that point. Keeping them valid up to the point of use is the program's responsibility.
+The compiler releases temporary strings and strings in local declarations when it can prove they
+stay within scope. Strings that may escape their scope can stay allocated for the life of the process.
 
 ### mem (computer memory)
 
@@ -442,6 +531,13 @@ either one is a program error.
 | `mem >> free` | free memory (a value; not the same as `b >> free`) |
 | `mem >> used` | memory used by the program |
 | `mem >> take(n)` | allocate `n` bytes → `bytes` |
+
+### random
+
+`random >> get(min, max)` returns an integer in the inclusive range. On first use the
+generator creates a word with system entropy and uses the word's hash as its seed.
+`do(random >> seed("word"))` sets the word explicitly. The same seed and range calls
+produce the same sequence across architectures.
 
 ### os (system)
 
@@ -478,7 +574,8 @@ string s >> input;             # read a line
 ```
 
 The range of `input` is also a proof: after `num i >> input(0:4)` the compiler knows `i` is in 0..4,
-so `a >> get(i)` on a five-element array needs no run-time check.
+so `a >> get(i)` on a five-element array passes the build-time check. The current length is still
+checked when the program runs, because another name for the same array may have shortened it.
 
 ### Running programs
 
@@ -500,10 +597,8 @@ string err = term >> stderr;          # stderr, separate from stdout
 do(cmd >> run);                       # output straight to the terminal, code in term >> status
 ```
 
-On macOS and Linux, stdout and stderr are read at the same time, so a program never stalls however
-much it writes to both. On Windows they are read in turn through 1 MB pipes; a program that writes
-more than that to stderr before finishing stdout can stall. The same interface works on macOS, Linux
-and Windows.
+The runtime reads stdout and stderr while feeding stdin. macOS and Linux use `poll`.
+On Windows two worker threads read the output streams.
 
 ### Network
 
@@ -536,6 +631,7 @@ shell**: arguments are passed as an array, so a URL may safely contain any chara
 | `"ip:port" >> udp` | open UDP → `conn` |
 | `c >> send("...")` | send |
 | `c >> recv` | receive a string |
+| `c >> recv(count, timeout_ms)` | receive up to `count` bytes as text, with a timeout |
 | `c >> close` / `s >> close` | close |
 
 ```
@@ -555,6 +651,10 @@ do(c >> close);
 ```
 
 `recv` returns what a single read from the system gives; over TCP a long message may arrive in parts.
+In `recv(count, timeout_ms)`, the count is in bytes (1–2147483647) and the timeout is in
+milliseconds (0–2147483647). A zero timeout checks for data without waiting. A timeout
+is an error that `recover` can handle, while a clean TCP close returns an empty string.
+Join the chunks before processing text when a UTF-8 character can span two reads.
 
 ### proc: other processes (Linux)
 
@@ -564,19 +664,16 @@ find a process by name, read or write its memory, scan it for a value. See
 
 ---
 
-## Compile-time safety
+## Compiler checks
 
-The compiler proves correctness **before** the program runs:
+The compiler checks types, initialization and index ranges before generating code.
 
-- **Array and string bounds.** `a >> get(i)` is allowed only if the compiler proved `i` is in range
-  (from `for i in 0:a>>sz-1`, from a check `if i < a >> sz`, from `input(0:4)` and so on). Otherwise
-  it is a build error, not a crash.
+- **Array bounds.** `a >> get(i)` needs a provable index, for example from `for i in 0:a>>sz-1`
+  or a check such as `if i >= 0 and i < a >> sz`. The generated code checks the current length
+  before accessing the element.
 - **`num` overflow.** Arithmetic that goes beyond 64 bits is caught.
 - **Empty variables.** `num e();` cannot be read before it is assigned.
 - **Types.** A type mismatch is a build error.
-
-The idea is the same as everywhere in the language: better to refuse doubtful code than to crash
-while running.
 
 ---
 

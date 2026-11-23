@@ -1,0 +1,40 @@
+host {
+    dir scratch = "mktemp -d" >> run;
+    file source = scratch >> file("source.bin");
+    file copy = scratch >> file("copy.bin");
+    bytes initial = mem >> take(5);
+    do(initial >> set(0, 65) >> set(2, 66) >> set(3, 255) >> set(4, 67));
+    do(source >> save(initial));
+    do(initial >> free);
+
+    num offset = 0;
+    num count = 1;
+    while count > 0 {
+        bytes chunk = source >> load(offset, 2);
+        do(count >> ch(chunk >> sz));
+        print(count);
+        if count > 0 {
+            do(copy >> save(chunk, offset));
+        }
+        do(chunk >> free);
+        do(offset >> ch(offset + count));
+    }
+
+    bytes patch = mem >> take(1);
+    do(patch >> set(0, 42));
+    do(copy >> save(patch, 2));
+    do(patch >> free);
+    bytes result = copy >> load;
+    print(result);
+    do(result >> free);
+
+    recover {
+        bytes invalid = source >> load(-1, 2);
+        do(invalid >> free);
+    } else {
+        print("invalid offset");
+    }
+    do(source >> remove);
+    do(copy >> remove);
+    do(scratch >> remove);
+}

@@ -1,0 +1,25 @@
+host {
+    string temp = term >> env("TMPDIR");
+    if temp == "":
+        do(temp >> ch("/tmp"));
+    string base = "{temp}/bit-files-{term >> pid}";
+    file src = base + "-src";
+    file dst = base + "-dst";
+    file missing = base + "-missing";
+    do(src >> write("source"));
+    do(dst >> write("destination"));
+    do(src >> copy(src >> path));
+    do(src >> move(src >> path));
+    print(src >> read);
+    recover:
+        do(missing >> copy(dst >> path));
+    else:
+        print(dst >> read);
+    do(src >> copy(dst >> path));
+    print(dst >> read);
+    do(src >> write("moved"));
+    do(src >> move(dst >> path));
+    print(dst >> read);
+    print(src >> exists);
+    do(dst >> delete);
+}

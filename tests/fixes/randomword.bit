@@ -1,0 +1,17 @@
+host {
+    num automatic = random >> get(7, 9);
+    print(automatic >= 7 and automatic <= 9);
+    do(random >> seed("слово"));
+    print(random >> get(-20, 20));
+    print(random >> get(0, 1000));
+    print(random >> get(-9223372036854775808, 9223372036854775807));
+    print(random >> get(-8, -8));
+
+    do(random >> seed("слово"));
+    print(random >> get(-20, 20));
+    recover {
+        print(random >> get(2, 1));
+    } else {
+        print("invalid range");
+    }
+}

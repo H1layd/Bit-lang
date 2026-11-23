@@ -1,0 +1,25 @@
+host {
+    print("  -42  " >> num);
+    print("9223372036854775807" >> num);
+    print("-9223372036854775808" >> num);
+    mas invalid = ("", "abc", "12tail", "+", "9223372036854775808", "-9223372036854775809");
+    for s in invalid:
+        recover:
+            print(s >> num);
+        else:
+            print("bad num");
+    recover:
+        num n = "-9223372036854775808" >> num;
+        print(n >> abs);
+    else:
+        print("abs overflow");
+    dec nan = 0.0 / 0.0;
+    dec low = nan >> min(2.0);
+    dec high = 2.0 >> max(nan);
+    print(low != low);
+    print(high != high);
+    dec zero = 0.0;
+    dec negzero = -0.0;
+    print(1.0 / (zero >> min(negzero)) < 0.0);
+    print(1.0 / (negzero >> max(zero)) > 0.0);
+}

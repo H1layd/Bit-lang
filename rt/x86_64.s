@@ -4,22 +4,33 @@
 // ─────────── среда выполнения bit (x86_64) ───────────
 // аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax
 .p2align 4
-_bit_recover_enter:                 // → rax = буфер перехода; глубину +1
-    mov rax, [rip + Lrt_recdepth]
-    mov rcx, rax
-    shl rcx, 9
-    lea rdx, [rip + Lrt_recbufs]
-    add rdx, rcx
-    inc rax
-    mov [rip + Lrt_recdepth], rax
-    mov rax, rdx
+_bit_recover_enter:                 // rdi = frame allocated by the compiler
+    mov rax, [rip + Lrt_recover]
+    mov [rdi + 168], rax
+    mov [rip + Lrt_recover], rdi
+    mov rax, [rip + Lrt_owned]
+    mov [rdi + 176], rax
+    mov rax, rdi
     ret
 
-_bit_recover_leave:                 // глубину -1 (обычный выход из recover)
-    mov rax, [rip + Lrt_recdepth]
-    dec rax
-    mov [rip + Lrt_recdepth], rax
+_bit_recover_leave:
+    mov rax, [rip + Lrt_recover]
+    mov rax, [rax + 168]
+    mov [rip + Lrt_recover], rax
     ret
+
+_bit_own_str:                       // rdi = stack record with string and previous pointer
+    mov rax, [rip + Lrt_owned]
+    mov [rdi + 8], rax
+    mov [rip + Lrt_owned], rdi
+    ret
+
+_bit_drop_owned:
+    mov rax, [rip + Lrt_owned]
+    mov rcx, [rax + 8]
+    mov [rip + Lrt_owned], rcx
+    mov rdi, [rax]
+    jmp _bit_drop_str
 
 _bit_setjmp:                        // rdi = буфер → 0; сохраняет callee-saved, sp и адрес возврата
     mov [rdi], rbx
@@ -69,17 +80,21 @@ _bit_term_error:                    // → копия текста послед�
     ret
 
 _bit_die:                           // rdi = сообщение, rsi = строка программы
-    mov rax, [rip + Lrt_recdepth]
+    mov rax, [rip + Lrt_recover]
     test rax, rax
     jz 5f
     mov [rip + Lrt_errmsg], rdi
     mov [rip + Lrt_errline], rsi
-    dec rax
-    mov [rip + Lrt_recdepth], rax
-    mov rcx, rax
-    shl rcx, 9
-    lea rdi, [rip + Lrt_recbufs]
-    add rdi, rcx
+    mov rcx, [rax + 168]
+    mov [rip + Lrt_recover], rcx
+    push rax
+1:  mov rcx, [rip + Lrt_owned]
+    cmp rcx, [rax + 176]
+    je 2f
+    call _bit_drop_owned
+    mov rax, [rsp]
+    jmp 1b
+2:  pop rdi
     mov esi, 1
     jmp _bit_longjmp
 5:  push rbp
@@ -104,6 +119,186 @@ _bit_oom:
     and rsp, -16
     lea rdi, [rip + Lrt_oom]
     xor esi, esi
+    call _bit_die
+
+_bit_map_find:                      // map, key -> index or -1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, [rdi]
+    mov r12, [rdi + 8]
+    mov r13, rsi
+    xor r14d, r14d
+1:  cmp r14, r12
+    jge 2f
+    mov rdi, [rbx + r14*8]
+    mov rdi, [rdi]
+    mov rsi, r13
+    call _bit_str_eq
+    test rax, rax
+    jnz 3f
+    inc r14
+    jmp 1b
+2:  mov r14, -1
+3:  mov rax, r14
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_map_set:                       // map, key, value, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    call _bit_map_find
+    test rax, rax
+    js 1f
+    mov rcx, [rbx]
+    mov rcx, [rcx + rax*8]
+    mov [rcx + 8], r13
+    jmp 2f
+1:  mov edi, 16
+    call _bit_alloc
+    mov [rax], r12
+    mov [rax + 8], r13
+    mov rdi, rbx
+    mov rsi, rax
+    mov rdx, r14
+    call _bit_mas_add
+2:  pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_map_remove:                    // map, key
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    call _bit_map_find
+    test rax, rax
+    js 1f
+    mov rcx, [rbx]
+    mov r12, [rcx + rax*8]
+    mov rdi, rbx
+    mov rsi, rax
+    call _bit_mas_remove
+    mov rdi, r12
+    call _free
+1:  pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_random_seed:                   // Hash a UTF-8 seed word with FNV-1a.
+    mov rax, 0xcbf29ce484222325
+    mov rcx, 0x100000001b3
+1:  movzx edx, byte ptr [rdi]
+    test edx, edx
+    jz 2f
+    xor rax, rdx
+    imul rax, rcx
+    inc rdi
+    jmp 1b
+2:  mov [rip + Lrt_random_state], rax
+    mov qword ptr [rip + Lrt_random_ready], 1
+    ret
+
+_bit_random_next:                   // SplitMix64 with unsigned wrapping arithmetic.
+    mov rcx, 0x9e3779b97f4a7c15
+    add rcx, [rip + Lrt_random_state]
+    mov [rip + Lrt_random_state], rcx
+    mov rax, rcx
+    shr rax, 30
+    xor rax, rcx
+    mov rcx, 0xbf58476d1ce4e5b9
+    imul rax, rcx
+    mov rcx, rax
+    shr rcx, 27
+    xor rax, rcx
+    mov rcx, 0x94d049bb133111eb
+    imul rax, rcx
+    mov rcx, rax
+    shr rcx, 31
+    xor rax, rcx
+    ret
+
+_bit_random_range:                  // Inclusive signed bounds, source line.
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 32
+    mov rbx, rdi
+    mov r13, rdx
+    cmp rdi, rsi
+    jg 9f
+    mov r12, rsi
+    sub r12, rdi
+    inc r12
+    cmp qword ptr [rip + Lrt_random_ready], 0
+    jne 2f
+    mov rdi, rsp
+    mov esi, 16
+    call _getentropy
+    test eax, eax
+    jnz 8f
+    xor ecx, ecx
+1:  movzx eax, byte ptr [rsp + rcx]
+    and eax, 15
+    add eax, 97
+    mov [rsp + rcx], al
+    inc ecx
+    cmp ecx, 16
+    jne 1b
+    mov byte ptr [rsp + 16], 0
+    mov rdi, rsp
+    call _bit_random_seed
+2:  test r12, r12
+    jz 4f
+    // Rejection avoids modulo bias. A zero width denotes the entire num range.
+    mov rax, r12
+    neg rax
+    xor edx, edx
+    div r12
+    mov r14, rdx
+3:  call _bit_random_next
+    cmp rax, r14
+    jb 3b
+    xor edx, edx
+    div r12
+    mov rax, rdx
+    jmp 5f
+4:  call _bit_random_next
+5:  add rax, rbx
+    add rsp, 32
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_random_entropy]
+    jmp 7f
+9:  lea rdi, [rip + Lrt_random_bounds]
+7:  mov rsi, r13
     call _bit_die
 
 _bit_alloc:                         // rdi = байты → rax = память
@@ -1303,26 +1498,71 @@ _bit_dir_remove:                    // rdi = путь, rsi = строка: уд�
     mov rdx, r12
     call _bit_errpath
 
-_bit_move:                          // rdi = откуда, rsi = куда, rdx = строка
+_bit_move:                          // rdi = from, rsi = to, rdx = source line
     push rbp
     mov rbp, rsp
     push rbx
     push r12
+    push r13
+    sub rsp, 8
     mov rbx, rdi
-    mov r12, rdx
+    mov r12, rsi
+    mov r13, rdx
     call _rename
     test eax, eax
+    jz 1f
+    call ___error
+    // EXDEV
+    cmp dword ptr [rax], 18
+    jne 9f
+    mov rdi, rbx
+    mov rsi, r12
+    mov rdx, r13
+    call _bit_copy
+    mov rdi, rbx
+    call _unlink
+    test eax, eax
     jnz 9f
+1:  add rsp, 8
+    pop r13
     pop r12
     pop rbx
     pop rbp
     ret
 9:  lea rdi, [rip + Lrt_emv]
     mov rsi, rbx
-    mov rdx, r12
+    mov rdx, r13
     call _bit_errpath
 
-_bit_copy:                          // rdi = откуда, rsi = куда, rdx = строка; копирует байты как есть
+_bit_copy_temp:                     // rdi = destination path; returns a sibling template
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov esi, 47
+    call _strrchr
+    xor esi, esi
+    test rax, rax
+    jz 1f
+    sub rax, rbx
+    lea rsi, [rax + 1]
+1:  mov rdi, rbx
+    call _bit_substr
+    mov rbx, rax
+    mov rdi, rax
+    lea rsi, [rip + Lrt_copy_suffix]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, rbx
+    call _free
+    mov rax, r12
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_copy:                          // Copy through a temporary sibling; replace only on success.
     push rbp
     mov rbp, rsp
     push rbx
@@ -1334,49 +1574,82 @@ _bit_copy:                          // rdi = откуда, rsi = куда, rdx =
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
+    xor r15d, r15d
+    mov qword ptr [rsp], 0
+    mov qword ptr [rsp + 8], 0
+    mov dword ptr [rsp + 16], -1
     lea rsi, [rip + Lrt_rb]
     call _fopen
     test rax, rax
     jz 9f
     mov r14, rax
-    mov rdi, r12
-    lea rsi, [rip + Lrt_wb]
-    call _fopen
-    test rax, rax
-    jz 7f
-    mov r15, rax
-    mov edi, 65536
+    mov rdi, rbx
+    mov rsi, r12
+    call _strcmp
+    test eax, eax
+    jnz 1f
+    mov rdi, r14
+    call _fclose
+    jmp 4f
+1:  mov edi, 65536
     call _bit_alloc
+    mov [rsp + 8], rax
+    mov rdi, r12
+    call _bit_copy_temp
     mov [rsp], rax
-1:  mov rdi, [rsp]
+    mov rdi, rax
+    call _mkstemp
+    test eax, eax
+    js 6f
+    mov [rsp + 16], eax
+    mov edi, eax
+    lea rsi, [rip + Lrt_wb]
+    call _fdopen
+    test rax, rax
+    jz 5f
+    mov r15, rax
+    mov dword ptr [rsp + 16], -1
+2:  mov rdi, [rsp + 8]
     mov esi, 1
     mov edx, 65536
     mov rcx, r14
     call _fread
     test rax, rax
-    jz 2f
-    mov [rsp + 8], rax
-    mov rdi, [rsp]
-    mov esi, 1
+    jz 3f
+    mov [rsp + 16], rax
     mov rdx, rax
+    mov rdi, [rsp + 8]
+    mov esi, 1
     mov rcx, r15
     call _fwrite
-    cmp rax, [rsp + 8]
-    jne 7f
-    jmp 1b
-2:  mov rdi, r14
+    cmp rax, [rsp + 16]
+    mov dword ptr [rsp + 16], -1
+    jne 5f
+    jmp 2b
+3:  mov rdi, r14
     call _ferror
     test eax, eax
-    jnz 8f
-    mov rdi, r14
-    call _fclose
+    jnz 5f
     mov rdi, r15
+    xor r15d, r15d
     call _fclose
     test eax, eax
-    jnz 7f
+    jnz 5f
+    mov rdi, r14
+    xor r14d, r14d
+    call _fclose
+    test eax, eax
+    jnz 5f
+    mov rdi, [rsp]
+    mov rsi, r12
+    call _rename
+    test eax, eax
+    jnz 5f
     mov rdi, [rsp]
     call _free
-    add rsp, 24
+    mov rdi, [rsp + 8]
+    call _free
+4:  add rsp, 24
     pop r15
     pop r14
     pop r13
@@ -1384,20 +1657,30 @@ _bit_copy:                          // rdi = откуда, rsi = куда, rdx =
     pop rbx
     pop rbp
     ret
-7:
+5:  test r15, r15
+    jz 51f
+    mov rdi, r15
+    call _fclose
+51: mov edi, [rsp + 16]
+    test edi, edi
+    js 52f
+    call _close
+52: mov rdi, [rsp]
+    call _unlink
+6:  test r14, r14
+    jz 7f
+    mov rdi, r14
+    call _fclose
+7:  mov rdi, [rsp]
+    call _free
+    mov rdi, [rsp + 8]
+    call _free
     lea rdi, [rip + Lrt_ewrite]
     mov rsi, r12
-    mov rdx, r13
-    call _bit_errpath
-8:
-    lea rdi, [rip + Lrt_eread]
+    jmp 8f
+9:  lea rdi, [rip + Lrt_eopen]
     mov rsi, rbx
-    mov rdx, r13
-    call _bit_errpath
-9:
-    lea rdi, [rip + Lrt_eopen]
-    mov rsi, rbx
-    mov rdx, r13
+8:  mov rdx, r13
     call _bit_errpath
 
 _bit_dir_make:                      // rdi = путь, rsi = строка; создаёт и все папки на пути
@@ -2395,6 +2678,144 @@ _bit_file_save:                     // rdi = путь, rsi = bytes, rdx = стр
     mov rdx, r13
     call _bit_errpath
 
+_bit_file_load_at:                  // path, offset, count, source line -> bytes
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rcx
+    mov r13, rsi
+    mov r14, rdx
+    test r13, r13
+    js 9f
+    test r14, r14
+    js 9f
+    mov rdi, r14
+    call _bit_bytes_new
+    mov r15, rax
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_rb]
+    call _fopen
+    test rax, rax
+    jz 8f
+    mov [rsp], rax
+    mov rdi, rax
+    mov rsi, r13
+    xor edx, edx
+    call _fseeko
+    test eax, eax
+    jnz 7f
+    mov rdi, [r15]
+    mov esi, 1
+    mov rdx, r14
+    mov rcx, [rsp]
+    call _fread
+    mov [r15 + 8], rax
+    mov rdi, [rsp]
+    call _ferror
+    test eax, eax
+    jnz 7f
+    mov rdi, [rsp]
+    call _fclose
+    test eax, eax
+    jnz 8f
+    mov rax, r15
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  mov rdi, [rsp]
+    call _fclose
+8:  mov rdi, r15
+    call _bit_bytes_free
+    lea rdi, [rip + Lrt_eread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+9:  lea rdi, [rip + Lrt_echunk]
+    mov rsi, r12
+    call _bit_die
+
+_bit_open_update:                   // path -> writable descriptor, creating without truncating
+    // O_WRONLY | O_CREAT (Darwin), mode 0666 filtered by umask
+    mov esi, 513
+    mov edx, 438
+    xor eax, eax
+    jmp _open
+
+_bit_file_save_at:                  // path, bytes, offset, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    test r13, r13
+    js 9f
+    call _bit_open_update
+    test eax, eax
+    js 8f
+    mov r15d, eax
+    mov edi, eax
+    lea rsi, [rip + Lrt_wb]
+    // fdopen does not truncate an existing descriptor
+    call _fdopen
+    test rax, rax
+    jz 6f
+    mov r15, rax
+    mov rdi, rax
+    mov rsi, r13
+    xor edx, edx
+    call _fseeko
+    test eax, eax
+    jnz 7f
+    mov rdi, [r12]
+    mov esi, 1
+    mov rdx, [r12 + 8]
+    mov rcx, r15
+    call _fwrite
+    cmp rax, [r12 + 8]
+    jne 7f
+    mov rdi, r15
+    call _fclose
+    test eax, eax
+    jnz 8f
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+6:  mov edi, r15d
+    call _close
+    jmp 8f
+7:  mov rdi, r15
+    call _fclose
+8:  lea rdi, [rip + Lrt_ewrite]
+    mov rsi, rbx
+    mov rdx, r14
+    call _bit_errpath
+9:  lea rdi, [rip + Lrt_echunk]
+    mov rsi, r14
+    call _bit_die
+
 _bit_mem_free:                      // → сколько байт памяти свободно (свободные + неактивные страницы)
     push rbp
     mov rbp, rsp
@@ -2763,6 +3184,70 @@ _bit_sock_recv:                     // rdi = conn, rsi = строка -> стр�
     pop rbp
     jmp _bit_die
 
+_bit_socket_wait:                   // socket, timeout in ms -> poll result
+    sub rsp, 24
+    mov dword ptr [rsp], edi
+    // POLLIN; clear revents
+    mov dword ptr [rsp + 4], 1
+    mov edx, esi
+    mov esi, 1
+    mov rdi, rsp
+    call _poll
+    add rsp, 24
+    ret
+
+_bit_sock_recv_timed:               // socket, count, timeout in ms, source line -> string
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rcx
+    cmp r12, 1
+    jl 9f
+    cmp r12, 2147483647
+    jg 9f
+    test rdx, rdx
+    js 9f
+    cmp rdx, 2147483647
+    jg 9f
+    mov rsi, rdx
+    call _bit_socket_wait
+    test eax, eax
+    jz 8f
+    js 7f
+    lea rdi, [r12 + 1]
+    call _bit_alloc
+    mov r14, rax
+    mov rdi, rbx
+    mov rsi, r14
+    mov rdx, r12
+    xor ecx, ecx
+    call _recv
+    test eax, eax
+    js 6f
+    mov eax, eax
+    mov byte ptr [r14 + rax], 0
+    mov rax, r14
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+6:  mov rdi, r14
+    call _free
+7:  lea rdi, [rip + Lrt_erecv]
+    jmp 5f
+8:  lea rdi, [rip + Lrt_erecv_timeout]
+    jmp 5f
+9:  lea rdi, [rip + Lrt_erecv_args]
+5:  mov rsi, r13
+    call _bit_die
+
 _bit_sock_close:                    // rdi = conn/server
     jmp _close
 
@@ -3121,6 +3606,51 @@ _bit_str_num:                       // rdi = строка -> число
     neg rax
 6:  ret
 
+_bit_str_num_checked:               // rdi = string, rsi = source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 16
+    mov rbx, rdi
+    mov r12, rsi
+    call ___error
+    mov r13, rax
+    mov dword ptr [r13], 0
+    mov rdi, rbx
+    mov rsi, rsp
+    mov edx, 10
+    call _strtoll
+    mov r14, rax
+    cmp dword ptr [r13], 0
+    jne 9f
+    mov rcx, [rsp]
+    cmp rcx, rbx
+    je 9f
+1:  movzx eax, byte ptr [rcx]
+    inc rcx
+    test eax, eax
+    jz 2f
+    cmp eax, 32
+    je 1b
+    sub eax, 9
+    cmp eax, 4
+    jbe 1b
+    jmp 9f
+2:  mov rax, r14
+    add rsp, 16
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_badnum]
+    mov rsi, r12
+    call _bit_die
+
 _bit_str_lines:                     // rdi = строка -> mas строк
     push rbp
     mov rbp, rsp
@@ -3302,9 +3832,13 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     push r13
     push r14
     push r15
-    sub rsp, 120
+    sub rsp, 152
+    xor ebx, ebx
     mov r12, rsi
     mov r13, rdx
+    mov qword ptr [rsp], -1
+    mov qword ptr [rsp + 8], -1
+    mov qword ptr [rsp + 16], -1
     cmp qword ptr [rdi + 8], 0
     je 9f
     call _bit_mas_argv
@@ -3323,6 +3857,23 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     jz 1f
     lea rdi, [rsp + 16]
     call _pipe
+    test eax, eax
+    js 9f
+    mov edi, dword ptr [rsp + 20]
+    // F_GETFL
+    mov esi, 3
+    xor eax, eax
+    call _fcntl
+    test eax, eax
+    js 9f
+    mov edx, eax
+    // O_NONBLOCK on Darwin
+    or edx, 4
+    mov edi, dword ptr [rsp + 20]
+    // F_SETFL
+    mov esi, 4
+    xor eax, eax
+    call _fcntl
     test eax, eax
     js 9f
 1:  call _fork
@@ -3358,38 +3909,37 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     mov edi, 127
     call _exit
 3:  mov dword ptr [rsp + 24], eax
+    mov rdi, rbx
+    call _free
     mov edi, dword ptr [rsp + 4]
     call _close
     mov edi, dword ptr [rsp + 12]
     call _close
+    mov dword ptr [rsp + 144], -1
+    mov qword ptr [rsp + 104], 2
     test r12, r12
     jz 5f
     mov edi, dword ptr [rsp + 16]
     call _close
-    mov edi, 13
-    mov esi, 1
-    call _signal
-    mov [rsp + 112], rax
     mov rdi, r12
     call _strlen
     mov r14, rax
     mov r15, r12
-4:  test r14, r14
+    test r14, r14
     jz 6f
-    mov edi, dword ptr [rsp + 20]
-    mov rsi, r15
-    mov rdx, r14
-    call _write
-    test rax, rax
-    jle 6f
-    add r15, rax
-    sub r14, rax
-    jmp 4b
+    mov edi, 13
+    // SIG_IGN
+    mov esi, 1
+    call _signal
+    mov [rsp + 112], rax
+    mov eax, dword ptr [rsp + 20]
+    mov dword ptr [rsp + 144], eax
+    // POLLOUT
+    mov dword ptr [rsp + 148], 4
+    mov qword ptr [rsp + 104], 3
+    jmp 5f
 6:  mov edi, dword ptr [rsp + 20]
     call _close
-    mov edi, 13
-    mov rsi, [rsp + 112]
-    call _signal
 5:  mov edi, 4096
     call _bit_alloc
     mov [rsp + 48], rax
@@ -3401,22 +3951,23 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     mov qword ptr [rsp + 80], 0
     mov qword ptr [rsp + 88], 4096
     mov eax, dword ptr [rsp]
-    mov dword ptr [rsp + 32], eax
-    mov dword ptr [rsp + 36], 1
+    mov dword ptr [rsp + 128], eax
+    mov dword ptr [rsp + 132], 1
     mov eax, dword ptr [rsp + 8]
-    mov dword ptr [rsp + 40], eax
-    mov dword ptr [rsp + 44], 1
-    mov qword ptr [rsp + 104], 2
+    mov dword ptr [rsp + 136], eax
+    mov dword ptr [rsp + 140], 1
 7:  cmp qword ptr [rsp + 104], 0
     je 8f
-    lea rdi, [rsp + 32]
-    mov esi, 2
+    lea rdi, [rsp + 128]
+    mov esi, 3
     mov edx, -1
     call _poll
-    mov eax, dword ptr [rsp + 32]
+    test eax, eax
+    js 7b
+    mov eax, dword ptr [rsp + 128]
     test eax, eax
     js 71f
-    movzx ecx, word ptr [rsp + 38]
+    movzx ecx, word ptr [rsp + 134]
     test ecx, ecx
     jz 71f
     mov edi, eax
@@ -3424,38 +3975,80 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     call _bit_buf_read
     test rax, rax
     jg 71f
-    mov edi, dword ptr [rsp + 32]
+    mov edi, dword ptr [rsp + 128]
     call _close
-    mov dword ptr [rsp + 32], -1
+    mov dword ptr [rsp + 128], -1
     dec qword ptr [rsp + 104]
-71: mov eax, dword ptr [rsp + 40]
+71: mov eax, dword ptr [rsp + 136]
     test eax, eax
-    js 7b
-    movzx ecx, word ptr [rsp + 46]
+    js 72f
+    movzx ecx, word ptr [rsp + 142]
     test ecx, ecx
-    jz 7b
+    jz 72f
     mov edi, eax
     lea rsi, [rsp + 72]
     call _bit_buf_read
     test rax, rax
-    jg 7b
-    mov edi, dword ptr [rsp + 40]
+    jg 72f
+    mov edi, dword ptr [rsp + 136]
     call _close
-    mov dword ptr [rsp + 40], -1
+    mov dword ptr [rsp + 136], -1
+    dec qword ptr [rsp + 104]
+    jmp 72f
+72: mov edi, dword ptr [rsp + 144]
+    test edi, edi
+    js 7b
+    cmp word ptr [rsp + 150], 0
+    je 7b
+    mov rsi, r15
+    mov edx, 65536
+    cmp r14, rdx
+    cmovb rdx, r14
+    call _write
+    test rax, rax
+    jg 73f
+    call ___error
+    mov eax, dword ptr [rax]
+    // EINTR
+    cmp eax, 4
+    je 7b
+    // EAGAIN on Darwin
+    cmp eax, 35
+    je 7b
+    jmp 74f
+73: add r15, rax
+    sub r14, rax
+    jnz 7b
+74: mov edi, dword ptr [rsp + 144]
+    call _close
+    mov dword ptr [rsp + 144], -1
+    mov edi, 13
+    mov rsi, [rsp + 112]
+    call _signal
     dec qword ptr [rsp + 104]
     jmp 7b
 8:  mov edi, dword ptr [rsp + 24]
     lea rsi, [rsp + 96]
     xor edx, edx
     call _waitpid
+    test eax, eax
+    js 81f
     mov edi, dword ptr [rsp + 96]
     call _bit_wstatus
+    jmp 82f
+81: call ___error
+    // EINTR
+    cmp dword ptr [rax], 4
+    je 8b
+    mov qword ptr [rip + Lrt_status], 127
+82: mov rdi, [rip + Lrt_stderr]
+    call _free
     lea rdi, [rsp + 72]
     call _bit_buf_finish
     mov [rip + Lrt_stderr], rax
     lea rdi, [rsp + 48]
     call _bit_buf_finish
-    add rsp, 120
+    add rsp, 152
     pop r15
     pop r14
     pop r13
@@ -3463,7 +4056,17 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     pop rbx
     pop rbp
     ret
-9:  lea rdi, [rip + Lrt_erun]
+9:  mov rdi, rbx
+    call _free
+    xor r14d, r14d
+91: mov edi, dword ptr [rsp + r14]
+    test edi, edi
+    js 92f
+    call _close
+92: add r14, 4
+    cmp r14, 24
+    jne 91b
+    lea rdi, [rip + Lrt_erun]
     mov rsi, r13
     call _bit_die
 
@@ -3494,12 +4097,14 @@ _bit_term_stderr:                   // → копия stderr последнег�
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
-Lrt_recdepth: .quad 0
+Lrt_random_state: .quad 0
+Lrt_random_ready: .quad 0
+Lrt_recover: .quad 0
+Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
 Lrt_stderr: .quad 0
 .p2align 4
-Lrt_recbufs: .space 8192
 .section __TEXT,__cstring,cstring_literals
 Lrt_curl: .asciz "curl"
 Lrt_sS: .asciz "-sS"
@@ -3529,7 +4134,14 @@ Lrt_e8: .asciz "\320\262 bytes \320\275\320\265\321\202 8 \320\261\320\260\320\2
 Lrt_vmps: .asciz "vm.pagesize"
 Lrt_hex: .asciz "0123456789abcdef"
 Lrt_ovf: .asciz "\320\277\320\265\321\200\320\265\320\277\320\276\320\273\320\275\320\265\320\275\320\270\320\265 num \342\200\224 \321\207\320\270\321\201\320\273\320\276 \320\275\320\265 \320\262\320\273\320\265\320\267\320\273\320\276"
+Lrt_echunk: .asciz "\321\201\320\274\320\265\321\211\320\265\320\275\320\270\320\265\040\320\270\040\321\200\320\260\320\267\320\274\320\265\321\200\040\320\264\320\276\320\273\320\266\320\275\321\213\040\320\261\321\213\321\202\321\214\040\320\275\320\265\320\276\321\202\321\200\320\270\321\206\320\260\321\202\320\265\320\273\321\214\320\275\321\213\320\274\320\270"
+Lrt_erecv_timeout: .asciz "\320\270\321\201\321\202\320\265\320\272\320\273\320\276\040\320\262\321\200\320\265\320\274\321\217\040\320\276\320\266\320\270\320\264\320\260\320\275\320\270\321\217\040\162\145\143\166"
+Lrt_erecv_args: .asciz "\162\145\143\166\072\040\321\200\320\260\320\267\320\274\320\265\321\200\040\061\056\056\062\061\064\067\064\070\063\066\064\067\054\040\320\276\320\266\320\270\320\264\320\260\320\275\320\270\320\265\040\060\056\056\062\061\064\067\064\070\063\066\064\067\040\320\274\321\201"
 Lrt_wb: .asciz "wb"
+Lrt_copy_suffix: .asciz ".bit-copy-XXXXXX"
+Lrt_badnum: .asciz "invalid num: expected a decimal integer in range"
+Lrt_random_bounds: .asciz "random: expected minimum <= maximum"
+Lrt_random_entropy: .asciz "random: cannot read system entropy"
 Lrt_gp: .asciz "%.*g"
 Lrt_eread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \321\204\320\260\320\271\320\273: "
 Lrt_enotfile: .asciz "\321\215\321\202\320\276 \320\275\320\265 \321\204\320\260\320\271\320\273: "

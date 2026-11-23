@@ -1,25 +1,37 @@
 
 // ─────────── среда выполнения bit ───────────
 .p2align 2
-_bit_recover_enter:                 // → x0 = буфер перехода; глубину +1
-    adrp x1, Lrt_recdepth@PAGE
-    ldr x0, [x1, Lrt_recdepth@PAGEOFF]
-    mov x2, x0
-    lsl x2, x2, #9
-    adrp x3, Lrt_recbufs@PAGE
-    add x3, x3, Lrt_recbufs@PAGEOFF
-    add x3, x3, x2
-    add x0, x0, #1
-    str x0, [x1, Lrt_recdepth@PAGEOFF]
-    mov x0, x3
+_bit_recover_enter:                 // x0 = frame allocated by the compiler
+    adrp x1, Lrt_recover@PAGE
+    ldr x2, [x1, Lrt_recover@PAGEOFF]
+    str x2, [x0, #168]
+    str x0, [x1, Lrt_recover@PAGEOFF]
+    adrp x1, Lrt_owned@PAGE
+    ldr x2, [x1, Lrt_owned@PAGEOFF]
+    str x2, [x0, #176]
     ret
 
-_bit_recover_leave:                 // глубину -1
-    adrp x1, Lrt_recdepth@PAGE
-    ldr x0, [x1, Lrt_recdepth@PAGEOFF]
-    sub x0, x0, #1
-    str x0, [x1, Lrt_recdepth@PAGEOFF]
+_bit_recover_leave:
+    adrp x1, Lrt_recover@PAGE
+    ldr x0, [x1, Lrt_recover@PAGEOFF]
+    ldr x0, [x0, #168]
+    str x0, [x1, Lrt_recover@PAGEOFF]
     ret
+
+_bit_own_str:                       // x0 = stack record with string and previous pointer
+    adrp x1, Lrt_owned@PAGE
+    ldr x2, [x1, Lrt_owned@PAGEOFF]
+    str x2, [x0, #8]
+    str x0, [x1, Lrt_owned@PAGEOFF]
+    ret
+
+_bit_drop_owned:
+    adrp x1, Lrt_owned@PAGE
+    ldr x0, [x1, Lrt_owned@PAGEOFF]
+    ldr x2, [x0, #8]
+    str x2, [x1, Lrt_owned@PAGEOFF]
+    ldr x0, [x0]
+    b _bit_drop_str
 
 _bit_setjmp:                        // x0 = буфер → 0; сохраняет x19-x30, sp, d8-d15
     stp x19, x20, [x0, #0]
@@ -74,19 +86,25 @@ _bit_term_error:                    // → копия текста послед�
     ret
 
 _bit_die:                           // x0 = сообщение, x1 = строка программы
-    adrp x9, Lrt_recdepth@PAGE
-    ldr x10, [x9, Lrt_recdepth@PAGEOFF]
+    adrp x9, Lrt_recover@PAGE
+    ldr x10, [x9, Lrt_recover@PAGEOFF]
     cbz x10, 5f
     adrp x12, Lrt_errmsg@PAGE
     str x0, [x12, Lrt_errmsg@PAGEOFF]
     adrp x12, Lrt_errline@PAGE
     str x1, [x12, Lrt_errline@PAGEOFF]
-    sub x10, x10, #1
-    str x10, [x9, Lrt_recdepth@PAGEOFF]
-    lsl x11, x10, #9
-    adrp x0, Lrt_recbufs@PAGE
-    add x0, x0, Lrt_recbufs@PAGEOFF
-    add x0, x0, x11
+    ldr x11, [x10, #168]
+    str x11, [x9, Lrt_recover@PAGEOFF]
+    stp x10, x30, [sp, #-16]!
+1:  adrp x12, Lrt_owned@PAGE
+    ldr x12, [x12, Lrt_owned@PAGEOFF]
+    ldr x11, [x10, #176]
+    cmp x12, x11
+    b.eq 2f
+    bl _bit_drop_owned
+    ldr x10, [sp]
+    b 1b
+2:  ldp x0, x30, [sp], #16
     mov x1, #1
     b _bit_longjmp
 5:  stp x29, x30, [sp, #-16]!
@@ -113,6 +131,178 @@ _bit_oom:
     add x0, x0, Lrt_oom@PAGEOFF
     mov x1, #0
     b _bit_die
+
+_bit_map_find:                      // map, key -> index or -1
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    ldr x19, [x0]
+    ldr x20, [x0, #8]
+    mov x21, x1
+    mov x22, #0
+1:  cmp x22, x20
+    b.ge 2f
+    ldr x0, [x19, x22, lsl #3]
+    ldr x0, [x0]
+    mov x1, x21
+    bl _bit_str_eq
+    cbnz x0, 3f
+    add x22, x22, #1
+    b 1b
+2:  mov x22, #-1
+3:  mov x0, x22
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_map_set:                       // map, key, value, source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    bl _bit_map_find
+    tbnz x0, #63, 1f
+    ldr x1, [x19]
+    ldr x1, [x1, x0, lsl #3]
+    str x21, [x1, #8]
+    b 2f
+1:  mov x0, #16
+    bl _bit_alloc
+    stp x20, x21, [x0]
+    mov x1, x0
+    mov x0, x19
+    mov x2, x22
+    bl _bit_mas_add
+2:  ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_map_remove:                    // map, key
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    bl _bit_map_find
+    tbnz x0, #63, 1f
+    mov x20, x0
+    ldr x1, [x19]
+    ldr x21, [x1, x20, lsl #3]
+    mov x0, x19
+    mov x1, x20
+    bl _bit_mas_remove
+    mov x0, x21
+    bl _free
+1:  ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_random_seed:                   // Hash a UTF-8 seed word with FNV-1a.
+    movz x1, #0x2325
+    movk x1, #0x8422, lsl #16
+    movk x1, #0x9ce4, lsl #32
+    movk x1, #0xcbf2, lsl #48
+    movz x2, #0x01b3
+    movk x2, #0x0100, lsl #32
+1:  ldrb w3, [x0], #1
+    cbz w3, 2f
+    eor x1, x1, x3
+    mul x1, x1, x2
+    b 1b
+2:  adrp x3, Lrt_random_state@PAGE
+    str x1, [x3, Lrt_random_state@PAGEOFF]
+    adrp x3, Lrt_random_ready@PAGE
+    mov x1, #1
+    str x1, [x3, Lrt_random_ready@PAGEOFF]
+    ret
+
+_bit_random_next:                   // SplitMix64 with unsigned wrapping arithmetic.
+    adrp x1, Lrt_random_state@PAGE
+    ldr x0, [x1, Lrt_random_state@PAGEOFF]
+    movz x2, #0x7c15
+    movk x2, #0x7f4a, lsl #16
+    movk x2, #0x79b9, lsl #32
+    movk x2, #0x9e37, lsl #48
+    add x0, x0, x2
+    str x0, [x1, Lrt_random_state@PAGEOFF]
+    eor x0, x0, x0, lsr #30
+    movz x2, #0xe5b9
+    movk x2, #0x1ce4, lsl #16
+    movk x2, #0x476d, lsl #32
+    movk x2, #0xbf58, lsl #48
+    mul x0, x0, x2
+    eor x0, x0, x0, lsr #27
+    movz x2, #0x11eb
+    movk x2, #0x1331, lsl #16
+    movk x2, #0x49bb, lsl #32
+    movk x2, #0x94d0, lsl #48
+    mul x0, x0, x2
+    eor x0, x0, x0, lsr #31
+    ret
+
+_bit_random_range:                  // Inclusive signed bounds, source line.
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #32
+    mov x19, x0
+    mov x21, x2
+    cmp x0, x1
+    b.gt 9f
+    sub x20, x1, x0
+    add x20, x20, #1
+    adrp x3, Lrt_random_ready@PAGE
+    ldr x3, [x3, Lrt_random_ready@PAGEOFF]
+    cbnz x3, 2f
+    mov x0, sp
+    mov x1, #16
+    bl _getentropy
+    cbnz w0, 8f
+    mov x3, sp
+    mov x4, #16
+1:  ldrb w0, [x3]
+    and w0, w0, #15
+    add w0, w0, #97
+    strb w0, [x3], #1
+    subs x4, x4, #1
+    b.ne 1b
+    strb wzr, [x3]
+    mov x0, sp
+    bl _bit_random_seed
+2:  cbz x20, 4f
+    // Rejection avoids modulo bias. A zero width denotes the entire num range.
+    neg x3, x20
+    udiv x4, x3, x20
+    msub x22, x4, x20, x3
+3:  bl _bit_random_next
+    cmp x0, x22
+    b.lo 3b
+    udiv x3, x0, x20
+    msub x0, x3, x20, x0
+    b 5f
+4:  bl _bit_random_next
+5:  add x0, x0, x19
+    add sp, sp, #32
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+8:  adrp x0, Lrt_random_entropy@PAGE
+    add x0, x0, Lrt_random_entropy@PAGEOFF
+    b 7f
+9:  adrp x0, Lrt_random_bounds@PAGE
+    add x0, x0, Lrt_random_bounds@PAGEOFF
+7:  mov x1, x21
+    bl _bit_die
 
 _bit_alloc:                         // x0 = байты → x0 = память
     stp x29, x30, [sp, #-16]!
@@ -1205,95 +1395,168 @@ _bit_dir_remove:                    // x0 = путь, x1 = строка: уда�
     mov x2, x20
     bl _bit_errpath
 
-_bit_move:                          // x0 = откуда, x1 = куда, x2 = строка
+_bit_move:                          // x0 = from, x1 = to, x2 = source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    bl _rename
+    cbz w0, 1f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #18                      // EXDEV
+    b.ne 9f
+    mov x0, x19
+    mov x1, x20
+    mov x2, x21
+    bl _bit_copy
+    mov x0, x19
+    bl _unlink
+    cbnz w0, 9f
+1:  ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_emv@PAGE
+    add x0, x0, Lrt_emv@PAGEOFF
+    mov x1, x19
+    mov x2, x21
+    bl _bit_errpath
+
+_bit_copy_temp:                     // x0 = destination path; returns a sibling template
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     mov x19, x0
-    mov x20, x2
-    bl _rename
-    cbnz w0, 9f
+    mov w1, #47
+    bl _strrchr
+    cbz x0, 1f
+    sub x1, x0, x19
+    add x1, x1, #1
+    b 2f
+1:  mov x1, #0
+2:  mov x0, x19
+    bl _bit_substr
+    mov x19, x0
+    adrp x1, Lrt_copy_suffix@PAGE
+    add x1, x1, Lrt_copy_suffix@PAGEOFF
+    bl _bit_cat
+    mov x20, x0
+    mov x0, x19
+    bl _free
+    mov x0, x20
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:
-    adrp x0, Lrt_emv@PAGE
-    add x0, x0, Lrt_emv@PAGEOFF
-    mov x1, x19
-    mov x2, x20
-    bl _bit_errpath
 
-_bit_copy:                          // x0 = откуда, x1 = куда, x2 = строка; копирует байты как есть
+_bit_copy:                          // Copy through a temporary sibling; replace only on success.
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
     stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
     mov x19, x0
     mov x20, x1
     mov x21, x2
+    mov x23, #0
+    mov x24, #0
+    mov x25, #0
+    mov w26, #-1
     adrp x1, Lrt_rb@PAGE
     add x1, x1, Lrt_rb@PAGEOFF
     bl _fopen
     cbz x0, 9f
     mov x22, x0
+    mov x0, x19
+    mov x1, x20
+    bl _strcmp
+    cbnz w0, 1f
+    mov x0, x22
+    bl _fclose
+    b 4f
+1:  mov x0, #65536
+    bl _bit_alloc
+    mov x25, x0
     mov x0, x20
+    bl _bit_copy_temp
+    mov x24, x0
+    bl _mkstemp
+    tbnz w0, #31, 6f
+    mov w26, w0
     adrp x1, Lrt_wb@PAGE
     add x1, x1, Lrt_wb@PAGEOFF
-    bl _fopen
-    cbz x0, 7f
+    bl _fdopen
+    cbz x0, 5f
     mov x23, x0
-    mov x0, #65536
-    bl _bit_alloc
-    mov x24, x0
-1:  mov x0, x24
+    mov w26, #-1
+2:  mov x0, x25
     mov x1, #1
     mov x2, #65536
     mov x3, x22
     bl _fread
-    cbz x0, 2f
+    cbz x0, 3f
+    str x0, [sp, #-16]!
     mov x2, x0
-    str x2, [sp, #-16]!
-    mov x0, x24
+    mov x0, x25
     mov x1, #1
     mov x3, x23
     bl _fwrite
-    ldr x2, [sp], #16
-    cmp x0, x2
-    b.ne 7f
-    b 1b
-2:  mov x0, x22
+    ldr x1, [sp], #16
+    cmp x0, x1
+    b.ne 5f
+    b 2b
+3:  mov x0, x22
     bl _ferror
-    cbnz w0, 8f
-    mov x0, x22
-    bl _fclose
+    cbnz w0, 5f
     mov x0, x23
+    mov x23, #0
     bl _fclose
-    cbnz w0, 7f
+    cbnz w0, 5f
+    mov x0, x22
+    mov x22, #0
+    bl _fclose
+    cbnz w0, 5f
+    mov x0, x24
+    mov x1, x20
+    bl _rename
+    cbnz w0, 5f
     mov x0, x24
     bl _free
+    mov x0, x25
+    bl _free
+4:  ldp x25, x26, [sp], #16
     ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-7:
+5:  cbz x23, 51f
+    mov x0, x23
+    bl _fclose
+51: tbnz w26, #31, 52f
+    mov w0, w26
+    bl _close
+52: mov x0, x24
+    bl _unlink
+6:  cbz x22, 7f
+    mov x0, x22
+    bl _fclose
+7:  mov x0, x24
+    bl _free
+    mov x0, x25
+    bl _free
     adrp x0, Lrt_ewrite@PAGE
     add x0, x0, Lrt_ewrite@PAGEOFF
     mov x1, x20
-    mov x2, x21
-    bl _bit_errpath
-8:
-    adrp x0, Lrt_eread@PAGE
-    add x0, x0, Lrt_eread@PAGEOFF
-    mov x1, x19
-    mov x2, x21
-    bl _bit_errpath
-9:
-    adrp x0, Lrt_eopen@PAGE
+    b 8f
+9:  adrp x0, Lrt_eopen@PAGE
     add x0, x0, Lrt_eopen@PAGEOFF
     mov x1, x19
-    mov x2, x21
+8:  mov x2, x21
     bl _bit_errpath
 
 _bit_dir_make:                      // x0 = путь, x1 = строка; создаёт и все папки на пути
@@ -2209,6 +2472,122 @@ _bit_file_save:                     // x0 = путь, x1 = bytes, x2 = стро�
     mov x2, x21
     bl _bit_errpath
 
+_bit_file_load_at:                  // path, offset, count, source line -> bytes
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    tbnz x20, #63, 9f
+    tbnz x21, #63, 9f
+    mov x0, x21
+    bl _bit_bytes_new
+    mov x23, x0
+    mov x0, x19
+    adrp x1, Lrt_rb@PAGE
+    add x1, x1, Lrt_rb@PAGEOFF
+    bl _fopen
+    cbz x0, 8f
+    mov x24, x0
+    mov x1, x20
+    mov w2, #0
+    bl _fseeko
+    cbnz w0, 7f
+    ldr x0, [x23]
+    mov x1, #1
+    mov x2, x21
+    mov x3, x24
+    bl _fread
+    str x0, [x23, #8]
+    mov x0, x24
+    bl _ferror
+    cbnz w0, 7f
+    mov x0, x24
+    bl _fclose
+    cbnz w0, 8f
+    mov x0, x23
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+7:  mov x0, x24
+    bl _fclose
+8:  mov x0, x23
+    bl _bit_bytes_free
+    adrp x0, Lrt_eread@PAGE
+    add x0, x0, Lrt_eread@PAGEOFF
+    mov x1, x19
+    mov x2, x22
+    bl _bit_errpath
+9:  adrp x0, Lrt_echunk@PAGE
+    add x0, x0, Lrt_echunk@PAGEOFF
+    mov x1, x22
+    bl _bit_die
+
+_bit_file_save_at:                  // path, bytes, offset, source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    tbnz x21, #63, 9f
+    sub sp, sp, #16
+    mov w1, #513                    // O_WRONLY | O_CREAT (Darwin)
+    mov x2, #438                    // 0666, variadic argument on the Darwin stack
+    str x2, [sp]
+    bl _open
+    add sp, sp, #16
+    tbnz w0, #31, 8f
+    mov w23, w0
+    adrp x1, Lrt_wb@PAGE
+    add x1, x1, Lrt_wb@PAGEOFF
+    bl _fdopen                      // does not truncate an existing descriptor
+    cbz x0, 6f
+    mov x23, x0
+    mov x1, x21
+    mov w2, #0
+    bl _fseeko
+    cbnz w0, 7f
+    ldr x0, [x20]
+    mov x1, #1
+    ldr x2, [x20, #8]
+    mov x3, x23
+    bl _fwrite
+    ldr x2, [x20, #8]
+    cmp x0, x2
+    b.ne 7f
+    mov x0, x23
+    bl _fclose
+    cbnz w0, 8f
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+6:  mov w0, w23
+    bl _close
+    b 8f
+7:  mov x0, x23
+    bl _fclose
+8:  adrp x0, Lrt_ewrite@PAGE
+    add x0, x0, Lrt_ewrite@PAGEOFF
+    mov x1, x19
+    mov x2, x22
+    bl _bit_errpath
+9:  adrp x0, Lrt_echunk@PAGE
+    add x0, x0, Lrt_echunk@PAGEOFF
+    mov x1, x22
+    bl _bit_die
+
 _bit_mem_free:                      // → сколько байт памяти свободно (свободные + неактивные страницы)
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -2545,6 +2924,60 @@ _bit_sock_recv:                     // x0 = conn, x1 = строка -> стро�
     mov x1, x20
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
+    bl _bit_die
+
+_bit_sock_recv_timed:               // socket, count, timeout in ms, source line -> string
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #16
+    mov x19, x0
+    mov x20, x1
+    mov x21, x3
+    mov w4, #2147483647
+    cmp x20, #1
+    b.lt 9f
+    cmp x20, x4
+    b.gt 9f
+    tbnz x2, #63, 9f
+    cmp x2, x4
+    b.gt 9f
+    str w19, [sp]
+    mov w4, #1                     // POLLIN; clear revents
+    str w4, [sp, #4]
+    mov x0, sp
+    mov w1, #1
+    bl _poll
+    cbz w0, 8f
+    tbnz w0, #31, 7f
+    add x0, x20, #1
+    bl _bit_alloc
+    mov x22, x0
+    mov w0, w19
+    mov x1, x22
+    mov x2, x20
+    mov w3, #0
+    bl _recv
+    tbnz x0, #63, 6f
+    strb wzr, [x22, x0]
+    mov x0, x22
+    add sp, sp, #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+6:  mov x0, x22
+    bl _free
+7:  adrp x0, Lrt_erecv@PAGE
+    add x0, x0, Lrt_erecv@PAGEOFF
+    b 5f
+8:  adrp x0, Lrt_erecv_timeout@PAGE
+    add x0, x0, Lrt_erecv_timeout@PAGEOFF
+    b 5f
+9:  adrp x0, Lrt_erecv_args@PAGE
+    add x0, x0, Lrt_erecv_args@PAGEOFF
+5:  mov x1, x21
     bl _bit_die
 
 _bit_sock_close:                    // x0 = conn/server
@@ -2911,6 +3344,46 @@ _bit_str_num:                       // x0 = строка -> число (деся
     neg x0, x0
 6:  ret
 
+_bit_str_num_checked:               // x0 = string, x1 = source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #16
+    mov x19, x0
+    mov x20, x1
+    bl ___error
+    mov x21, x0
+    str wzr, [x21]
+    mov x0, x19
+    mov x1, sp
+    mov w2, #10
+    bl _strtoll
+    mov x22, x0
+    ldr w0, [x21]
+    cbnz w0, 9f
+    ldr x1, [sp]
+    cmp x1, x19
+    b.eq 9f
+1:  ldrb w0, [x1], #1
+    cbz w0, 2f
+    cmp w0, #32
+    b.eq 1b
+    sub w0, w0, #9
+    cmp w0, #4
+    b.ls 1b
+    b 9f
+2:  mov x0, x22
+    add sp, sp, #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_badnum@PAGE
+    add x0, x0, Lrt_badnum@PAGEOFF
+    mov x1, x20
+    bl _bit_die
+
 _bit_str_lines:                     // x0 = строка -> mas строк (по переводу строки)
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -3086,9 +3559,13 @@ _bit_exec:                          // x0 = mas строк, x1 = stdin (или 0
     stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
     stp x23, x24, [sp, #-16]!
-    sub sp, sp, #128
+    sub sp, sp, #160
+    mov x19, #0
     mov x20, x1
     mov x21, x2
+    mov x3, #-1
+    stp x3, x3, [sp]
+    str x3, [sp, #16]
     ldr x3, [x0, #8]
     cbz x3, 9f
     bl _bit_mas_argv
@@ -3104,6 +3581,18 @@ _bit_exec:                          // x0 = mas строк, x1 = stdin (или 0
     cbz x20, 1f
     add x0, sp, #16
     bl _pipe
+    tbnz w0, #31, 9f
+    ldr w0, [sp, #20]
+    mov w1, #3                       // F_GETFL
+    bl _fcntl
+    tbnz w0, #31, 9f
+    orr w2, w0, #4                   // O_NONBLOCK on Darwin
+    ldr w0, [sp, #20]
+    mov w1, #4                       // F_SETFL
+    sub sp, sp, #16
+    str w2, [sp]                     // Darwin arm64 variadic argument
+    bl _fcntl
+    add sp, sp, #16
     tbnz w0, #31, 9f
 1:  bl _fork
     tbnz w0, #31, 9f
@@ -3136,36 +3625,37 @@ _bit_exec:                          // x0 = mas строк, x1 = stdin (или 0
     mov w0, #127
     bl _exit
 3:  str w0, [sp, #24]
+    mov x0, x19
+    bl _free
     ldr w0, [sp, #4]
     bl _close
     ldr w0, [sp, #12]
     bl _close
+    mov w0, #-1
+    str w0, [sp, #144]
+    mov x0, #2
+    str x0, [sp, #104]
     cbz x20, 5f
     ldr w0, [sp, #16]
     bl _close
-    mov x0, #13
-    mov x1, #1
-    bl _signal
-    str x0, [sp, #112]
     mov x0, x20
     bl _strlen
     mov x22, x0
     mov x23, x20
-4:  cbz x22, 6f
+    cbz x22, 6f
+    mov x0, #13
+    mov x1, #1                       // SIG_IGN
+    bl _signal
+    str x0, [sp, #112]
     ldr w0, [sp, #20]
-    mov x1, x23
-    mov x2, x22
-    bl _write
-    cmp x0, #0
-    b.le 6f
-    add x23, x23, x0
-    sub x22, x22, x0
-    b 4b
+    str w0, [sp, #144]
+    mov w0, #4                       // POLLOUT
+    str w0, [sp, #148]
+    mov x0, #3
+    str x0, [sp, #104]
+    b 5f
 6:  ldr w0, [sp, #20]
     bl _close
-    mov x0, #13
-    ldr x1, [sp, #112]
-    bl _signal
 5:  mov x0, #4096
     bl _bit_alloc
     str x0, [sp, #48]
@@ -3179,47 +3669,78 @@ _bit_exec:                          // x0 = mas строк, x1 = stdin (или 0
     mov x1, #4096
     str x1, [sp, #88]
     ldr w0, [sp]
-    str w0, [sp, #32]
+    str w0, [sp, #128]
     mov w1, #1
-    str w1, [sp, #36]
+    str w1, [sp, #132]
     ldr w0, [sp, #8]
-    str w0, [sp, #40]
-    str w1, [sp, #44]
-    mov x1, #2
-    str x1, [sp, #104]
+    str w0, [sp, #136]
+    str w1, [sp, #140]
 7:  ldr x1, [sp, #104]
     cbz x1, 8f
-    add x0, sp, #32
-    mov x1, #2
+    add x0, sp, #128
+    mov x1, #3
     mov w2, #-1
     bl _poll
-    ldr w0, [sp, #32]
+    tbnz w0, #31, 7b
+    ldr w0, [sp, #128]
     tbnz w0, #31, 71f
-    ldrh w1, [sp, #38]
+    ldrh w1, [sp, #134]
     cbz w1, 71f
     add x1, sp, #48
     bl _bit_buf_read
     cmp x0, #0
     b.gt 71f
-    ldr w0, [sp, #32]
+    ldr w0, [sp, #128]
     bl _close
     mov w0, #-1
-    str w0, [sp, #32]
+    str w0, [sp, #128]
     ldr x1, [sp, #104]
     sub x1, x1, #1
     str x1, [sp, #104]
-71: ldr w0, [sp, #40]
-    tbnz w0, #31, 7b
-    ldrh w1, [sp, #46]
-    cbz w1, 7b
+71: ldr w0, [sp, #136]
+    tbnz w0, #31, 72f
+    ldrh w1, [sp, #142]
+    cbz w1, 72f
     add x1, sp, #72
     bl _bit_buf_read
     cmp x0, #0
-    b.gt 7b
-    ldr w0, [sp, #40]
+    b.gt 72f
+    ldr w0, [sp, #136]
     bl _close
     mov w0, #-1
-    str w0, [sp, #40]
+    str w0, [sp, #136]
+    ldr x1, [sp, #104]
+    sub x1, x1, #1
+    str x1, [sp, #104]
+    b 72f
+72: ldr w0, [sp, #144]
+    tbnz w0, #31, 7b
+    ldrh w1, [sp, #150]
+    cbz w1, 7b
+    mov x1, x23
+    mov x2, #65536
+    cmp x22, x2
+    csel x2, x22, x2, lo
+    bl _write
+    cmp x0, #0
+    b.gt 73f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                       // EINTR
+    b.eq 7b
+    cmp w0, #35                      // EAGAIN on Darwin
+    b.eq 7b
+    b 74f
+73: add x23, x23, x0
+    subs x22, x22, x0
+    b.ne 7b
+74: ldr w0, [sp, #144]
+    bl _close
+    mov w0, #-1
+    str w0, [sp, #144]
+    mov x0, #13
+    ldr x1, [sp, #112]
+    bl _signal
     ldr x1, [sp, #104]
     sub x1, x1, #1
     str x1, [sp, #104]
@@ -3228,21 +3749,42 @@ _bit_exec:                          // x0 = mas строк, x1 = stdin (или 0
     add x1, sp, #96
     mov w2, #0
     bl _waitpid
+    tbnz w0, #31, 81f
     ldr w0, [sp, #96]
     bl _bit_wstatus
+    b 82f
+81: bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                       // EINTR
+    b.eq 8b
+    mov x0, #127
+    adrp x1, Lrt_status@PAGE
+    str x0, [x1, Lrt_status@PAGEOFF]
+82: adrp x1, Lrt_stderr@PAGE
+    ldr x0, [x1, Lrt_stderr@PAGEOFF]
+    bl _free
     add x0, sp, #72
     bl _bit_buf_finish
     adrp x1, Lrt_stderr@PAGE
     str x0, [x1, Lrt_stderr@PAGEOFF]
     add x0, sp, #48
     bl _bit_buf_finish
-    add sp, sp, #128
+    add sp, sp, #160
     ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  adrp x0, Lrt_erun@PAGE
+9:  mov x0, x19
+    bl _free
+    mov x22, #0
+91: ldr w0, [sp, x22]
+    tbnz w0, #31, 92f
+    bl _close
+92: add x22, x22, #4
+    cmp x22, #24
+    b.ne 91b
+    adrp x0, Lrt_erun@PAGE
     add x0, x0, Lrt_erun@PAGEOFF
     mov x1, x21
     bl _bit_die
@@ -3272,12 +3814,14 @@ _bit_term_stderr:                   // → копия stderr последнег�
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
-Lrt_recdepth: .quad 0
+Lrt_random_state: .quad 0
+Lrt_random_ready: .quad 0
+Lrt_recover: .quad 0
+Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
 Lrt_stderr: .quad 0
 .p2align 4
-Lrt_recbufs: .space 8192
 .section __TEXT,__text,regular,pure_instructions
 .p2align 2
 
@@ -3310,7 +3854,14 @@ Lrt_e8: .asciz "\320\262 bytes \320\275\320\265\321\202 8 \320\261\320\260\320\2
 Lrt_vmps: .asciz "vm.pagesize"
 Lrt_hex: .asciz "0123456789abcdef"
 Lrt_ovf: .asciz "\320\277\320\265\321\200\320\265\320\277\320\276\320\273\320\275\320\265\320\275\320\270\320\265 num \342\200\224 \321\207\320\270\321\201\320\273\320\276 \320\275\320\265 \320\262\320\273\320\265\320\267\320\273\320\276"
+Lrt_echunk: .asciz "\321\201\320\274\320\265\321\211\320\265\320\275\320\270\320\265\040\320\270\040\321\200\320\260\320\267\320\274\320\265\321\200\040\320\264\320\276\320\273\320\266\320\275\321\213\040\320\261\321\213\321\202\321\214\040\320\275\320\265\320\276\321\202\321\200\320\270\321\206\320\260\321\202\320\265\320\273\321\214\320\275\321\213\320\274\320\270"
+Lrt_erecv_timeout: .asciz "\320\270\321\201\321\202\320\265\320\272\320\273\320\276\040\320\262\321\200\320\265\320\274\321\217\040\320\276\320\266\320\270\320\264\320\260\320\275\320\270\321\217\040\162\145\143\166"
+Lrt_erecv_args: .asciz "\162\145\143\166\072\040\321\200\320\260\320\267\320\274\320\265\321\200\040\061\056\056\062\061\064\067\064\070\063\066\064\067\054\040\320\276\320\266\320\270\320\264\320\260\320\275\320\270\320\265\040\060\056\056\062\061\064\067\064\070\063\066\064\067\040\320\274\321\201"
 Lrt_wb: .asciz "wb"
+Lrt_copy_suffix: .asciz ".bit-copy-XXXXXX"
+Lrt_badnum: .asciz "invalid num: expected a decimal integer in range"
+Lrt_random_bounds: .asciz "random: expected minimum <= maximum"
+Lrt_random_entropy: .asciz "random: cannot read system entropy"
 Lrt_gp: .asciz "%.*g"
 Lrt_eread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \321\204\320\260\320\271\320\273: "
 Lrt_enotfile: .asciz "\321\215\321\202\320\276 \320\275\320\265 \321\204\320\260\320\271\320\273: "

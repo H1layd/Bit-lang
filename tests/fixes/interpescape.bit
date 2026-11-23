@@ -1,0 +1,7 @@
+host {
+    string plain = "A\rB";
+    string nested = "A{'\n\r\t'}B";
+    print(plain >> bytes);
+    print(nested >> bytes);
+    print("start {'{{x}}'} end");
+}

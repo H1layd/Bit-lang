@@ -24,25 +24,29 @@ NEED = ["_bit_to_str", "_bit_mas_new", "_bit_mas_add", "_bit_mas_insert",
         "_bit_substr", "_bit_str_split", "_bit_str_replace",
         "_bit_mas_join", "_bit_mas_text", "_bit_str_bytes", "_bit_hexval_ptr",
         "_bit_ipow", "_bit_recover_enter", "_bit_recover_leave",
-        "_bit_setjmp", "_bit_longjmp", "_bit_term_error", "_bit_mas_argv",
-        "_bit_term_stderr", "_bit_args"]
-WRAP = ["calloc", "memcpy", "qsort", "realloc", "strlen", "free"]
+        "_bit_setjmp", "_bit_longjmp", "_bit_own_str", "_bit_drop_owned", "_bit_term_error", "_bit_mas_argv",
+        "_bit_term_stderr", "_bit_args",
+        "_bit_random_seed", "_bit_random_next", "_bit_random_range",
+        "_bit_map_find", "_bit_map_set", "_bit_map_remove"]
+WRAP = ["calloc", "memcpy", "qsort", "realloc", "strlen", "free", "getentropy"]
 # сеть: переносим и оборачиваем вызовы Winsock
 NET = ["_bit_tcp_connect", "_bit_udp_connect", "_bit_ip_connect", "_bit_tcp_listen",
-       "_bit_tcp_accept", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_close", "_bit_resolve"]
+       "_bit_tcp_accept", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_recv_timed",
+       "_bit_sock_close", "_bit_resolve"]
 SOCK = ["accept", "bind", "connect", "gethostbyname", "inet_ntop", "inet_pton",
-        "listen", "recv", "send", "socket", "strlen"]
+        "listen", "recv", "send", "socket", "strlen", "free"]
 # файлы, ввод, ОС — переносим с заменой libc на _w_* обёртки.
 # (_bit_kind, _bit_dir_list, _bit_os_cpus, _bit_readline — вручную под Windows)
 FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines",
          "_bit_dir_exists", "_bit_file_exists", "_bit_file_remove", "_bit_dir_remove",
-         "_bit_move", "_bit_copy", "_bit_dir_make", "_bit_basename",
+         "_bit_move", "_bit_copy_temp", "_bit_copy", "_bit_dir_make", "_bit_basename",
          "_bit_file_line", "_bit_file_slice", "_bit_file_load", "_bit_file_save",
+         "_bit_file_load_at", "_bit_file_save_at",
          "_bit_errpath",
          "_bit_input_num", "_bit_input_dec", "_bit_input_str", "_bit_input_bool",
          "_bit_os_host", "_bit_os_user", "_bit_os_now", "_bit_os_procs",
          "_bit_run", "_bit_run_live", "_bit_wstatus", "_bit_status",
-         "_bit_env", "_bit_str_hex",
+         "_bit_env", "_bit_str_hex", "_bit_str_num_checked",
          "_bit_fetch", "_bit_http_post", "_bit_download", "_bit_ping"]
 
 # ── подмена libc-вызовов на обёртки _w_* ──
@@ -52,9 +56,11 @@ LIBC = {
     "_fopen":   ("fopen",   "fopen",   2), "_fclose": ("fclose", "fclose", 1),
     "_fread":   ("fread",   "fread",   4), "_fwrite": ("fwrite", "fwrite", 4),
     "_fseek":   ("fseek",   "fseek",   3), "_ftell":  ("ftell",  "ftell",  1),
+    "_fseeko":  ("fseeko",  "_fseeki64", 3), "_fdopen": ("fdopen", "_fdopen", 2),
+    "_close":   ("close",   "_close", 1),
     "_ferror":  ("ferror",  "ferror",  1), "_fflush": ("fflush", "fflush", 1),
     "_fputs":   ("fputs",   "fputs",   2), "_strrchr":("strrchr","strrchr",2),
-    "_rename":  ("rename",  "rename",  2), "_strcmp": ("strcmp", "strcmp", 2),
+    "_rename":  ("rename",  None, None), "_mkstemp": ("mkstemp", "mkstemp", 1), "_strcmp": ("strcmp", "strcmp", 2),
     "_strtoll": ("strtoll", "strtoll", 3), "_strtod": ("strtod", "strtod", 2),
     "_getenv":  ("getenv",  "getenv",  1), "_time":   ("time",   "time",   1),
     "_unlink":  ("unlink",  "_unlink", 1), "_rmdir":  ("rmdir",  "_rmdir", 1),
@@ -94,6 +100,40 @@ def extract_file(name):
 transformed = "\n".join(extract(n) for n in NEED) + "\n" + "\n".join(extract_net(n) for n in NET)
 files_asm = "\n".join(extract_file(n) for n in FILES)
 
+# Also recognize backslashes and drive-relative names on Windows.
+prefix = """    mov esi, 47
+    call _w_strrchr
+    xor esi, esi
+    test rax, rax
+    jz 1f
+    sub rax, rbx
+    lea rsi, [rax + 1]
+1:  mov rdi, rbx
+    call _bit_substr"""
+win_prefix = """    mov esi, 47
+    call _w_strrchr
+    mov r12, rax
+    mov rdi, rbx
+    mov esi, 92
+    call _w_strrchr
+    cmp rax, r12
+    cmovb rax, r12
+    xor esi, esi
+    test rax, rax
+    jnz 1f
+    cmp byte ptr [rbx], 0
+    je 2f
+    cmp byte ptr [rbx + 1], 58
+    jne 2f
+    mov esi, 2
+    jmp 2f
+1:  sub rax, rbx
+    lea rsi, [rax + 1]
+2:  mov rdi, rbx
+    call _bit_substr"""
+assert files_asm.count(prefix) == 1
+files_asm = files_asm.replace(prefix, win_prefix)
+
 # ── printf в вводе: System V (al=кол-во xmm) → Windows x64 (аргументы в rcx,rdx,r8) ──
 PRINTF_FIX = [
  ("    lea rdi, [rip + Lrt_numr]\n    mov rsi, r12\n    mov rdx, r13\n    xor eax, eax\n    call _printf\n",
@@ -132,6 +172,51 @@ CORE = r"""// ─────────── среда выполнения 
 .text
 
 // ── обёртки libc: вход по-нашему (rdi,rsi,rdx,rcx), внутри — Windows ABI ──
+_w_getentropy:
+    sub rsp, 40
+    xor ecx, ecx
+    mov rdx, rdi
+    mov r8d, esi
+    mov r9d, 2
+    call BCryptGenRandom
+    add rsp, 40
+    ret
+_w_rename:
+    sub rsp, 40
+    mov rcx, rdi
+    mov rdx, rsi
+    // MOVEFILE_REPLACE_EXISTING
+    mov r8d, 1
+    call MoveFileExA
+    test eax, eax
+    jnz 1f
+    call GetLastError
+    mov dword ptr [rsp + 32], eax
+    mov rcx, rdi
+    mov rdx, rsi
+    call strcmp
+    test eax, eax
+    jnz 2f
+    mov rcx, rdi
+    call GetFileAttributesA
+    cmp eax, -1
+    jne 1f
+2:  mov eax, dword ptr [rsp + 32]
+    // ERROR_NOT_SAME_DEVICE -> EXDEV
+    mov ecx, 5
+    mov edx, 18
+    cmp eax, 17
+    cmove ecx, edx
+    mov dword ptr [rsp + 32], ecx
+    call _errno
+    mov ecx, dword ptr [rsp + 32]
+    mov dword ptr [rax], ecx
+    mov eax, -1
+    add rsp, 40
+    ret
+1:  xor eax, eax
+    add rsp, 40
+    ret
 _w_malloc:
     sub rsp, 40
     mov rcx, rdi
@@ -203,17 +288,21 @@ _bit_oom:
     call exit
 
 _bit_die:
-    mov rax, [rip + Lrt_recdepth]
+    mov rax, [rip + Lrt_recover]
     test rax, rax
     jz 5f
     mov [rip + Lrt_errmsg], rdi
     mov [rip + Lrt_errline], rsi
-    dec rax
-    mov [rip + Lrt_recdepth], rax
-    mov rcx, rax
-    shl rcx, 9
-    lea rdi, [rip + Lrt_recbufs]
-    add rdi, rcx
+    mov rcx, [rax + 168]
+    mov [rip + Lrt_recover], rcx
+    push rax
+1:  mov rcx, [rip + Lrt_owned]
+    cmp rcx, [rax + 176]
+    je 2f
+    call _bit_drop_owned
+    mov rax, [rsp]
+    jmp 1b
+2:  pop rdi
     mov esi, 1
     jmp _bit_longjmp
 5:  push rbp
@@ -842,11 +931,12 @@ _bit_win_drain:                     // edi = fd, rsi = буфер (ptr, len, cap
     jb 2f
     mov rsi, [r12 + 16]
     shl rsi, 1
+    js 4f
     mov [r12 + 16], rsi
     mov rdi, [r12]
     call _w_realloc
     test rax, rax
-    jz _bit_oom
+    jz 4f
     mov [r12], rax
 2:  mov ecx, ebx
     mov rdx, [r12]
@@ -854,23 +944,81 @@ _bit_win_drain:                     // edi = fd, rsi = буфер (ptr, len, cap
     mov r8, [r12 + 16]
     sub r8, [r12 + 8]
     dec r8
+    mov eax, 65536
+    cmp r8, rax
+    cmova r8, rax
     sub rsp, 32
     call _read
     add rsp, 32
     test eax, eax
-    jle 3f
+    js 6f
+    jz 3f
     movsxd rax, eax
     add [r12 + 8], rax
     jmp 1b
-3:  mov ecx, ebx
+6:  call _w_errno
+    cmp dword ptr [rax], 32
+    jne 4f
+3:  xor r13d, r13d
+    jmp 5f
+4:  mov r13d, 1
+5:  mov ecx, ebx
     sub rsp, 32
     call _close
     add rsp, 32
+    mov eax, r13d
     pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
+    ret
+
+_bit_win_reader:                    // Windows thread entry: fd and buffer pointer.
+    push rdi
+    push rsi
+    sub rsp, 8
+    mov edi, [rcx]
+    mov rsi, [rcx + 8]
+    call _bit_win_drain
+    add rsp, 8
+    pop rsi
+    pop rdi
+    ret
+
+_bit_win_reader_start:              // rdi = context -> thread handle (0 on failure)
+    sub rsp, 56
+    xor ecx, ecx
+    xor edx, edx
+    lea r8, [rip + _bit_win_reader]
+    mov r9, rdi
+    mov qword ptr [rsp + 32], 0
+    mov qword ptr [rsp + 40], 0
+    call _beginthreadex
+    add rsp, 56
+    ret
+
+_bit_win_reader_join:               // rdi = handle -> 0 on success, 1 on error
+    push rbx
+    sub rsp, 48
+    mov rbx, rdi
+    mov rcx, rbx
+    mov edx, -1
+    call WaitForSingleObject
+    mov dword ptr [rsp + 32], 1
+    test eax, eax
+    jne 1f
+    mov rcx, rbx
+    lea rdx, [rsp + 32]
+    call GetExitCodeThread
+    test eax, eax
+    jnz 1f
+    mov dword ptr [rsp + 32], 1
+1:  mov rcx, rbx
+    call CloseHandle
+    mov eax, [rsp + 32]
+    add rsp, 48
+    pop rbx
     ret
 
 _bit_win_finish:                    // rdi = буфер → строка (без последнего перевода строки \r\n)
@@ -892,7 +1040,7 @@ _bit_win_finish:                    // rdi = буфер → строка (без
 
 // mas >> run: каналы с _O_NOINHERIT, чтобы ребёнок не унаследовал наш конец stdin
 // (иначе он не увидит конец входа); наследуются только копии на 0/1/2.
-// stdout читаем до конца, потом stderr — каналы по 1 МБ, так что ребёнок не встанет.
+// Both readers drain their pipes while the main thread writes stdin.
 _bit_exec:                          // rdi = mas строк, rsi = stdin (или 0), rdx = строка → stdout
     push rbp
     mov rbp, rsp
@@ -901,7 +1049,7 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     push r13
     push r14
     push r15
-    sub rsp, 120
+    sub rsp, 168
     mov r12, rsi
     mov r13, rdx
     cmp qword ptr [rdi + 8], 0
@@ -991,6 +1139,10 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     call _spawnvp
     add rsp, 32
     mov [rsp + 40], rax
+    mov rdi, rbx
+    call _w_free
+    mov rdi, [rsp + 104]
+    call _w_free
     mov ecx, dword ptr [rsp + 28]
     mov edx, 1
     sub rsp, 32
@@ -1037,6 +1189,8 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     call _close
     add rsp, 32
 21: mov qword ptr [rip + Lrt_status], 127
+    mov rdi, [rip + Lrt_stderr]
+    call _w_free
     mov edi, 1
     call _bit_alloc
     mov byte ptr [rax], 0
@@ -1045,7 +1199,43 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     call _bit_alloc
     mov byte ptr [rax], 0
     jmp 98f
-3:  test r12, r12
+3:  mov qword ptr [rsp + 48], 0
+    mov qword ptr [rsp + 72], 0
+    mov qword ptr [rsp + 144], 0
+    mov qword ptr [rsp + 152], 0
+    mov edi, 4096
+    call _w_malloc
+    test rax, rax
+    jz 95f
+    mov [rsp + 48], rax
+    mov qword ptr [rsp + 56], 0
+    mov qword ptr [rsp + 64], 4096
+    mov edi, 4096
+    call _w_malloc
+    test rax, rax
+    jz 95f
+    mov [rsp + 72], rax
+    mov qword ptr [rsp + 80], 0
+    mov qword ptr [rsp + 88], 4096
+    mov eax, [rsp]
+    mov [rsp + 112], eax
+    lea rax, [rsp + 48]
+    mov [rsp + 120], rax
+    mov eax, [rsp + 8]
+    mov [rsp + 128], eax
+    lea rax, [rsp + 72]
+    mov [rsp + 136], rax
+    lea rdi, [rsp + 112]
+    call _bit_win_reader_start
+    mov [rsp + 144], rax
+    test rax, rax
+    jz 95f
+    lea rdi, [rsp + 128]
+    call _bit_win_reader_start
+    mov [rsp + 152], rax
+    test rax, rax
+    jz 95f
+    test r12, r12
     jz 5f
     mov rdi, r12
     call _w_strlen
@@ -1056,6 +1246,9 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     mov ecx, dword ptr [rsp + 20]
     mov rdx, r15
     mov r8, r14
+    mov eax, 65536
+    cmp r8, rax
+    cmova r8, rax
     sub rsp, 32
     call _write
     add rsp, 32
@@ -1069,36 +1262,74 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     sub rsp, 32
     call _close
     add rsp, 32
-5:  mov edi, 4096
-    call _bit_alloc
-    mov [rsp + 48], rax
-    mov qword ptr [rsp + 56], 0
-    mov qword ptr [rsp + 64], 4096
-    mov edi, 4096
-    call _bit_alloc
-    mov [rsp + 72], rax
-    mov qword ptr [rsp + 80], 0
-    mov qword ptr [rsp + 88], 4096
-    mov edi, dword ptr [rsp]
-    lea rsi, [rsp + 48]
-    call _bit_win_drain
-    mov edi, dword ptr [rsp + 8]
-    lea rsi, [rsp + 72]
-    call _bit_win_drain
+5:  mov rdi, [rsp + 144]
+    call _bit_win_reader_join
+    mov r14d, eax
+    mov rdi, [rsp + 152]
+    call _bit_win_reader_join
+    or r14d, eax
+    mov dword ptr [rsp + 96], 127
     lea rcx, [rsp + 96]
     mov rdx, [rsp + 40]
     xor r8d, r8d
     sub rsp, 32
     call _cwait
     add rsp, 32
+    cmp rax, -1
+    je 97f
+    test r14d, r14d
+    jnz 97f
     mov eax, dword ptr [rsp + 96]
     mov [rip + Lrt_status], rax
+    mov rdi, [rip + Lrt_stderr]
+    call _w_free
     lea rdi, [rsp + 72]
     call _bit_win_finish
     mov [rip + Lrt_stderr], rax
     lea rdi, [rsp + 48]
     call _bit_win_finish
-98: add rsp, 120
+    jmp 98f
+95: mov rcx, [rsp + 40]
+    mov edx, 1
+    sub rsp, 32
+    call TerminateProcess
+    add rsp, 32
+    test r12, r12
+    jz 951f
+    mov ecx, [rsp + 20]
+    sub rsp, 32
+    call _close
+    add rsp, 32
+951: mov rdi, [rsp + 144]
+    test rdi, rdi
+    jz 952f
+    call _bit_win_reader_join
+    jmp 953f
+952: mov ecx, [rsp]
+    sub rsp, 32
+    call _close
+    add rsp, 32
+953: mov rdi, [rsp + 152]
+    test rdi, rdi
+    jz 954f
+    call _bit_win_reader_join
+    jmp 955f
+954: mov ecx, [rsp + 8]
+    sub rsp, 32
+    call _close
+    add rsp, 32
+955: lea rcx, [rsp + 96]
+    mov rdx, [rsp + 40]
+    xor r8d, r8d
+    sub rsp, 32
+    call _cwait
+    add rsp, 32
+97: mov rdi, [rsp + 48]
+    call _w_free
+    mov rdi, [rsp + 72]
+    call _w_free
+    jmp 99f
+98: add rsp, 168
     pop r15
     pop r14
     pop r13
@@ -1436,6 +1667,26 @@ _w_recv:
     call recv
     add rsp, 40
     ret
+_bit_socket_wait:                   // WSAPOLLFD: SOCKET, events, revents
+    sub rsp, 56
+    mov [rsp + 32], rdi
+    // POLLRDNORM
+    mov dword ptr [rsp + 40], 256
+    lea rcx, [rsp + 32]
+    mov edx, 1
+    mov r8d, esi
+    call WSAPoll
+    add rsp, 56
+    ret
+_bit_open_update:
+    sub rsp, 40
+    mov rcx, rdi
+    // _O_BINARY | _O_CREAT | _O_WRONLY, _S_IREAD | _S_IWRITE
+    mov edx, 33025
+    mov r8d, 384
+    call _open
+    add rsp, 40
+    ret
 _w_closesocket:
     mov rcx, rdi
     sub rsp, 40
@@ -1468,13 +1719,15 @@ FOOT_HEAD = r"""
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
-Lrt_recdepth: .quad 0
+Lrt_random_state: .quad 0
+Lrt_random_ready: .quad 0
+Lrt_recover: .quad 0
+Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
 Lrt_stderr: .quad 0
 Lrt_wsa: .quad 0
 .p2align 4
-Lrt_recbufs: .space 8192
 .p2align 3
 
 .section .rdata
@@ -1512,6 +1765,9 @@ NEWSTR = {
     "Lrt_da": "да", "Lrt_net": "нет", "Lrt_1": "1", "Lrt_0": "0",
     "Lrt_eopen": "ne mogu otkryt fajl: ", "Lrt_eread": "ne mogu prochitat fajl: ",
     "Lrt_ewrite": "ne mogu zapisat fajl: ", "Lrt_enotfile": "eto ne fajl: ",
+    "Lrt_echunk": "smeshenie i razmer dolzhny byt neotricatelnymi",
+    "Lrt_erecv_timeout": "isteklo vremya ozhidaniya recv",
+    "Lrt_erecv_args": "recv: razmer 1..2147483647, ozhidanie 0..2147483647 ms",
     "Lrt_enotdir": "eto ne papka: ", "Lrt_erm": "ne mogu udalit: ",
     "Lrt_emv": "ne mogu peremestit: ", "Lrt_emk": "ne mogu sozdat papku: ",
     "Lrt_edir": "ne mogu prochitat papku: ",
@@ -1524,6 +1780,10 @@ NEWSTR = {
     "Lrt_curl": "curl", "Lrt_sS": "-sS", "Lrt_L": "-L", "Lrt_ddp": "--",
     "Lrt_d": "-d", "Lrt_o": "-o", "Lrt_pingp": "ping", "Lrt_pingc": "-n",
     "Lrt_nul": "NUL",
+    "Lrt_copy_suffix": ".bit-copy-XXXXXX",
+    "Lrt_badnum": "invalid num: expected a decimal integer in range",
+    "Lrt_random_bounds": "random: expected minimum <= maximum",
+    "Lrt_random_entropy": "random: cannot read system entropy",
 }
 FOOT = FOOT_HEAD + "".join("%s: .asciz %s\n" % (k, octal(v)) for k, v in NEWSTR.items()) + ".text\n"
 

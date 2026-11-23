@@ -1,0 +1,4 @@
+use "../common.bit";
+
+fn double_offset(num value):
+    return (value + offset) * 2;

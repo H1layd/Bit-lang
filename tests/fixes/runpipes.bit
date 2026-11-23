@@ -1,0 +1,10 @@
+host {
+    string input = "x";
+    for i in 1:20:
+        do(input >> ch(input + input));
+    mas cmd = ("awk", "BEGIN {{ for (i = 0; i < 131072; ++i) printf \"e\" > \"/dev/stderr\"; close(\"/dev/stderr\"); if (getline != 1 || length($0) != 1048576) exit 3; print \"ok\"; exit 7 }}");
+    string output = cmd >> run(input);
+    print(output >> sz);
+    print(term >> stderr >> sz);
+    print(term >> status);
+}

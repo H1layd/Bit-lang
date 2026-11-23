@@ -39,9 +39,9 @@ machine code directly through the system `as` and `ld`.
    Reading top to bottom, you always know where state changes.
 3. **Failures are yours to handle.** A failed system call stops the program by default, but inside
    `recover { } else { }` the program decides itself: skip, retry, log, choose an exit code.
-4. **Mistakes are caught before the program runs.** Out-of-range indexes, `num` overflow and reading
-   an empty variable are compile errors: the compiler proves an index is in range instead of checking
-   it at run time.
+4. **The compiler checks what it can prove.** It rejects invalid types, uninitialized reads and
+   indexes it cannot prove in range. Array access also checks the current length. With `bytes`,
+   the program controls the lifetime of the allocation.
 5. **Names you don't have to guess.** `shift_left`, not `shl`; `host { }`, not `fn main() {}`.
    bit keeps its own small vocabulary (`do`, `ch`, `>>`, `keep`, `each`) instead of borrowing
    C, C++ or Rust conventions.
@@ -115,14 +115,14 @@ More programs live in [`examples/`](examples/): files, memory, network, system.
 ## Documentation
 
 - **[Language reference](docs/language.md)**: syntax, types, every method by type, failures,
-  running programs, compile-time safety, how the compiler works.
+  running programs, compiler checks, how the compiler works.
 - **[Roadmap and principles](docs/roadmap.md)**: what is done and what comes next.
 
 ## Status
 
-bit is young. It already handles system utilities, text processing and network tools well,
-but it has no structs, maps or modules yet, and no debugger. Compiler and runtime messages
-are currently in Russian. Targets: macOS (arm64, x86-64), Linux (x86-64), Windows (x86-64).
+bit supports system utilities, text processing, records, maps, function values and multi-file
+programs through `use`. The targets are macOS (arm64 and x86-64), Linux (x86-64) and Windows (x86-64).
+Compiler and runtime messages are currently in Russian.
 
 ---
 

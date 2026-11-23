@@ -1,0 +1,41 @@
+record Point:
+    num x;
+    dec y;
+
+record Track:
+    Point pos;
+    map(num) counts;
+
+fn increase(map counts, string key):
+    do(counts >> set(key, (counts >> get(key, 0)) + 1));
+
+host {
+    Point point = Point(2, 3);
+    Point alias = point;
+    map values = (num);
+    Track track = Track(point, values);
+    do(track >> pos >> x(15));
+    print(alias >> x);
+    print(track >> pos >> y);
+    do(point >> ch(Point(6, 2.5)));
+    print(point >> x);
+    print(alias >> x);
+
+    do(increase(track >> counts, "a"));
+    do(increase(track >> counts, "a"));
+    do(values >> set("b", 9) >> set("c", 3) >> remove("b"));
+    print(track >> counts >> sz);
+    print(values >> get("a"));
+    print(values >> get("b", 99));
+    print(values >> has("c"));
+    recover {
+        print(values >> get("missing"));
+    } else {
+        print("missing key");
+    }
+
+    map points = (Point);
+    do(points >> set("here", alias));
+    do(points >> get("here") >> x(22));
+    print(alias >> x);
+}

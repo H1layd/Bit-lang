@@ -1,0 +1,22 @@
+fn twice(num x):
+    return x * 2;
+
+fn apply(all operation, num value):
+    return operation(value);
+
+fn choose(bool named):
+    if named:
+        return twice;
+    return x -> x + 1;
+
+host {
+    all transform = choose(true);
+    print(apply(transform, 4));
+    do(transform >> ch(choose(false)));
+    print(transform(4));
+
+    all combine = (num a, dec b) -> a + b;
+    print(combine(2, 1.5));
+    all constant = () -> "ok";
+    print(constant());
+}

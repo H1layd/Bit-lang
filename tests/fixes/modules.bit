@@ -1,0 +1,8 @@
+use "moduleslib/nested/math.bit";
+use "./moduleslib/common.bit";
+
+host {
+    print(double_offset(4));
+    Meter m = Meter(7);
+    print(m >> value);
+}
