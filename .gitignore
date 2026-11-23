@@ -3,3 +3,5 @@
 *.exe
 /build/
 /bitc
+/logo/
+/bootstrap/stage0_python/
