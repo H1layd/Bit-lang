@@ -1,0 +1,12 @@
+# тестовая "игра": держит золото в памяти и показывает его, сама закрывается через ~20 секунд
+host {
+    bytes gold = mem >> take(8);
+    do(gold >> write(0, 100500));
+    num tick = 0;
+    while tick < 40 {
+        print("[игра] золото: {gold >> read(0)}");
+        do(term >> wait(500));
+        do(tick >> ch(tick + 1));
+    }
+    print("[игра] выход");
+}

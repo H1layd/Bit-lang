@@ -1,0 +1,26 @@
+# находит запущенную игру по имени, ищет в её памяти 100500 и меняет на 999999
+# сборка: ./bitc build gold_hack.bit -o gold_hack.exe --os windows
+# запуск: сначала gold_game.exe, затем, пока он работает, gold_hack.exe
+host {
+    proc p = "gold_game" >> proc;
+    if p >> pid == -1 {
+        print("[хак] игра не запущена");
+        do(term >> exit(1));
+    }
+    print("[хак] нашёл gold_game, pid {p >> pid}");
+    mas hits = p >> scan(100500);
+    print("[хак] адресов со значением 100500: {hits >> sz}");
+    num changed = 0;
+    for a in hits {
+        recover {
+            if p >> read(a) == 100500 {
+                do(p >> write(a, 999999));
+                do(changed >> ch(changed + 1));
+                print("[хак] записал 999999 по адресу {a}");
+            }
+        } else {
+            print("[хак] не вышло по адресу {a}: {term >> error}");
+        }
+    }
+    print("[хак] изменено: {changed}");
+}

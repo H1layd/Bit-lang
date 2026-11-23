@@ -692,7 +692,8 @@ Differences between the systems: on Linux `start` runs the command through the s
 the program starts directly; a leading `exec ` is ignored, so `"exec ./target"` works on both.
 On Linux `wait` works for processes the program started itself, and `maps` lines carry more fields
 after the permissions. Examples: [`examples/linux/`](../examples/linux/),
-[`examples/win/`](../examples/win/).
+[`examples/win/`](../examples/win/). In `gold_game.bit` and `gold_hack.bit` one program finds
+another by name, scans its memory for a value and replaces it.
 
 ---
 
