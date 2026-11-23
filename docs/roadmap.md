@@ -80,6 +80,8 @@ wait.
 - [x] **Streaming**: bounded file reads and offset writes; text `recv` with a size and a timeout.
 - [ ] Verify streaming on native Linux and Windows.
 - [x] **Sorting**: `a >> sort` returns a copy; `do(a >> sort)` sorts in place.
+- [x] **`proc` on Windows** through the system API (`OpenProcess`, `ReadProcessMemory`,
+  `WriteProcessMemory`, `VirtualQueryEx`), checked on native Windows 11. The same program works on Linux.
 - [ ] Run the updated runtimes on native Linux and Windows. Cross-assembly and linking checks are separate.
 
 ## Core language features

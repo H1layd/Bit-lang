@@ -31,7 +31,7 @@ For a short overview see the [README](../README.md).
   - [term (terminal)](#term-terminal)
   - [Running programs](#running-programs)
   - [Network](#network)
-  - [proc: other processes (Linux)](#proc-other-processes-linux)
+  - [proc: other processes](#proc-other-processes)
 - [Compiler checks](#compiler-checks)
 - [Building for other platforms](#building-for-other-platforms)
 - [How the compiler works](#how-the-compiler-works)
@@ -114,7 +114,7 @@ host {
 | `dir` | a path to a folder | `dir d = "logs";` |
 | `conn` | a network connection | `conn c = "host:port" >> connect;` |
 | `server` | a listening socket | `server s = net >> listen(9100);` |
-| `proc` | another process (Linux) | see [proc](#proc-other-processes-linux) |
+| `proc` | another process (Linux, Windows) | see [proc](#proc-other-processes) |
 | `all` | type taken from the value | `all n = a >> get(0);` |
 
 `all` means "work it out": the compiler takes the real type from the right-hand side.
@@ -656,11 +656,43 @@ milliseconds (0–2147483647). A zero timeout checks for data without waiting. A
 is an error that `recover` can handle, while a clean TCP close returns an empty string.
 Join the chunks before processing text when a UTF-8 character can span two reads.
 
-### proc: other processes (Linux)
+### proc: other processes
 
-Linux only. Read and write another process's memory, like a debugger, through `/proc/<pid>/mem`:
-find a process by name, read or write its memory, scan it for a value. See
-[`examples/linux/`](../examples/linux/).
+Linux and Windows. Read and write another process's memory, like a debugger: on Linux through
+`/proc/<pid>/mem`, on Windows through the system API (`OpenProcess`, `ReadProcessMemory`,
+`WriteProcessMemory`, `VirtualQueryEx`). A program that uses `proc` is the same on both systems;
+macOS is not supported.
+
+| Form | What it does |
+|---|---|
+| `"name" >> proc` | find a process by name (pid `-1` if there is none); on Windows with or without `.exe` |
+| `1234 >> proc` | a process by its pid |
+| `"command" >> start` | start a process and return it |
+| `p >> pid` / `name` / `alive` | pid / name / whether it is running |
+| `p >> wait` | wait for it to finish, return the exit code |
+| `p >> read(addr)` | the number (8 bytes) at an address |
+| `p >> grab(addr, n)` | `n` bytes at an address → `bytes` |
+| `p >> scan(value)` | `mas` of addresses where this 8-byte number lies |
+| `p >> maps` | `mas` of memory regions, each line starting with `start-end rwxp` |
+| `do(p >> write(addr, num))` | write a number (8 bytes) |
+| `do(p >> paste(addr, bytes))` | write bytes |
+| `do(p >> kill)` | stop the process; `wait` then returns 143 |
+
+```
+proc p = "exec ./target" >> start;
+num v = p >> read(addr);
+do(p >> write(addr, 0x00DEADBEEF000000));
+mas hits = p >> scan(0x1122334455667788);
+print("exit code {p >> wait}");
+```
+
+Reading or writing an address the process does not have is a failure that `recover` catches.
+
+Differences between the systems: on Linux `start` runs the command through the shell, on Windows
+the program starts directly; a leading `exec ` is ignored, so `"exec ./target"` works on both.
+On Linux `wait` works for processes the program started itself, and `maps` lines carry more fields
+after the permissions. Examples: [`examples/linux/`](../examples/linux/),
+[`examples/win/`](../examples/win/).
 
 ---
 

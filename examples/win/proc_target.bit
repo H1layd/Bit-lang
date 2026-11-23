@@ -1,0 +1,19 @@
+# тестовая мишень для Windows: держит в памяти известное число и ждёт, пока его изменят извне
+host {
+    bytes b = mem >> take(8);
+    do(b >> write(0, 0x1122334455667788));   # записать число в свой буфер
+
+    # публикуем адрес буфера, чтобы контроллер знал, куда смотреть
+    bytes info = mem >> take(8);
+    do(info >> write(0, b >> addr));
+    file fi = "bit_mem_addr";
+    do(fi >> save(info));
+
+    num start = b >> read(0);
+    num tries = 0;
+    while b >> read(0) == start and tries < 200 {
+        do(term >> wait(25));
+        do(tries >> ch(tries + 1));
+    }
+    print("мишень pid {term >> pid}: значение стало {b >> read(0)}");
+}

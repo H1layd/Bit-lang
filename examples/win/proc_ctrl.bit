@@ -1,0 +1,38 @@
+# контроллер для Windows: запускает мишень и работает с её памятью через WinAPI
+# сборка: ./bitc build proc_target.bit -o proc_target.exe --os windows
+#         ./bitc build proc_ctrl.bit -o proc_ctrl.exe --os windows
+host {
+    proc p = "proc_target" >> start;          # .exe можно не писать
+    do(term >> wait(600));                    # дать мишени записать адрес
+
+    file fi = "bit_mem_addr";
+    bytes info = fi >> load;
+    num addr = info >> read(0);
+    print("pid {p >> pid}, имя '{p >> name}', работает {p >> alive}");
+
+    proc q = "proc_target" >> proc;           # тот же процесс, найденный по имени
+    print("найден по имени: тот же pid {q >> pid == p >> pid}");
+
+    print("по адресу: {p >> read(addr)}");
+    print("байты: {p >> grab(addr, 8)}");
+
+    mas hits = p >> scan(0x1122334455667788);
+    print("поиск: найдено {hits >> sz}, среди них наш адрес: {hits >> has(addr)}");
+
+    mas m = p >> maps;
+    print("регионов памяти: {m >> sz}, первый: {m >> get(0, '?')}");
+
+    do(p >> write(addr, 0x00DEADBEEF000000)); # мишень увидит новое число и завершится
+    print("мишень завершилась с кодом {p >> wait}");
+
+    proc k = "proc_target" >> start;
+    do(term >> wait(400));
+    recover {
+        num z = k >> read(16);                # такого адреса у процесса нет
+    } else {
+        print("не прочитал: {term >> error}");
+    }
+    do(k >> kill);
+    print("остановлен, код {k >> wait}");
+    do(fi >> delete);
+}

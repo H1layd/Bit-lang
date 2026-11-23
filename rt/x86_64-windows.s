@@ -4814,6 +4814,787 @@ _bit_ping:                          // rdi = хост -> 1 если отвеча
     pop rbp
     ret
 
+// ───── чужие процессы (Windows): WinAPI внутри рантайма, в языке — тот же proc, что на Linux ─────
+// Вход — System V (rdi, rsi, rdx, rcx), к WinAPI — Win64 (rcx, rdx, r8, r9, стек) с теневой областью.
+// proc — это pid; каждая операция открывает процесс по pid и закрывает его.
+
+_bit_wp_fail:                       // rdi = текст, rsi = pid, rdx = строка программы, rcx = handle или 0
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 40
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    call GetLastError
+    mov r15d, eax
+    test r14, r14
+    jz 1f
+    mov rcx, r14
+    call CloseHandle
+1:  mov rdi, r12
+    call _bit_num_str
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_cat
+    mov rdi, rax
+    lea rsi, [rip + Lrt_wp_code]
+    call _bit_cat
+    mov rbx, rax
+    mov rdi, r15
+    call _bit_num_str
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_cat
+    mov rdi, rax
+    mov rsi, r13
+    call _bit_die
+
+_bit_wp_hex:                        // rdi = куда, rsi = число → rax = конец (шестнадцатерично, без ведущих нулей)
+    mov rax, rsi
+    mov ecx, 1
+1:  shr rax, 4
+    jz 2f
+    inc ecx
+    jmp 1b
+2:  lea rax, [rdi + rcx]
+    mov r8, rax
+3:  dec r8
+    mov rdx, rsi
+    and edx, 15
+    cmp edx, 10
+    jb 4f
+    add edx, 87
+    jmp 5f
+4:  add edx, 48
+5:  mov byte ptr [r8], dl
+    shr rsi, 4
+    dec ecx
+    jnz 3b
+    ret
+
+_bit_wp_mapline:                    // rdi = начало, rsi = конец, edx = защита → "начало-конец rwxp"
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov r12, rdi
+    mov r13, rsi
+    mov r14d, edx
+    mov edi, 48
+    call _bit_alloc
+    mov rbx, rax
+    mov rdi, rbx
+    mov rsi, r12
+    call _bit_wp_hex
+    mov byte ptr [rax], 45
+    lea rdi, [rax + 1]
+    mov rsi, r13
+    call _bit_wp_hex
+    mov byte ptr [rax], 32
+    mov ecx, r14d
+    and ecx, 0xFF
+    test r14d, 0x100
+    jz 1f
+    xor ecx, ecx
+1:  mov dl, 45
+    test ecx, 0xEE
+    jz 2f
+    mov dl, 114
+2:  mov byte ptr [rax + 1], dl
+    mov dl, 45
+    test ecx, 0xCC
+    jz 3f
+    mov dl, 119
+3:  mov byte ptr [rax + 2], dl
+    mov dl, 45
+    test ecx, 0xF0
+    jz 4f
+    mov dl, 120
+4:  mov byte ptr [rax + 3], dl
+    mov byte ptr [rax + 4], 112
+    mov byte ptr [rax + 5], 0
+    mov rax, rbx
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем (с .exe или без) или -1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 32
+    mov rbx, rdi
+    lea rsi, [rip + Lrt_wp_exe]
+    call _bit_cat
+    mov r12, rax
+    mov edi, 320
+    call _bit_alloc
+    mov r13, rax
+    mov dword ptr [r13], 304
+    mov ecx, 2
+    xor edx, edx
+    call CreateToolhelp32Snapshot
+    cmp rax, -1
+    je 8f
+    mov r14, rax
+    mov rcx, r14
+    mov rdx, r13
+    call Process32First
+1:  test eax, eax
+    jz 7f
+    lea rcx, [r13 + 44]
+    mov rdx, rbx
+    call _stricmp
+    test eax, eax
+    jz 5f
+    lea rcx, [r13 + 44]
+    mov rdx, r12
+    call _stricmp
+    test eax, eax
+    jz 5f
+    mov rcx, r14
+    mov rdx, r13
+    call Process32Next
+    jmp 1b
+5:  mov ebx, dword ptr [r13 + 8]
+    mov rcx, r14
+    call CloseHandle
+    mov eax, ebx
+    jmp 9f
+7:  mov rcx, r14
+    call CloseHandle
+8:  mov rax, -1
+9:  add rsp, 32
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_start:                    // rdi = команда, rsi = строка → pid запущенного процесса
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 88
+    mov rbx, rdi
+    mov r12, rsi
+    cmp dword ptr [rbx], 0x63657865
+    jne 1f
+    cmp byte ptr [rbx + 4], 32
+    jne 1f
+    add rbx, 5
+1:  mov rdi, rbx
+    call _w_strlen
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_substr
+    mov r13, rax
+    mov edi, 136
+    call _bit_alloc
+    mov rdx, rax
+    xor ecx, ecx
+2:  mov qword ptr [rdx + rcx*8], 0
+    inc rcx
+    cmp rcx, 17
+    jl 2b
+    mov dword ptr [rdx], 104
+    mov [rsp + 80], rdx
+    mov [rsp + 64], rdx
+    lea rax, [rdx + 104]
+    mov [rsp + 72], rax
+    xor ecx, ecx
+    mov rdx, r13
+    xor r8d, r8d
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 0
+    mov qword ptr [rsp + 40], 0
+    mov qword ptr [rsp + 48], 0
+    mov qword ptr [rsp + 56], 0
+    call CreateProcessA
+    test eax, eax
+    jz 9f
+    mov rdx, [rsp + 80]
+    mov rcx, [rdx + 112]
+    call CloseHandle
+    mov rdx, [rsp + 80]
+    mov eax, dword ptr [rdx + 120]
+    add rsp, 88
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_wp_espawn]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_proc_alive:                    // rdi = pid → 1, если процесс работает
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 40
+    mov ecx, 0x1000
+    xor edx, edx
+    mov r8d, edi
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rax
+    lea rdx, [rsp + 32]
+    call GetExitCodeProcess
+    test eax, eax
+    jz 7f
+    mov rcx, rbx
+    call CloseHandle
+    xor eax, eax
+    cmp dword ptr [rsp + 32], 259
+    sete al
+    jmp 9f
+7:  mov rcx, rbx
+    call CloseHandle
+8:  xor eax, eax
+9:  add rsp, 40
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_name:                     // rdi = pid → имя файла без .exe или ""
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 40
+    mov r12d, edi
+    mov edi, 300
+    call _bit_alloc
+    mov r13, rax
+    mov byte ptr [r13], 0
+    mov ecx, 0x1000
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 9f
+    mov rbx, rax
+    mov dword ptr [rsp + 32], 290
+    mov rcx, rbx
+    xor edx, edx
+    mov r8, r13
+    lea r9, [rsp + 32]
+    call QueryFullProcessImageNameA
+    mov r12d, eax
+    mov rcx, rbx
+    call CloseHandle
+    test r12d, r12d
+    jnz 1f
+    mov byte ptr [r13], 0
+    jmp 9f
+1:  mov rax, r13
+    mov rcx, r13
+2:  movzx edx, byte ptr [rcx]
+    test dl, dl
+    jz 4f
+    cmp dl, 92
+    je 3f
+    cmp dl, 47
+    jne 31f
+3:  lea rax, [rcx + 1]
+31: inc rcx
+    jmp 2b
+4:  mov rdx, rcx
+    sub rdx, rax
+    cmp rdx, 4
+    jl 6f
+    mov r8d, dword ptr [rcx - 4]
+    or r8d, 0x20202020
+    cmp r8d, 0x6578652e
+    jne 6f
+    mov byte ptr [rcx - 4], 0
+6:  mov rcx, r13
+7:  movzx edx, byte ptr [rax]
+    mov byte ptr [rcx], dl
+    inc rax
+    inc rcx
+    test dl, dl
+    jnz 7b
+9:  mov rax, r13
+    add rsp, 40
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_wait:                     // rdi = pid → код выхода (ждёт завершения), -1 если процесс не открыть
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 40
+    mov ecx, 0x101000
+    xor edx, edx
+    mov r8d, edi
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rbx
+    mov edx, -1
+    call WaitForSingleObject
+    mov rcx, rbx
+    lea rdx, [rsp + 32]
+    call GetExitCodeProcess
+    mov rcx, rbx
+    call CloseHandle
+    mov eax, dword ptr [rsp + 32]
+    mov [rip + Lrt_status], rax
+    jmp 9f
+8:  mov rax, -1
+9:  add rsp, 40
+    pop rbx
+    pop rbp
+    ret
+
+_bit_proc_kill:                     // rdi = pid, rsi = строка: завершить процесс (код 143, как SIGTERM на Linux)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 40
+    mov r12, rdi
+    mov r13, rsi
+    mov ecx, 1
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rbx
+    mov edx, 143
+    call TerminateProcess
+    test eax, eax
+    jz 7f
+    mov rcx, rbx
+    call CloseHandle
+    add rsp, 40
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  lea rdi, [rip + Lrt_wp_ekill]
+    mov rsi, r12
+    mov rdx, r13
+    mov rcx, rbx
+    call _bit_wp_fail
+8:  lea rdi, [rip + Lrt_wp_ekill]
+    mov rsi, r12
+    mov rdx, r13
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_read:                     // rdi = pid, rsi = адрес, rdx = сколько байт, rcx = строка → bytes
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    mov rdi, r14
+    call _bit_bytes_new
+    mov rbx, rax
+    mov ecx, 0x10
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov [rsp + 48], rax
+    mov rcx, rax
+    mov rdx, r13
+    mov r8, [rbx]
+    mov r9, [rbx + 8]
+    lea rax, [rsp + 40]
+    mov [rsp + 32], rax
+    call ReadProcessMemory
+    test eax, eax
+    jz 7f
+    mov rcx, [rsp + 48]
+    call CloseHandle
+    mov rax, rbx
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, r12
+    mov rdx, r15
+    mov rcx, [rsp + 48]
+    call _bit_wp_fail
+8:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, r12
+    mov rdx, r15
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_write:                    // rdi = pid, rsi = адрес, rdx = bytes, rcx = строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    mov ecx, 0x28
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rbx
+    mov rdx, r13
+    mov r8, [r14]
+    mov r9, [r14 + 8]
+    lea rax, [rsp + 40]
+    mov [rsp + 32], rax
+    call WriteProcessMemory
+    test eax, eax
+    jz 7f
+    mov rcx, rbx
+    call CloseHandle
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  lea rdi, [rip + Lrt_wp_ewrite]
+    mov rsi, r12
+    mov rdx, r15
+    mov rcx, rbx
+    call _bit_wp_fail
+8:  lea rdi, [rip + Lrt_wp_ewrite]
+    mov rsi, r12
+    mov rdx, r15
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_read_num:                 // rdi = pid, rsi = адрес, rdx = строка → число (8 байт)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 64
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov ecx, 0x10
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rbx
+    mov rdx, r13
+    lea r8, [rsp + 48]
+    mov r9d, 8
+    lea rax, [rsp + 40]
+    mov [rsp + 32], rax
+    call ReadProcessMemory
+    test eax, eax
+    jz 7f
+    mov rcx, rbx
+    call CloseHandle
+    mov rax, [rsp + 48]
+    add rsp, 64
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, r12
+    mov rdx, r14
+    mov rcx, rbx
+    call _bit_wp_fail
+8:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, r12
+    mov rdx, r14
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_write_num:                // rdi = pid, rsi = адрес, rdx = число, rcx = строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56
+    mov r12, rdi
+    mov r13, rsi
+    mov [rsp + 48], rdx
+    mov r15, rcx
+    mov ecx, 0x28
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    mov rcx, rbx
+    mov rdx, r13
+    lea r8, [rsp + 48]
+    mov r9d, 8
+    lea rax, [rsp + 40]
+    mov [rsp + 32], rax
+    call WriteProcessMemory
+    test eax, eax
+    jz 7f
+    mov rcx, rbx
+    call CloseHandle
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+7:  lea rdi, [rip + Lrt_wp_ewrite]
+    mov rsi, r12
+    mov rdx, r15
+    mov rcx, rbx
+    call _bit_wp_fail
+8:  lea rdi, [rip + Lrt_wp_ewrite]
+    mov rsi, r12
+    mov rdx, r15
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_maps:                     // rdi = pid, rsi = строка → mas строк "начало-конец rwxp" (выделенные регионы)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 120
+    mov r12, rdi
+    mov r13, rsi
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r14, rax
+    mov ecx, 0x410
+    xor edx, edx
+    mov r8d, r12d
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    xor r15d, r15d
+1:  mov rcx, rbx
+    mov rdx, r15
+    lea r8, [rsp + 48]
+    mov r9d, 48
+    call VirtualQueryEx
+    test rax, rax
+    jz 9f
+    cmp dword ptr [rsp + 80], 0x1000
+    jne 5f
+    mov rdi, [rsp + 48]
+    mov rsi, rdi
+    add rsi, [rsp + 72]
+    mov edx, dword ptr [rsp + 84]
+    call _bit_wp_mapline
+    mov rsi, rax
+    mov rdi, r14
+    mov rdx, r13
+    call _bit_mas_add
+5:  mov rax, [rsp + 48]
+    add rax, [rsp + 72]
+    cmp rax, r15
+    jbe 9f
+    mov r15, rax
+    jmp 1b
+9:  mov rcx, rbx
+    call CloseHandle
+    mov rax, r14
+    add rsp, 120
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, r12
+    mov rdx, r13
+    xor ecx, ecx
+    call _bit_wp_fail
+
+_bit_proc_scan:                     // rdi = pid, rsi = число, rdx = строка → mas адресов, где лежит это 8-байтное число
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 120
+    mov [rsp + 104], rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r14, rax
+    mov edi, 1048584
+    call _bit_alloc
+    mov [rsp + 96], rax
+    mov ecx, 0x410
+    xor edx, edx
+    mov r8d, dword ptr [rsp + 104]
+    call OpenProcess
+    test rax, rax
+    jz 8f
+    mov rbx, rax
+    xor r15d, r15d
+1:  mov rcx, rbx
+    mov rdx, r15
+    lea r8, [rsp + 48]
+    mov r9d, 48
+    call VirtualQueryEx
+    test rax, rax
+    jz 9f
+    mov rax, [rsp + 48]
+    add rax, [rsp + 72]
+    cmp rax, r15
+    jbe 9f
+    mov [rsp + 112], rax
+    cmp dword ptr [rsp + 80], 0x1000
+    jne 6f
+    mov eax, dword ptr [rsp + 84]
+    test eax, 0x100
+    jnz 6f
+    test eax, 0xEE
+    jz 6f
+    mov r15, [rsp + 48]
+2:  mov rax, [rsp + 112]
+    sub rax, r15
+    jbe 6f
+    cmp rax, 1048576
+    jbe 21f
+    mov rax, 1048576
+21: mov [rsp + 56], rax
+    mov rcx, rbx
+    mov rdx, r15
+    mov r8, [rsp + 96]
+    mov r9, rax
+    lea rax, [rsp + 40]
+    mov [rsp + 32], rax
+    call ReadProcessMemory
+    test eax, eax
+    jz 5f
+    mov r9, [rsp + 40]
+    cmp r9, 8
+    jb 5f
+    sub r9, 8
+    mov r8, [rsp + 96]
+    xor r10d, r10d
+3:  cmp r10, r9
+    ja 5f
+    mov rax, [r8 + r10]
+    cmp rax, r12
+    jne 4f
+    mov [rsp + 64], r10
+    mov [rsp + 72], r9
+    mov rsi, r15
+    add rsi, r10
+    mov rdi, r14
+    mov rdx, r13
+    call _bit_mas_add
+    mov r10, [rsp + 64]
+    mov r9, [rsp + 72]
+    mov r8, [rsp + 96]
+4:  inc r10
+    jmp 3b
+5:  mov rax, [rsp + 56]
+    mov rcx, r15
+    add rcx, rax
+    cmp rcx, [rsp + 112]
+    jae 6f
+    cmp rax, 8
+    jbe 51f
+    sub rax, 7
+51: add r15, rax
+    jmp 2b
+6:  mov r15, [rsp + 112]
+    jmp 1b
+9:  mov rcx, rbx
+    call CloseHandle
+    mov rax, r14
+    add rsp, 120
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_wp_eread]
+    mov rsi, [rsp + 104]
+    mov rdx, r13
+    xor ecx, ecx
+    call _bit_wp_fail
+
 .data
 .p2align 3
 Lrt_argc: .quad 0
@@ -4853,6 +5634,12 @@ Lrt_eaccept: .asciz "oshibka priyoma podklyucheniya"
 Lrt_esend: .asciz "oshibka otpravki"
 Lrt_erecv: .asciz "oshibka priyoma"
 Lrt_edns: .asciz "ne mogu najti adres hosta"
+Lrt_wp_exe: .asciz ".exe"
+Lrt_wp_code: .asciz ", kod oshibki "
+Lrt_wp_eread: .asciz "ne mogu prochitat pamyat processa "
+Lrt_wp_ewrite: .asciz "ne mogu zapisat v pamyat processa "
+Lrt_wp_ekill: .asciz "ne mogu ostanovit process "
+Lrt_wp_espawn: .asciz "ne mogu zapustit: "
 Lrt_rb: .asciz "rb"
 Lrt_wb: .asciz "wb"
 Lrt_r: .asciz "r"
