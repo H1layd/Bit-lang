@@ -82,7 +82,11 @@ wait.
 - [x] **Sorting**: `a >> sort` returns a copy; `do(a >> sort)` sorts in place.
 - [x] **`proc` on Windows** through the system API (`OpenProcess`, `ReadProcessMemory`,
   `WriteProcessMemory`, `VirtualQueryEx`), checked on native Windows 11. The same program works on Linux.
-- [ ] Run the updated runtimes on native Linux and Windows. Cross-assembly and linking checks are separate.
+- [x] **Native Windows run**: `tests_win.sh` passes the whole suite on Windows 11 (29 tests; 6 tests
+  that need POSIX tools are skipped). Found and fixed: files written in text mode (`\n` became `\r\n`),
+  non-ASCII paths, commands and arguments broken by the ANSI code page, transliterated runtime
+  messages. Windows programs are now UTF-8 throughout.
+- [ ] Run the updated runtimes on native Linux.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
 
@@ -90,9 +94,8 @@ wait.
 
 In order. Each step ends with tests, updated seeds and both references.
 
-1. **Native test runs.** A script that builds the whole test suite for Windows and Linux, runs it on a
-   real machine over SSH and compares with the expected output. Closes the "verify on native Linux
-   and Windows" items above.
+1. **Native test runs.** Done for Windows (`tests_win.sh`). Next: the same for Linux, and Windows
+   versions of the tests that now need POSIX tools.
 2. **Processes on macOS.** `start`, `pid`, `name`, `alive`, `wait`, `kill` and `"name" >> proc` work
    without special rights; only memory access (`read`, `write`, `scan`, `maps`) needs a debugger
    entitlement. Bring the process part of `proc` to macOS and keep a clear message for memory.

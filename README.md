@@ -134,6 +134,6 @@ Compiler and runtime messages are currently in Russian.
 | `rt/` | runtime in assembly: `arm64.s`, `x86_64.s`, plus generated Linux and Windows versions |
 | `tools/` | `embed_rt.bit` (embeds the runtime into the compiler), runtime generators for Linux and Windows, `build_opt.sh` (experimental optimizing build into `build/`) |
 | `bootstrap/`, `bootstrap.sh` | assembly seeds and the from-scratch build with a self-hosting check |
-| `tests.sh`, `tests/` | test suite (examples and error checks) on arm64 and x86-64 |
+| `tests.sh`, `tests/` | test suite (examples and error checks) on arm64 and x86-64; `tests_win.sh host` runs it on a real Windows machine over SSH |
 | `examples/` | example programs |
 | `docs/` | documentation in English (`*.md`) and Russian (`*.ru.md`) |

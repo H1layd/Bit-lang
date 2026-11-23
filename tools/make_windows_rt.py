@@ -527,6 +527,61 @@ _bit_mem_used:
 
 # ── обёртки и функции для файлов/ввода/ОС, написанные под Windows вручную ──
 WINEXTRA = r"""
+// ── запуск: консоль в UTF-8, как терминал macOS и Linux; при выходе вернуть как было ──
+_bit_win_init:
+    sub rsp, 40
+    call GetConsoleOutputCP
+    mov [rip + Lrt_oldocp], rax
+    call GetConsoleCP
+    mov [rip + Lrt_oldicp], rax
+    mov ecx, 65001
+    call SetConsoleOutputCP
+    mov ecx, 65001
+    call SetConsoleCP
+    lea rcx, [rip + _bit_win_restore]
+    call atexit
+    add rsp, 40
+    ret
+_bit_win_restore:
+    sub rsp, 40
+    mov rcx, [rip + Lrt_oldocp]
+    test ecx, ecx
+    jz 1f
+    call SetConsoleOutputCP
+    mov rcx, [rip + Lrt_oldicp]
+    call SetConsoleCP
+1:  add rsp, 40
+    ret
+
+// ── манифест: системные вызовы *A (пути, команды, аргументы) понимают UTF-8 ──
+.section .rsrc,"dr"
+.p2align 2
+Lrsrc_root:
+    .long 0, 0
+    .short 0, 0, 0, 1
+    .long 24, 0x80000000 + (Lrsrc_name - Lrsrc_root)
+Lrsrc_name:
+    .long 0, 0
+    .short 0, 0, 0, 1
+    .long 1, 0x80000000 + (Lrsrc_lang - Lrsrc_root)
+Lrsrc_lang:
+    .long 0, 0
+    .short 0, 0, 0, 1
+    .long 0x409, Lrsrc_data - Lrsrc_root
+Lrsrc_data:
+    .rva Lrsrc_manifest
+    .long Lrsrc_end - Lrsrc_manifest
+    .long 0, 0
+Lrsrc_manifest:
+    .ascii "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+    .ascii "<assembly manifestVersion=\"1.0\" xmlns=\"urn:schemas-microsoft-com:asm.v1\">\n"
+    .ascii "<application xmlns=\"urn:schemas-microsoft-com:asm.v3\"><windowsSettings>\n"
+    .ascii "<activeCodePage xmlns=\"http://schemas.microsoft.com/SMI/2019/WindowsSettings\">UTF-8</activeCodePage>\n"
+    .ascii "</windowsSettings></application>\n"
+    .ascii "</assembly>\n"
+Lrsrc_end:
+.text
+
 // ── ещё обёртки libc (без аргументов / особые) ──
 _w_getchar:
     sub rsp, 40
@@ -2562,6 +2617,8 @@ Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
 Lrt_stderr: .quad 0
 Lrt_wsa: .quad 0
+Lrt_oldocp: .quad 0
+Lrt_oldicp: .quad 0
 .p2align 4
 .p2align 3
 
@@ -2591,10 +2648,10 @@ Lrt_edns: .asciz "ne mogu najti adres hosta"
 """
 
 NEWSTR = {
-    "Lrt_wp_exe": ".exe", "Lrt_wp_code": ", kod oshibki ",
-    "Lrt_wp_eread": "ne mogu prochitat pamyat processa ",
-    "Lrt_wp_ewrite": "ne mogu zapisat v pamyat processa ",
-    "Lrt_wp_ekill": "ne mogu ostanovit process ", "Lrt_wp_espawn": "ne mogu zapustit: ",
+    "Lrt_wp_exe": ".exe", "Lrt_wp_code": ", код ошибки ",
+    "Lrt_wp_eread": "не могу прочитать память процесса ",
+    "Lrt_wp_ewrite": "не могу записать в память процесса ",
+    "Lrt_wp_ekill": "не могу остановить процесс ", "Lrt_wp_espawn": "не могу запустить: ",
     "Lrt_rb": "rb", "Lrt_wb": "wb", "Lrt_r": "r", "Lrt_star": "\\*",
     "Lrt_userenv": "USERNAME", "Lrt_pscmd": "tasklist",
     "Lrt_eof": "vvod zakonchilsya",
@@ -2610,7 +2667,7 @@ NEWSTR = {
     "Lrt_enotdir": "eto ne papka: ", "Lrt_erm": "ne mogu udalit: ",
     "Lrt_emv": "ne mogu peremestit: ", "Lrt_emk": "ne mogu sozdat papku: ",
     "Lrt_edir": "ne mogu prochitat papku: ", "Lrt_slash": "/",
-    "Lrt_w": "w", "Lrt_a": "a", "Lrt_erun": "ne mogu zapustit komandu: ",
+    "Lrt_w": "wb", "Lrt_a": "ab", "Lrt_erun": "ne mogu zapustit komandu: ",
     "Lrt_cls": "\x1b[2J\x1b[H", "Lrt_dashdash": " -- ", "Lrt_gp": "%.*g",
     "Lrt_cpucmd": "", "Lrt_memsize": "", "Lrt_vmps": "",
     "Lrt_curlget": "curl -sS -L -- ", "Lrt_curlout": "curl -sS -L -o ",
@@ -2624,6 +2681,28 @@ NEWSTR = {
     "Lrt_random_bounds": "random: expected minimum <= maximum",
     "Lrt_random_entropy": "random: cannot read system entropy",
 }
+# Сообщения среды берём из rt/x86_64.s: те же русские тексты, что на macOS и Linux.
+def unesc(v):
+    out = bytearray(); i = 0
+    while i < len(v):
+        c = v[i]
+        if c == "\\":
+            n = v[i + 1]
+            if n in "01234567":
+                out.append(int(v[i + 1:i + 4], 8)); i += 4; continue
+            out += {"n": b"\n", "t": b"\t", "\\": b"\\", '"': b'"'}[n]; i += 2; continue
+        out += c.encode(); i += 1
+    return out.decode()
+MAC = {k: unesc(v) for k, v in re.findall(r'^(Lrt_\w+): \.asciz "((?:[^"\\]|\\.)*)"$', src, re.M)}
+def russian(v):
+    return any(ord(ch) > 127 for ch in v)
+for k in list(NEWSTR):
+    if k in MAC and russian(MAC[k]) and not russian(NEWSTR[k]):
+        NEWSTR[k] = MAC[k]
+def head_line(m):
+    k = m.group(1)
+    return "%s: .asciz %s" % (k, octal(MAC[k])) if k in MAC and russian(MAC[k]) else m.group(0)
+FOOT_HEAD = re.sub(r'^(Lrt_\w+): \.asciz "[^"\n]*"$', head_line, FOOT_HEAD, flags=re.M)
 FOOT = FOOT_HEAD + "".join("%s: .asciz %s\n" % (k, octal(v)) for k, v in NEWSTR.items()) + ".text\n"
 
 out = CORE + GENW + "\n" + WINEXTRA + NET_WRAPPERS + "\n" + transformed + "\n" + files_asm + WINPROC + FOOT

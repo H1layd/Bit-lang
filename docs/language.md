@@ -740,6 +740,14 @@ One source builds for every supported platform:
 Inside, the language uses one calling convention (System V) everywhere; the differences of Windows
 (another calling convention, Winsock, argument quoting) are hidden in thin runtime wrappers.
 
+On Windows a program behaves like on macOS and Linux: text is UTF-8 everywhere — in paths, commands,
+arguments and the console (the program embeds a manifest and switches the console to UTF-8 while it
+runs, Windows 10 1903 or newer). Files are written byte for byte, `\n` stays `\n`. Runtime messages
+are the same as on the other systems.
+
+`./tests_win.sh host` builds the test suite for Windows, runs it on a real machine over SSH and
+compares the output.
+
 ---
 
 ## How the compiler works
