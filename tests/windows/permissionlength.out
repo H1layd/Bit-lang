@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/permissionlength.bit, строка 3:
+  3 | do(d >> permissions("rwx"));
+  permissions доступны на macOS и Linux; на Windows используй read_only (ACL пока не поддерживается)
+1 

@@ -1,8 +1,11 @@
 host {
-    dir d = "{term >> env('TMPDIR')}bit_fsfix";
+    dir d = "bit-fsfix-{term >> pid}";
     do(d >> make);
     file f = d >> file("a.bin");
-    do("printf 'A\\000B\\000C' > {d}/a.bin" >> run);
+    bytes data = mem >> take(5);
+    do(data >> set(0, 65) >> set(2, 66) >> set(4, 67));
+    do(f >> save(data));
+    do(data >> free);
     do(f >> copy("{d}/b.bin"));
     file g = d >> file("b.bin");
     print("размер копии {g >> sz} (должно быть 5)");

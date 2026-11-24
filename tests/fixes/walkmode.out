@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/walkmode.bit, строка 3:
+  3 | mas entries = d >> walk("unknown");
+  walk с метаданными: d >> walk("info"); аргумент — литерал info
+1 

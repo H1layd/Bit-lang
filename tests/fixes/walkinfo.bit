@@ -1,0 +1,41 @@
+host {
+    dir d = "bit-info-{term >> pid}";
+    dir sub = d >> dir("a папка");
+    do(sub >> make);
+    file one = sub >> file("a.txt");
+    file two = sub >> file("b.txt");
+    file empty = d >> file("z.txt");
+    do(one >> write("abc"));
+    do(two >> write("xy"));
+    do(empty >> write(""));
+    mas infos = d >> walk("info");
+    print("файлов: {infos >> sz}");
+    for entry in infos {
+        file path = entry >> path;
+        num age = os >> now - entry >> modified;
+        print("{path >> name}: {entry >> sz}, свежий: {age >= 0 and age < 600}");
+        print("совпало: {entry >> sz == path >> sz and entry >> modified == path >> modified}");
+    }
+    mas selected = infos >> keep(it >> sz > 0);
+    mas sizes = selected >> each(it >> sz);
+    print("сумма: {sizes >> sum}");
+    mas copies = infos >> each(it);
+    do(copies >> add(FileInfo("synthetic", 7, 10)));
+    print("копий: {copies >> sz}");
+    mas manual = (FileInfo);
+    do(manual >> add(FileInfo("manual", 9, 11)));
+    print("вручную: {manual >> first >> sz}");
+    do(one >> write("longer"));
+    if infos >> sz > 0 {
+        print("снимок: {infos >> first >> sz}");
+    }
+    dir nofiles = d >> dir("empty");
+    do(nofiles >> make);
+    print("пусто: {nofiles >> walk('info') >> sz}");
+    do(d >> remove_all);
+    recover {
+        mas missing = d >> walk("info");
+    } else {
+        print("нет папки");
+    }
+}

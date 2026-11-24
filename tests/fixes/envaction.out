@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/envaction.bit, строка 2:
+  2 | string value = term >> env("K", "V");
+  изменение env — это действие: do(term >> env(имя, значение));
+1 

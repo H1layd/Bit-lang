@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/permissionlength.bit, строка 3:
+  3 | do(d >> permissions("rwx"));
+  permissions: нужны ровно 9 символов rwx на своих местах или -, например "rw-r-----"
+1 

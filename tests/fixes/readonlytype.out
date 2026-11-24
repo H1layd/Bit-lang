@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/readonlytype.bit, строка 3:
+  3 | do(f >> read_only("true"));
+  read_only(...): нужен bool, а тут string
+1 

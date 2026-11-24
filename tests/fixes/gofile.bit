@@ -1,0 +1,4 @@
+host {
+    file f = "file.txt";
+    do(term >> go(f));
+}

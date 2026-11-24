@@ -1,0 +1,4 @@
+host {
+    file f = "data";
+    do(f >> read_only("true"));
+}

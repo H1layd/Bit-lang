@@ -1,0 +1,4 @@
+host {
+    dir d = "data";
+    mas entries = d >> walk("unknown");
+}

@@ -1,0 +1,3 @@
+host {
+    string value = term >> env("K", "V");
+}

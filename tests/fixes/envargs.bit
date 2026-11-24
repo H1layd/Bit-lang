@@ -1,0 +1,3 @@
+host {
+    do(term >> env("K"));
+}

@@ -7,20 +7,42 @@ W="${TMPDIR:-/tmp}/bit_win_tests"
 rm -rf "$W"; mkdir -p "$W/got"
 bat="$W/all.bat"
 printf '@echo off\r\nchcp 65001 >nul\r\n' > "$bat"
-# Эти тесты вызывают POSIX-утилиты (sh, printf, mktemp) или пути вида /tmp — на Windows их нет.
-SKIP=" err_bad_dir fix_filechunks fix_filesafe fix_fsfix fix_runpipes fix_status fix_procs "
+# Проверка запрета записи в корень зависит от прав и устройства ОС.
+SKIP=" err_bad_dir "
+compile_only=0
 add() {  # id файл вход ожидаемое с_кодом
     case "$SKIP" in *" $1 "*) return 0;; esac
-    ./bitc build "$2" -o "$W/$1.exe" --os windows >/dev/null 2>&1 || return 0
+    ./bitc build "$2" -o "$W/$1.exe" --os windows >"$W/$1.build" 2>&1
+    code=$?
+    if [ "$code" != 0 ]; then
+        if [ "$5" = 1 ]; then printf '%s \n' "$code" >> "$W/$1.build"; fi
+        if { [ "${6:-0}" = 1 ] || [ "$5" = 1 ]; } && cmp -s "$W/$1.build" "$4"; then
+            compile_only=$((compile_only+1))
+            return 0
+        fi
+        echo "ОШИБКА СБОРКИ: $1"
+        cat "$W/$1.build"
+        return 1
+    fi
     cp "$3" "$W/$1.in"; cp "$4" "$W/$1.exp"; echo "$5" > "$W/$1.mode"
-    printf '%s.exe < %s.in > %s.got 2>&1\r\necho %%ERRORLEVEL%% > %s.code\r\n' "$1" "$1" "$1" "$1" >> "$bat"
+    extra=""
+    [ "$1" != fix_workenv ] || extra=" bit_env_child.exe"
+    printf '%s.exe%s < %s.in > %s.got 2>&1\r\necho %%ERRORLEVEL%% > %s.code\r\n' "$1" "$extra" "$1" "$1" "$1" >> "$bat"
 }
+./bitc build tests/windows/proc_target.bit -o "$W/bit_proc_target.exe" --os windows >/dev/null || exit 1
+./bitc build tests/helpers/workenv_child.bit -o "$W/bit_env_child.exe" --os windows >/dev/null || exit 1
 printf '9\nabc\n2\n' > "$W/ex.in"; : > "$W/null.in"
-for f in hello demo ext chains; do add "ex_$f" "examples/$f.bit" "$W/ex.in" "tests/expected/$f.txt" 0; done
-for f in examples/errors/*.bit; do n=$(basename "$f" .bit); add "err_$n" "$f" "$W/null.in" "tests/expected/err_$n.txt" 0; done
+for f in hello demo ext chains; do add "ex_$f" "examples/$f.bit" "$W/ex.in" "tests/expected/$f.txt" 0 || exit 1; done
+for f in examples/errors/*.bit; do n=$(basename "$f" .bit); add "err_$n" "$f" "$W/null.in" "tests/expected/err_$n.txt" 0 1 || exit 1; done
 for f in tests/fixes/*.bit; do
     n="${f%.bit}"; inp="$W/null.in"; [ -f "$n.in" ] && inp="$n.in"
-    add "fix_$(basename "$n")" "$f" "$inp" "$n.out" 1
+    expected="$n.out"
+    variant="tests/windows/$(basename "$f")"
+    if [ -f "$variant" ]; then
+        f="$variant"
+    fi
+    [ ! -f "${variant%.bit}.out" ] || expected="${variant%.bit}.out"
+    add "fix_$(basename "$n")" "$f" "$inp" "$expected" 1 || exit 1
 done
 ssh "$H" "rmdir /s /q bit-win-tests 2>nul & mkdir bit-win-tests" || exit 1
 (cd "$W" && scp -q ./*.exe ./*.in all.bat "$H:bit-win-tests/") || exit 1
@@ -34,5 +56,5 @@ for e in "$W"/*.exp; do
 $(tr -d '\r ' < "$W/got/$id.code") "; fi
     if [ "$got" = "$(cat "$e")" ]; then ok=$((ok+1)); else bad=$((bad+1)); echo "НЕ СОВПАЛО: $id"; fi
 done
-echo "Windows: прошло $ok, упало $bad (вывод в $W/got)"
+echo "Windows: прошло $ok, упало $bad; ошибки сборки проверены: $compile_only (вывод в $W/got)"
 [ "$bad" = 0 ]

@@ -1,0 +1,4 @@
+host {
+    dir d = "data";
+    all value = d >> remove_all;
+}

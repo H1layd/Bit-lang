@@ -1664,6 +1664,306 @@ _bit_dir_list:                      // x0 = путь, x1 = строка → mas 
     mov x2, x20
     bl _bit_errpath
 
+
+
+_bit_dir_remove_all:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x20, x1
+    adrp x1, Lrt_empty@PAGE
+    add x1, x1, Lrt_empty@PAGEOFF
+    bl _bit_cat
+    mov x19, x0
+    bl _strlen
+    cbz x0, 8f
+1:  cmp x0, #1
+    b.ls 2f
+    sub x1, x0, #1
+    ldrb w2, [x19, x1]
+    cmp w2, #47
+    b.ne 2f
+    mov x0, x1
+    strb wzr, [x19, x1]
+    b 1b
+2:  ldrb w1, [x19]
+    cmp w1, #47
+    b.ne 3f
+    ldrb w1, [x19, #1]
+    cbz w1, 8f
+3:  mov x0, x19
+    mov x1, #47
+    bl _strrchr
+    cbnz x0, 4f
+    sub x0, x19, #1
+4:  add x0, x0, #1
+    ldrb w1, [x0]
+    cmp w1, #46
+    b.ne 5f
+    ldrb w1, [x0, #1]
+    cbz w1, 8f
+    cmp w1, #46
+    b.ne 5f
+    ldrb w1, [x0, #2]
+    cbz w1, 8f
+5:  mov x0, #-2
+    mov x1, x19
+    mov x2, x20
+    mov x3, #1
+    bl _bit_remove_at
+    mov x21, x0
+    mov x0, x19
+    bl _free
+    cbnz x21, 9f
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+8:  mov x0, x19
+    bl _free
+    adrp x0, Lrt_ermroot@PAGE
+    add x0, x0, Lrt_ermroot@PAGEOFF
+    mov x1, x20
+    bl _bit_die
+9:  adrp x0, Lrt_ermtree@PAGE
+    add x0, x0, Lrt_ermtree@PAGEOFF
+    mov x1, x20
+    bl _bit_die
+
+_bit_remove_at:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    sub sp, sp, #160
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x24, x3
+    mov x2, sp
+    mov x3, #32
+    bl _fstatat
+    cbnz w0, 9f
+    ldrh w1, [sp, #4]
+    and w1, w1, #0xf000
+    cmp w1, #0x4000
+    b.eq 2f
+    cbz x24, 1f
+    cmp w1, #0xa000
+    b.ne 9f
+1:  mov x0, x19
+    mov x1, x20
+    mov x2, #0
+    bl _unlinkat
+    cbnz w0, 9f
+    b 7f
+2:  mov x0, x19
+    mov x1, x20
+    mov x2, #256
+    movk x2, #16, lsl #16
+    bl _openat
+    tbnz w0, #31, 9f
+    mov x23, x0
+    bl _fdopendir
+    cbz x0, 6f
+    mov x22, x0
+3:  bl ___error
+    str wzr, [x0]
+    mov x0, x22
+    bl _readdir
+    cbz x0, 5f
+    add x1, x0, #21
+    ldrb w2, [x1]
+    cmp w2, #46
+    b.ne 4f
+    ldrb w2, [x1, #1]
+    cbz w2, 3b
+    cmp w2, #46
+    b.ne 4f
+    ldrb w2, [x1, #2]
+    cbz w2, 3b
+4:  mov x0, x23
+    mov x2, x21
+    mov x3, #0
+    bl _bit_remove_at
+    cbnz x0, 8f
+    b 3b
+5:  bl ___error
+    ldr w1, [x0]
+    cbnz w1, 8f
+    mov x0, x22
+    bl _closedir
+    cbnz w0, 9f
+    mov x0, x19
+    mov x1, x20
+    mov x2, #128
+    bl _unlinkat
+    cbnz w0, 9f
+    b 7f
+6:  mov x0, x23
+    bl _close
+    b 9f
+7:  mov x0, #0
+    b 10f
+8:  mov x0, x22
+    bl _closedir
+9:  mov x0, #-1
+10: add sp, sp, #160
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_path_mode:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #160
+    mov x19, x0
+    mov x20, x1
+    mov x1, sp
+    bl _stat
+    cbnz w0, 9f
+    ldrh w0, [sp, #4]
+    add sp, sp, #160
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_epermread@PAGE
+    add x0, x0, Lrt_epermread@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_mode_set:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x20, x2
+    bl _chmod
+    cbnz w0, 9f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_epermwrite@PAGE
+    add x0, x0, Lrt_epermwrite@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_permissions_parse:             // text, line -> permission bits
+    mov x3, #0
+    mov x4, #256
+    mov x5, #0
+    adrp x6, Lrt_permchars@PAGE
+    add x6, x6, Lrt_permchars@PAGEOFF
+1:  ldrb w7, [x0, x5]
+    cmp w7, #45
+    b.eq 2f
+    ldrb w8, [x6, x5]
+    cmp w7, w8
+    b.ne 9f
+    orr x3, x3, x4
+2:  lsr x4, x4, #1
+    add x5, x5, #1
+    cmp x5, #9
+    b.ne 1b
+    ldrb w7, [x0, #9]
+    cbnz w7, 9f
+    mov x0, x3
+    ret
+9:  adrp x0, Lrt_epermissions@PAGE
+    add x0, x0, Lrt_epermissions@PAGEOFF
+    b _bit_die
+
+_bit_permissions_text:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x0, #10
+    bl _bit_alloc
+    mov x2, #0
+    mov x3, #256
+    adrp x4, Lrt_permchars@PAGE
+    add x4, x4, Lrt_permchars@PAGEOFF
+1:  mov w5, #45
+    tst x19, x3
+    b.eq 2f
+    ldrb w5, [x4, x2]
+2:  strb w5, [x0, x2]
+    lsr x3, x3, #1
+    add x2, x2, #1
+    cmp x2, #9
+    b.ne 1b
+    strb wzr, [x0, #9]
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_permissions_get:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl _bit_path_mode
+    bl _bit_permissions_text
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_permissions_set:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x20, x2
+    mov x0, x1
+    mov x1, x2
+    bl _bit_permissions_parse
+    mov x1, x0
+    mov x0, x19
+    mov x2, x20
+    bl _bit_mode_set
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_read_only_get:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl _bit_path_mode
+    mov x1, #146
+    tst x0, x1
+    cset x0, eq
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_read_only_set:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x1, x2
+    bl _bit_path_mode
+    and x1, x0, #4095
+    mov x2, #146
+    cbz x20, 1f
+    bic x1, x1, x2
+    b 2f
+1:  orr x1, x1, x2
+2:  mov x0, x19
+    mov x2, x21
+    bl _bit_mode_set
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_lkind:                         // x0 = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -1773,6 +2073,144 @@ _bit_walk_into:                     // x0 = путь, x1 = mas, x2 = строк�
 4:  add x23, x23, #1
     b 1b
 5:  ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+
+_bit_path_info:                     // path, line -> path, size, modified, kind
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #160
+    mov x19, x0
+    mov x20, x1
+    mov x1, sp
+    bl _lstat
+    cbnz w0, 9f
+    ldrh w1, [sp, #4]
+    and w1, w1, #0xf000
+    cmp w1, #0xa000
+    b.ne 1f
+    mov x0, x19
+    mov x1, sp
+    bl _stat
+    cbnz w0, 7f
+    ldrh w1, [sp, #4]
+    and w1, w1, #0xf000
+    cmp w1, #0x8000
+    b.ne 7f
+1:  mov x21, #1
+    cmp w1, #0x8000
+    b.eq 2f
+    mov x21, #2
+    cmp w1, #0x4000
+    b.ne 7f
+2:  mov x0, #32
+    bl _bit_alloc
+    str x19, [x0]
+    ldr x1, [sp, #96]
+    str x1, [x0, #8]
+    ldr x1, [sp, #48]
+    str x1, [x0, #16]
+    str x21, [x0, #24]
+    b 8f
+7:  mov x0, #0
+8:  add sp, sp, #160
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_eread@PAGE
+    add x0, x0, Lrt_eread@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_dir_walk_info:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x0, #-1
+    mov x1, #0
+    bl _bit_mas_new
+    mov x21, x0
+    mov x0, x19
+    mov x1, x21
+    mov x2, x20
+    bl _bit_walk_info_into
+    mov x0, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_walk_info_into:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x1, x21
+    bl _bit_dir_list
+    mov x22, x0
+    mov x23, #0
+1:  ldr x9, [x22, #8]
+    cmp x23, x9
+    b.ge 5f
+    mov x0, x19
+    adrp x1, Lrt_slash@PAGE
+    add x1, x1, Lrt_slash@PAGEOFF
+    bl _bit_cat
+    mov x25, x0
+    ldr x9, [x22]
+    ldr x1, [x9, x23, lsl #3]
+    bl _bit_cat
+    mov x24, x0
+    mov x0, x25
+    bl _free
+    mov x0, x24
+    mov x1, x21
+    bl _bit_path_info
+    cbz x0, 4f
+    ldr x9, [x0, #24]
+    cmp x9, #2
+    b.ne 2f
+    mov x25, x0
+    mov x0, x24
+    mov x1, x20
+    mov x2, x21
+    bl _bit_walk_info_into
+    mov x0, x25
+    bl _free
+    b 4f
+2:  mov x1, x0
+    mov x0, x20
+    mov x2, x21
+    bl _bit_mas_add
+    b 3f
+4:  mov x0, x24
+    bl _free
+3:  ldr x9, [x22]
+    ldr x0, [x9, x23, lsl #3]
+    bl _free
+    add x23, x23, #1
+    b 1b
+5:  ldr x0, [x22]
+    bl _free
+    mov x0, x22
+    bl _free
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
@@ -2181,8 +2619,63 @@ _bit_env:                           // x0 = имя → значение или "
     adrp x0, Lrt_empty@PAGE
     add x0, x0, Lrt_empty@PAGEOFF
 1:
+    adrp x1, Lrt_empty@PAGE
+    add x1, x1, Lrt_empty@PAGEOFF
+    bl _bit_cat
     ldp x29, x30, [sp], #16
     ret
+
+_bit_term_folder:                   // x0 = строка программы → текущая папка (новая строка)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x0, #0
+    mov x1, #0
+    bl _getcwd
+    cbz x0, 9f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_ecwd@PAGE
+    add x0, x0, Lrt_ecwd@PAGEOFF
+    mov x1, x19
+    bl _bit_die
+
+_bit_term_go:                       // x0 = путь, x1 = строка программы
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    bl _chdir
+    cbnz w0, 9f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_ego@PAGE
+    add x0, x0, Lrt_ego@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
+
+_bit_env_set:                       // x0 = имя, x1 = значение, x2 = строка программы
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x20, x2
+    mov x2, #1
+    bl _setenv
+    cbnz w0, 9f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_eenv@PAGE
+    add x0, x0, Lrt_eenv@PAGEOFF
+    mov x1, x19
+    mov x2, x20
+    bl _bit_errpath
 
 _bit_clear:
     stp x29, x30, [sp, #-16]!
@@ -4241,6 +4734,17 @@ Lrt_w: .asciz "w"
 Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
+
+Lrt_ermroot: .asciz "remove_all: нельзя удалять корень, пустой путь, . или .."
+Lrt_ermtree: .asciz "не могу удалить папку с содержимым"
+Lrt_permchars: .asciz "rwxrwxrwx"
+Lrt_epermissions: .asciz "permissions: нужны ровно 9 символов rwx на своих местах или -"
+Lrt_epermread: .asciz "не могу узнать права доступа: "
+Lrt_epermwrite: .asciz "не могу изменить права доступа: "
+
+Lrt_ecwd: .asciz "не могу узнать текущую папку"
+Lrt_ego: .asciz "не могу сменить папку: "
+Lrt_eenv: .asciz "не могу задать переменную окружения: "
 Lrt_slash: .asciz "/"
 Lrt_msh: .asciz "sh"
 Lrt_mdashc: .asciz "-c"

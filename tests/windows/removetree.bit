@@ -1,0 +1,68 @@
+host {
+    dir base = term >> folder;
+    dir outside = base >> dir("bit-outside-{term >> pid}");
+    dir root = base >> dir("bit-remove-{term >> pid}");
+    dir nested = root >> dir("nested");
+    do(outside >> make);
+    do(nested >> make);
+    file protected = outside >> file("keep.txt");
+    file local = nested >> file("local.txt");
+    do(protected >> write("keep"));
+    do(local >> write("local"));
+    dir link = root >> dir("link");
+    mas make_link = ("cmd.exe", "/d", "/c", "mklink", "/J", link >> path >> replace("/", "\\"), outside >> path >> replace("/", "\\"));
+    string output = make_link >> run;
+    if term >> status != 0 {
+        print(output);
+        print(term >> stderr);
+    }
+    print("ссылка: {term >> status == 0}");
+    file file_link = root >> file("file-link");
+    string file_path = file_link >> path >> replace("/", "\\");
+    string target_path = protected >> path >> replace("/", "\\");
+    mas make_file_link = ("cmd.exe", "/d", "/c", "mklink", file_path, target_path);
+    do(output >> ch(make_file_link >> run));
+    if term >> status != 0 {
+        mas hard_link = ("cmd.exe", "/d", "/c", "mklink", "/H", file_path, target_path);
+        do(output >> ch(hard_link >> run));
+    }
+    dir loop = root >> dir("loop");
+    mas make_loop = ("cmd.exe", "/d", "/c", "mklink", "/J", loop >> path >> replace("/", "\\"), root >> path >> replace("/", "\\"));
+    do(output >> ch(make_loop >> run));
+    print("обход: {root >> walk('info') >> sz}");
+    for entry in root >> walk("info") {
+        if entry >> path == file_link >> path {
+            print("метаданные ссылки: {entry >> sz == 4 and entry >> modified == protected >> modified}");
+        }
+    }
+    do(term >> go(root));
+    dir dot = ".";
+    recover {
+        do(dot >> remove_all);
+    } else {
+        print("точка запрещена");
+    }
+    do(term >> go(base));
+    print("файл сохранён: {local >> exists}");
+    dir wrong = protected >> path;
+    recover {
+        do(wrong >> remove_all);
+    } else {
+        print("обычный файл запрещён");
+    }
+    do(root >> remove_all);
+    print("дерево удалено: {not (root >> exists)}");
+    print("внешний файл: {protected >> read}");
+    dir top_link = base >> dir("bit-top-link-{term >> pid}");
+    mas make_top = ("cmd.exe", "/d", "/c", "mklink", "/J", top_link >> path >> replace("/", "\\"), outside >> path >> replace("/", "\\"));
+    do(output >> ch(make_top >> run));
+    do(top_link >> remove_all);
+    print("верхняя ссылка удалена: {not (top_link >> exists)}");
+    print("внешняя папка: {outside >> exists}");
+    recover {
+        do(root >> remove_all);
+    } else {
+        print("нет папки");
+    }
+    do(outside >> remove_all);
+}

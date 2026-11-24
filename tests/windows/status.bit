@@ -1,0 +1,7 @@
+host {
+    do("exit /b 3" >> run);
+    print("код {term >> status}");
+    string out = "echo привет& exit /b 5" >> run;
+    print("{out} / код {term >> status}");
+    do(term >> exit(7));
+}

@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/infosort.bit, строка 4:
+  4 | mas sorted = entries >> sort;
+  sort не задаёт порядок для структур; выбери числовое или строковое поле через each
+1 

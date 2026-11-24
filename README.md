@@ -121,7 +121,10 @@ More programs live in [`examples/`](examples/): files, memory, network, system.
 ## Status
 
 bit supports system utilities, text processing, records, maps, function values and multi-file
-programs through `use`. The targets are macOS (arm64 and x86-64), Linux (x86-64) and Windows (x86-64).
+programs through `use`. Working directory and environment changes are built into `term` and
+inherited by launched programs. File operations include `read_only`, POSIX permissions, recursive
+directory removal, and walks with `FileInfo` metadata. The targets are macOS (arm64 and x86-64),
+Linux (x86-64) and Windows (x86-64).
 Compiler and runtime messages are currently in Russian.
 
 ---

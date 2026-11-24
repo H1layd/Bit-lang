@@ -1,0 +1,10 @@
+host {
+    string value = term >> env("BIT_TEST_ENV");
+    if (term >> args >> get(0, "")) == "start":
+        do(term >> wait(500));
+        file marker = "child.txt";
+        do(marker >> write(value));
+    else:
+        file local = "local.txt";
+        print("{value} / {local >> read} / {term >> env('BIT_ТЕСТ')}");
+}

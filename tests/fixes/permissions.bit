@@ -1,0 +1,38 @@
+host {
+    dir d = "bit-permissions-{term >> pid}";
+    do(d >> make);
+    file f = d >> file("data");
+    do(f >> write("ok"));
+    do(f >> permissions("rw-r-----"));
+    print(f >> permissions);
+    do(f >> read_only(true));
+    print(f >> permissions);
+    print(f >> read_only);
+    do(f >> read_only(false));
+    print(f >> permissions);
+    do(d >> permissions("rwxr-x---"));
+    print(d >> permissions);
+    do(d >> read_only(true));
+    print(d >> permissions);
+    do(d >> read_only(false));
+    print(d >> permissions);
+    mas invalid = ("", "rwx", "rwxrwxrwxr", "rwwrwxrwx", "rwxrwxrw✓", "---------x");
+    for mode in invalid {
+        recover {
+            do(f >> permissions(mode));
+        } else {
+            print("неверная строка");
+        }
+    }
+    print(f >> permissions);
+    do(f >> permissions("---------"));
+    print(f >> read_only);
+    do(f >> permissions("rw-------"));
+    file missing = d >> file("missing");
+    recover {
+        print(missing >> permissions);
+    } else {
+        print("нет файла");
+    }
+    do(d >> remove_all);
+}

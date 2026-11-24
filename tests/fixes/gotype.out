@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/gotype.bit, строка 2:
+  2 | do(term >> go(12));
+  go ждёт string или dir, а тут num
+1 

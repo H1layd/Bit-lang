@@ -1,0 +1,4 @@
+host {
+    file f = "data";
+    print(f >> permissions);
+}

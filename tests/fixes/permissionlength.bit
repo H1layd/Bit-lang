@@ -1,0 +1,4 @@
+host {
+    dir d = "data";
+    do(d >> permissions("rwx"));
+}

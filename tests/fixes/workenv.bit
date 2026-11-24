@@ -1,0 +1,52 @@
+host {
+    dir original = term >> folder;
+    file child = original >> file(term >> args >> get(0, ""));
+    dir scratch = original >> dir("bit-среда пробел-{term >> pid}");
+    do(scratch >> make);
+    do(term >> env("BIT_TEST_ENV", "старое"));
+    string saved = term >> env("BIT_TEST_ENV");
+    do(term >> env("BIT_TEST_ENV", "новое значение"));
+    do(term >> env("BIT_ТЕСТ", "значение Ю"));
+    print("сохранено: {saved}, сейчас: {term >> env('BIT_TEST_ENV')}");
+    do(term >> go(scratch));
+    file local = "local.txt";
+    do(local >> write("относительный путь"));
+    file absolute = scratch >> file("local.txt");
+    print(absolute >> read);
+    dir current = term >> folder;
+    print("папка изменилась: {current >> path != original >> path}");
+    string shell = "\"{child >> path}\" shell" >> run;
+    print("оболочка: {shell}");
+    mas command = (child >> path, "direct");
+    string direct = command >> run;
+    print("напрямую: {direct}");
+    proc p = "\"{child >> path}\" start" >> start;
+    print("start: {p >> wait}");
+    file marker = "child.txt";
+    print("ребёнок записал: {marker >> read}");
+    recover {
+        do(term >> go("нет-такой-папки"));
+    } else {
+        print("go: сбой");
+    }
+    dir after = term >> folder;
+    print("папка сохранена: {after >> path == current >> path}");
+    recover {
+        do(term >> env("", "value"));
+    } else {
+        print("env: пустое имя");
+    }
+    recover {
+        do(term >> env("BAD=NAME", "value"));
+    } else {
+        print("env: знак равно");
+    }
+    do(term >> env("BIT_TEST_ENV", ""));
+    print("пустое значение: {term >> env('BIT_TEST_ENV') == ''}");
+    do(local >> delete);
+    do(marker >> delete);
+    do(term >> go(original >> path));
+    dir restored = term >> folder;
+    print("папка восстановлена: {restored >> path == original >> path}");
+    do(scratch >> remove);
+}

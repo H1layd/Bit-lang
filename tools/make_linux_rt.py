@@ -19,12 +19,24 @@ t = t.replace('call "_opendir$INODE64"', "call opendir@PLT").replace('call "_rea
 t = t.replace('call "_stat$INODE64"', "call stat@PLT").replace('call "_lstat$INODE64"', "call lstat@PLT")
 t = re.sub(r"\b(call|jmp) _(?!bit_|_)([a-z_0-9]+)\b", r"\1 \2@PLT", t)
 t = t.replace("call ___error", "call __errno_location@PLT")
+t = t.replace('call "_fstatat$INODE64"', "call fstatat@PLT")
+t = t.replace('call "_fdopendir$INODE64"', "call fdopendir@PLT")
+# Descriptor-relative recursive removal: Linux constants differ from Darwin.
+t = t.replace("mov rdi, -2", "mov rdi, -100")
+t = t.replace("mov ecx, 32" + chr(10) + '    call fstatat@PLT', "mov ecx, 256" + chr(10) + '    call fstatat@PLT')
+t = t.replace("mov edx, 0x100100", "mov edx, 0x30000")
+t = t.replace("mov edx, 128" + chr(10) + "    call unlinkat@PLT", "mov edx, 512" + chr(10) + "    call unlinkat@PLT")
 # POSIX pipe flags and errno values differ from Darwin.
 t = t.replace("    // O_NONBLOCK on Darwin\n    or edx, 4", "    // O_NONBLOCK\n    or edx, 2048")
 t = t.replace("    // EAGAIN on Darwin\n    cmp eax, 35", "    // EAGAIN\n    cmp eax, 11")
 # struct dirent: имя с 19-го байта, struct stat: st_mode с 24-го
 t = t.replace("lea rdi, [rax + 21]", "lea rdi, [rax + 19]")
+t = t.replace("lea rsi, [rax + 21]", "lea rsi, [rax + 19]")
 t = t.replace("movzx ecx, word ptr [rsp + 4]", "mov ecx, dword ptr [rsp + 24]")
+t = t.replace("movzx eax, word ptr [rsp + 4]", "mov eax, dword ptr [rsp + 24]")
+# stat metadata used by walk("info").
+t = t.replace("mov rdx, qword ptr [rsp + 96]", "mov rdx, qword ptr [rsp + 48]")
+t = t.replace("mov rdx, qword ptr [rsp + 48]" + chr(10) + "    mov [rax + 16]", "mov rdx, qword ptr [rsp + 88]" + chr(10) + "    mov [rax + 16]")
 # struct stat: st_mtime с 88-го байта
 t = t.replace("mov rax, qword ptr [rsp + 48]       // st_mtime", "mov rax, qword ptr [rsp + 88]       // st_mtime")
 

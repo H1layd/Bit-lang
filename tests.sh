@@ -7,7 +7,10 @@ fail() { bad=$((bad+1)); echo "НЕ СОВПАЛО: $1"; }
 
 ARCHES="arm64 x86_64"
 [ "$(uname -s)" = Linux ] && ARCHES="x86_64"
+mkdir -p build/test-helpers
 for a in $ARCHES; do
+    helper="build/test-helpers/workenv_child_$a"
+    ./bitc build tests/helpers/workenv_child.bit --arch "$a" -o "$helper" >/dev/null || exit 1
     for f in hello demo ext chains; do
         out=$(printf '9\nabc\n2\n' | ./bitc run "examples/$f.bit" --arch "$a" 2>&1)
         [ "$out" = "$(cat "tests/expected/$f.txt")" ] && pass || fail "$f [$a]"
@@ -19,7 +22,11 @@ for a in $ARCHES; do
     done
     for f in tests/fixes/*.bit; do
         n="${f%.bit}"; inp=/dev/null; [ -f "$n.in" ] && inp="$n.in"
-        out=$(./bitc run "$f" --arch "$a" < "$inp" 2>&1; echo "$? ")
+        if [ "$(basename "$n")" = workenv ]; then
+            out=$(./bitc run "$f" --arch "$a" -- "$helper" < "$inp" 2>&1; echo "$? ")
+        else
+            out=$(./bitc run "$f" --arch "$a" < "$inp" 2>&1; echo "$? ")
+        fi
         [ "$out" = "$(cat "$n.out")" ] && pass || fail "$f [$a]"
     done
 done

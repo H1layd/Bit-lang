@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/readonlyaction.bit, строка 3:
+  3 | all value = f >> read_only(true);
+  read_only меняет файловую систему: оберни действие в do(...)
+1 

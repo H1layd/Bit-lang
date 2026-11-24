@@ -1,0 +1,5 @@
+host {
+    dir d = "data";
+    mas entries = d >> walk("info");
+    mas sorted = entries >> sort;
+}

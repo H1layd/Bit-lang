@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/folderargs.bit, строка 2:
+  2 | dir d = term >> folder("extra");
+  folder пишется без скобок и значений
+1 

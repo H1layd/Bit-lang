@@ -1792,6 +1792,329 @@ _bit_dir_list:                      // rdi = путь, rsi = строка → ma
     mov rdx, r12
     call _bit_errpath
 
+
+
+_bit_dir_remove_all:                // path, line; never descend through symbolic links
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov r12, rsi
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    mov rbx, rax
+    mov rdi, rax
+    call _strlen
+    test rax, rax
+    jz 8f
+1:  cmp rax, 1
+    jbe 2f
+    cmp byte ptr [rbx + rax - 1], 47
+    jne 2f
+    dec rax
+    mov byte ptr [rbx + rax], 0
+    jmp 1b
+2:  cmp byte ptr [rbx], 47
+    jne 3f
+    cmp byte ptr [rbx + 1], 0
+    je 8f
+3:  mov rdi, rbx
+    mov esi, 47
+    call _strrchr
+    test rax, rax
+    jnz 4f
+    lea rax, [rbx - 1]
+4:  inc rax
+    cmp byte ptr [rax], 46
+    jne 5f
+    cmp byte ptr [rax + 1], 0
+    je 8f
+    cmp byte ptr [rax + 1], 46
+    jne 5f
+    cmp byte ptr [rax + 2], 0
+    je 8f
+5:  mov rdi, -2
+    mov rsi, rbx
+    mov rdx, r12
+    mov ecx, 1
+    call _bit_remove_at
+    mov r13, rax
+    mov rdi, rbx
+    call _free
+    test r13, r13
+    jnz 9f
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  mov rdi, rbx
+    call _free
+    lea rdi, [rip + Lrt_ermroot]
+    mov rsi, r12
+    call _bit_die
+9:  lea rdi, [rip + Lrt_ermtree]
+    mov rsi, r12
+    call _bit_die
+
+_bit_remove_at:                     // parent fd, name, line, require directory -> 0/-1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 184
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov [rsp + 160], rcx
+    mov rdx, rsp
+    mov ecx, 32
+    call "_fstatat$INODE64"
+    test eax, eax
+    jnz 9f
+    movzx ecx, word ptr [rsp + 4]
+    and ecx, 0xf000
+    cmp ecx, 0x4000
+    je 2f
+    cmp qword ptr [rsp + 160], 0
+    je 1f
+    cmp ecx, 0xa000
+    jne 9f
+1:  mov rdi, rbx
+    mov rsi, r12
+    xor edx, edx
+    call _unlinkat
+    test eax, eax
+    jnz 9f
+    jmp 7f
+2:  mov rdi, rbx
+    mov rsi, r12
+    mov edx, 0x100100
+    xor eax, eax
+    call _openat
+    test eax, eax
+    js 9f
+    mov r15d, eax
+    mov edi, eax
+    call "_fdopendir$INODE64"
+    test rax, rax
+    jz 6f
+    mov r14, rax
+3:  call ___error
+    mov dword ptr [rax], 0
+    mov rdi, r14
+    call "_readdir$INODE64"
+    test rax, rax
+    jz 5f
+    lea rsi, [rax + 21]
+    cmp byte ptr [rsi], 46
+    jne 4f
+    cmp byte ptr [rsi + 1], 0
+    je 3b
+    cmp byte ptr [rsi + 1], 46
+    jne 4f
+    cmp byte ptr [rsi + 2], 0
+    je 3b
+4:  mov edi, r15d
+    mov rdx, r13
+    xor ecx, ecx
+    call _bit_remove_at
+    test rax, rax
+    jnz 8f
+    jmp 3b
+5:  call ___error
+    cmp dword ptr [rax], 0
+    jne 8f
+    mov rdi, r14
+    call _closedir
+    test eax, eax
+    jnz 9f
+    mov rdi, rbx
+    mov rsi, r12
+    mov edx, 128
+    call _unlinkat
+    test eax, eax
+    jnz 9f
+    jmp 7f
+6:  mov edi, r15d
+    call _close
+    jmp 9f
+7:  xor eax, eax
+    jmp 10f
+8:  mov rdi, r14
+    call _closedir
+9:  mov rax, -1
+10: add rsp, 184
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_path_mode:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 160
+    mov rbx, rdi
+    mov r12, rsi
+    mov rsi, rsp
+    call "_stat$INODE64"
+    test eax, eax
+    jnz 9f
+    movzx eax, word ptr [rsp + 4]
+    add rsp, 160
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epermread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_mode_set:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rdx
+    call _chmod
+    test eax, eax
+    jnz 9f
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epermwrite]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_permissions_parse:             // text, line -> permission bits
+    xor eax, eax
+    xor ecx, ecx
+    mov r8d, 256
+    lea r9, [rip + Lrt_permchars]
+1:  movzx edx, byte ptr [rdi + rcx]
+    cmp dl, 45
+    je 2f
+    cmp dl, byte ptr [r9 + rcx]
+    jne 9f
+    or eax, r8d
+2:  shr r8d, 1
+    inc ecx
+    cmp ecx, 9
+    jne 1b
+    cmp byte ptr [rdi + 9], 0
+    jne 9f
+    ret
+9:  lea rdi, [rip + Lrt_epermissions]
+    jmp _bit_die
+
+_bit_permissions_text:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov edi, 10
+    call _bit_alloc
+    xor ecx, ecx
+    mov edx, 256
+    lea r8, [rip + Lrt_permchars]
+1:  mov r9b, 45
+    test ebx, edx
+    jz 2f
+    mov r9b, byte ptr [r8 + rcx]
+2:  mov byte ptr [rax + rcx], r9b
+    shr edx, 1
+    inc ecx
+    cmp ecx, 9
+    jne 1b
+    mov byte ptr [rax + 9], 0
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_permissions_get:
+    push rbp
+    mov rbp, rsp
+    call _bit_path_mode
+    mov rdi, rax
+    call _bit_permissions_text
+    pop rbp
+    ret
+
+_bit_permissions_set:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rdx
+    mov rdi, rsi
+    mov rsi, rdx
+    call _bit_permissions_parse
+    mov rdi, rbx
+    mov rsi, rax
+    mov rdx, r12
+    call _bit_mode_set
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_read_only_get:
+    push rbp
+    mov rbp, rsp
+    call _bit_path_mode
+    test eax, 146
+    sete al
+    movzx eax, al
+    pop rbp
+    ret
+
+_bit_read_only_set:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov rsi, rdx
+    call _bit_path_mode
+    and eax, 4095
+    test r12, r12
+    jz 1f
+    and eax, -147
+    jmp 2f
+1:  or eax, 146
+2:  mov rdi, rbx
+    mov rsi, rax
+    mov rdx, r13
+    call _bit_mode_set
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_lkind:                         // rdi = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)
     push rbp
     mov rbp, rsp
@@ -1908,6 +2231,156 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
 4:  inc r15
     jmp 1b
 5:  add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
+_bit_path_info:                     // path, line -> path, size, modified, kind
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 160
+    mov rbx, rdi
+    mov r12, rsi
+    mov rsi, rsp
+    call "_lstat$INODE64"
+    test eax, eax
+    jnz 9f
+    movzx ecx, word ptr [rsp + 4]
+    and ecx, 0xf000
+    cmp ecx, 0xa000
+    jne 1f
+    mov rdi, rbx
+    mov rsi, rsp
+    call "_stat$INODE64"
+    test eax, eax
+    jnz 7f
+    movzx ecx, word ptr [rsp + 4]
+    and ecx, 0xf000
+    cmp ecx, 0x8000
+    jne 7f
+1:  mov r13d, 1
+    cmp ecx, 0x8000
+    je 2f
+    mov r13d, 2
+    cmp ecx, 0x4000
+    jne 7f
+2:  mov edi, 32
+    call _bit_alloc
+    mov [rax], rbx
+    mov rdx, qword ptr [rsp + 96]
+    mov [rax + 8], rdx
+    mov rdx, qword ptr [rsp + 48]
+    mov [rax + 16], rdx
+    mov [rax + 24], r13
+    jmp 8f
+7:  xor eax, eax
+8:  add rsp, 160
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_dir_walk_info:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+    mov rdi, rbx
+    mov rsi, r13
+    mov rdx, r12
+    call _bit_walk_info_into
+    mov rax, r13
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_walk_info_into:                // path, output array, line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 24
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov rsi, rdx
+    call _bit_dir_list
+    mov r14, rax
+    xor r15d, r15d
+1:  cmp r15, [r14 + 8]
+    jge 5f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_slash]
+    call _bit_cat
+    mov [rsp + 8], rax
+    mov rdi, rax
+    mov rcx, [r14]
+    mov rsi, [rcx + r15*8]
+    call _bit_cat
+    mov [rsp], rax
+    mov rdi, [rsp + 8]
+    call _free
+    mov rdi, [rsp]
+    mov rsi, r13
+    call _bit_path_info
+    test rax, rax
+    jz 4f
+    cmp qword ptr [rax + 24], 2
+    jne 2f
+    mov [rsp + 8], rax
+    mov rdi, [rsp]
+    mov rsi, r12
+    mov rdx, r13
+    call _bit_walk_info_into
+    mov rdi, [rsp + 8]
+    call _free
+    jmp 4f
+2:  mov rdi, r12
+    mov rsi, rax
+    mov rdx, r13
+    call _bit_mas_add
+    jmp 3f
+4:  mov rdi, [rsp]
+    call _free
+3:  mov rax, [r14]
+    mov rdi, [rax + r15*8]
+    call _free
+    inc r15
+    jmp 1b
+5:  mov rdi, [r14]
+    call _free
+    mov rdi, r14
+    call _free
+    add rsp, 24
     pop r15
     pop r14
     pop r13
@@ -2342,8 +2815,69 @@ _bit_env:                           // rdi = имя → значение или 
     test rax, rax
     jnz 1f
     lea rax, [rip + Lrt_empty]
-1:  pop rbp
+1:  mov rdi, rax
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    pop rbp
     ret
+
+_bit_term_folder:                   // rdi = строка программы → текущая папка (новая строка)
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 8
+    mov rbx, rdi
+    xor edi, edi
+    xor esi, esi
+    call _getcwd
+    test rax, rax
+    jz 9f
+    add rsp, 8
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ecwd]
+    mov rsi, rbx
+    call _bit_die
+
+_bit_term_go:                       // rdi = путь, rsi = строка программы
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rsi
+    call _chdir
+    test eax, eax
+    jnz 9f
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ego]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_env_set:                       // rdi = имя, rsi = значение, rdx = строка программы
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, rdx
+    mov edx, 1
+    call _setenv
+    test eax, eax
+    jnz 9f
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eenv]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
 
 _bit_clear:
     push rbp
@@ -4533,6 +5067,17 @@ Lrt_w: .asciz "w"
 Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
+
+Lrt_ermroot: .asciz "remove_all: нельзя удалять корень, пустой путь, . или .."
+Lrt_ermtree: .asciz "не могу удалить папку с содержимым"
+Lrt_permchars: .asciz "rwxrwxrwx"
+Lrt_epermissions: .asciz "permissions: нужны ровно 9 символов rwx на своих местах или -"
+Lrt_epermread: .asciz "не могу узнать права доступа: "
+Lrt_epermwrite: .asciz "не могу изменить права доступа: "
+
+Lrt_ecwd: .asciz "не могу узнать текущую папку"
+Lrt_ego: .asciz "не могу сменить папку: "
+Lrt_eenv: .asciz "не могу задать переменную окружения: "
 Lrt_slash: .asciz "/"
 Lrt_msh: .asciz "sh"
 Lrt_mdashc: .asciz "-c"

@@ -527,6 +527,656 @@ _w_system:
     ret
 
 
+
+_bit_dir_remove_all:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 64
+    mov r12, rsi
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    mov rbx, rax
+    mov rdi, rax
+    call _w_strlen
+    test rax, rax
+    jz 8f
+1:  cmp rax, 1
+    jbe 2f
+    cmp rax, 3
+    jne 12f
+    cmp byte ptr [rbx + 1], 58
+    je 2f
+12: mov cl, byte ptr [rbx + rax - 1]
+    cmp cl, 47
+    je 11f
+    cmp cl, 92
+    jne 2f
+11: dec rax
+    mov byte ptr [rbx + rax], 0
+    jmp 1b
+2:  cmp byte ptr [rbx + rax - 1], 58
+    je 8f
+    cmp byte ptr [rbx + rax - 1], 46
+    je 8f
+    cmp byte ptr [rbx + rax - 1], 32
+    je 8f
+    cmp byte ptr [rbx], 92
+    jne 24f
+    cmp byte ptr [rbx + 1], 92
+    jne 24f
+    cmp byte ptr [rbx + 2], 63
+    je 8f
+    cmp byte ptr [rbx + 2], 46
+    je 8f
+24:
+    mov rcx, rbx
+    mov rdx, rbx
+31: mov al, [rcx]
+    test al, al
+    jz 32f
+    cmp al, 47
+    je 33f
+    cmp al, 92
+    jne 34f
+33: lea rdx, [rcx + 1]
+34: inc rcx
+    jmp 31b
+32: cmp byte ptr [rdx], 46
+    jne 35f
+    cmp byte ptr [rdx + 1], 0
+    je 8f
+    cmp byte ptr [rdx + 1], 46
+    jne 35f
+    cmp byte ptr [rdx + 2], 0
+    je 8f
+35: mov rcx, rbx
+    xor edx, edx
+    xor r8d, r8d
+    xor r9d, r9d
+    call GetFullPathNameA
+    test eax, eax
+    jz 9f
+    mov [rsp + 40], eax
+    mov edi, eax
+    call _bit_alloc
+    mov r13, rax
+    mov rcx, rbx
+    mov edx, [rsp + 40]
+    mov r8, r13
+    lea r9, [rsp + 32]
+    call GetFullPathNameA
+    test eax, eax
+    jz 7f
+    cmp eax, [rsp + 40]
+    jae 7f
+    cmp qword ptr [rsp + 32], 0
+    je 6f
+    cmp byte ptr [r13], 92
+    jne 3f
+    cmp byte ptr [r13 + 1], 92
+    jne 3f
+    lea rcx, [r13 + 2]
+    xor edx, edx
+21: mov al, [rcx]
+    test al, al
+    jz 22f
+    cmp al, 92
+    jne 23f
+    inc edx
+23: inc rcx
+    jmp 21b
+22: cmp edx, 2
+    jb 6f
+3:  mov rdi, r13
+    mov esi, 1
+    call _bit_win_remove_tree
+    mov r14, rax
+    mov rdi, r13
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+    test r14, r14
+    jnz 10f
+    add rsp, 64
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+6:  mov rdi, r13
+    call _w_free
+    jmp 8f
+7:  mov rdi, r13
+    call _w_free
+9:  mov rdi, rbx
+    call _w_free
+10: lea rdi, [rip + Lrt_ermtree]
+    mov rsi, r12
+    call _bit_die
+8:  mov rdi, rbx
+    call _w_free
+    lea rdi, [rip + Lrt_ermroot]
+    mov rsi, r12
+    call _bit_die
+
+_bit_win_remove_tree:               // path, require directory -> 0/-1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 408
+    mov rbx, rdi
+    mov [rsp + 392], rsi
+    mov rcx, rdi
+    xor edx, edx
+    mov r8d, 3
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 3
+    mov qword ptr [rsp + 40], 0x02200000
+    mov qword ptr [rsp + 48], 0
+    call CreateFileA
+    cmp rax, -1
+    je 9f
+    mov r12, rax
+    mov rcx, r12
+    lea rdx, [rsp + 64]
+    call GetFileInformationByHandle
+    test eax, eax
+    jz 8f
+    mov r13d, [rsp + 64]
+    cmp qword ptr [rsp + 392], 0
+    je 1f
+    test r13d, 16
+    jz 8f
+1:  test r13d, 16
+    jz 6f
+    test r13d, 0x400
+    jnz 6f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_star]
+    call _bit_cat
+    mov r15, rax
+    mov rcx, rax
+    lea rdx, [rsp + 64]
+    call FindFirstFileA
+    mov r14, rax
+    mov rdi, r15
+    call _w_free
+    cmp r14, -1
+    je 8f
+2:  lea rsi, [rsp + 108]
+    cmp byte ptr [rsi], 46
+    jne 3f
+    cmp byte ptr [rsi + 1], 0
+    je 4f
+    cmp byte ptr [rsi + 1], 46
+    jne 3f
+    cmp byte ptr [rsi + 2], 0
+    je 4f
+3:  mov rdi, rbx
+    lea rsi, [rip + Lrt_slash]
+    call _bit_cat
+    mov r15, rax
+    mov rdi, rax
+    lea rsi, [rsp + 108]
+    call _bit_cat
+    mov [rsp + 384], rax
+    mov rdi, r15
+    call _w_free
+    mov rdi, [rsp + 384]
+    xor esi, esi
+    call _bit_win_remove_tree
+    mov r15, rax
+    mov rdi, [rsp + 384]
+    call _w_free
+    test r15, r15
+    jnz 7f
+4:  mov rcx, r14
+    lea rdx, [rsp + 64]
+    call FindNextFileA
+    test eax, eax
+    jnz 2b
+    call GetLastError
+    cmp eax, 18
+    jne 7f
+    mov rcx, r14
+    call FindClose
+6:  mov rcx, r12
+    call CloseHandle
+    mov rcx, rbx
+    test r13d, 16
+    jz 61f
+    call RemoveDirectoryA
+    jmp 62f
+61: call DeleteFileA
+62: test eax, eax
+    jz 9f
+    xor eax, eax
+    jmp 10f
+7:  mov rcx, r14
+    call FindClose
+8:  mov rcx, r12
+    call CloseHandle
+9:  mov rax, -1
+10: add rsp, 408
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
+
+
+_bit_follow_file_info:              // FileInfo pointer -> pointer/0, only for reparse-point files
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 120
+    mov rbx, rdi
+    mov rcx, [rdi]
+    xor edx, edx
+    mov r8d, 7
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 3
+    mov qword ptr [rsp + 40], 0x02000000
+    mov qword ptr [rsp + 48], 0
+    call CreateFileA
+    cmp rax, -1
+    je 8f
+    mov r12, rax
+    mov rcx, rax
+    lea rdx, [rsp + 64]
+    call GetFileInformationByHandle
+    test eax, eax
+    jz 7f
+    test dword ptr [rsp + 64], 16
+    jnz 7f
+    mov eax, [rsp + 96]
+    shl rax, 32
+    mov edx, [rsp + 100]
+    or rax, rdx
+    mov [rbx + 8], rax
+    mov rax, [rsp + 84]
+    xor edx, edx
+    mov rcx, 10000000
+    div rcx
+    mov rcx, 11644473600
+    sub rax, rcx
+    mov [rbx + 16], rax
+    mov rcx, r12
+    call CloseHandle
+    mov rax, rbx
+    jmp 9f
+7:  mov rcx, r12
+    call CloseHandle
+8:  xor eax, eax
+9:  add rsp, 120
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_info_cmp:                     // qsort callback uses Win64 ABI
+    mov rcx, [rcx]
+    mov rdx, [rdx]
+    mov rcx, [rcx]
+    mov rdx, [rdx]
+    sub rsp, 40
+    call strcmp
+    add rsp, 40
+    ret
+
+_bit_dir_entries_info:              // path, line -> sorted entries, metadata from enumeration
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 376
+    mov rbx, rdi
+    mov r12, rsi
+    lea rsi, [rip + Lrt_star]
+    call _bit_cat
+    mov [rsp + 352], rax
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r14, rax
+    mov rcx, [rsp + 352]
+    lea rdx, [rsp + 32]
+    call FindFirstFileA
+    cmp rax, -1
+    je 9f
+    mov r13, rax
+1:  lea rdi, [rsp + 76]
+    cmp byte ptr [rdi], 46
+    jne 2f
+    cmp byte ptr [rdi + 1], 0
+    je 5f
+    cmp byte ptr [rdi + 1], 46
+    jne 2f
+    cmp byte ptr [rdi + 2], 0
+    je 5f
+2:  mov eax, [rsp + 32]
+    and eax, 0x410
+    cmp eax, 0x410
+    je 5f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_slash]
+    call _bit_cat
+    mov [rsp + 360], rax
+    mov rdi, rax
+    lea rsi, [rsp + 76]
+    call _bit_cat
+    mov r15, rax
+    mov rdi, [rsp + 360]
+    call _w_free
+    mov edi, 32
+    call _bit_alloc
+    mov [rsp + 360], rax
+    mov [rax], r15
+    mov edx, [rsp + 60]
+    shl rdx, 32
+    mov ecx, [rsp + 64]
+    or rdx, rcx
+    mov [rax + 8], rdx
+    mov rax, [rsp + 52]
+    xor edx, edx
+    mov rcx, 10000000
+    div rcx
+    mov rcx, 11644473600
+    sub rax, rcx
+    mov r15, [rsp + 360]
+    mov [r15 + 16], rax
+    mov eax, 1
+    test dword ptr [rsp + 32], 16
+    jz 3f
+    mov eax, 2
+3:  mov [r15 + 24], rax
+    test dword ptr [rsp + 32], 0x400
+    jz 4f
+    mov rdi, r15
+    call _bit_follow_file_info
+    test rax, rax
+    jnz 4f
+    mov rdi, [r15]
+    call _w_free
+    mov rdi, r15
+    call _w_free
+    jmp 5f
+4:  mov rdi, r14
+    mov rsi, r15
+    mov rdx, r12
+    call _bit_mas_add
+5:  mov rcx, r13
+    lea rdx, [rsp + 32]
+    call FindNextFileA
+    test eax, eax
+    jnz 1b
+    call GetLastError
+    cmp eax, 18
+    jne 8f
+    mov rcx, r13
+    call FindClose
+    mov rdi, [rsp + 352]
+    call _w_free
+    mov rdi, [r14]
+    mov rsi, [r14 + 8]
+    mov edx, 8
+    lea rcx, [rip + _bit_info_cmp]
+    call _w_qsort
+    mov rax, r14
+    add rsp, 376
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  mov rcx, r13
+    call FindClose
+9:  mov rdi, [rsp + 352]
+    call _w_free
+    lea rdi, [rip + Lrt_edir]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_walk_info_into:                // path, output array, line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov r12, rsi
+    mov r13, rdx
+    mov rsi, rdx
+    call _bit_dir_entries_info
+    mov r14, rax
+    xor r15d, r15d
+1:  cmp r15, [r14 + 8]
+    jge 5f
+    mov rax, [r14]
+    mov rbx, [rax + r15*8]
+    cmp qword ptr [rbx + 24], 2
+    jne 2f
+    mov rdi, [rbx]
+    mov rsi, r12
+    mov rdx, r13
+    call _bit_walk_info_into
+    mov rdi, [rbx]
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+    jmp 4f
+2:  mov rdi, r12
+    mov rsi, rbx
+    mov rdx, r13
+    call _bit_mas_add
+4:  inc r15
+    jmp 1b
+5:  mov rdi, [r14]
+    call _w_free
+    mov rdi, r14
+    call _w_free
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
+_bit_read_only_get:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 32
+    mov rbx, rdi
+    mov r12, rsi
+    mov rcx, rdi
+    call GetFileAttributesA
+    cmp eax, -1
+    je 9f
+    and eax, 1
+    add rsp, 32
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epermread]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_read_only_set:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 40
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov rcx, rdi
+    call GetFileAttributesA
+    cmp eax, -1
+    je 9f
+    test r12, r12
+    jz 1f
+    and eax, -129
+    or eax, 1
+    jmp 2f
+1:  and eax, -2
+    jnz 2f
+    mov eax, 128
+2:  mov rcx, rbx
+    mov edx, eax
+    call SetFileAttributesA
+    test eax, eax
+    jz 9f
+    add rsp, 40
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epermwrite]
+    mov rsi, rbx
+    mov rdx, r13
+    call _bit_errpath
+
+// system()/pclose() return the exit code itself on Windows, not a POSIX wait status.
+_bit_wstatus:
+    mov eax, edi
+    cmp eax, -1
+    jne 1f
+    mov eax, 127
+1:  mov [rip + Lrt_status], rax
+    ret
+
+_bit_term_folder:                   // rdi = строка программы → новая строка с текущей папкой
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 48
+    mov rbx, rdi
+    xor ecx, ecx
+    xor edx, edx
+    call GetCurrentDirectoryA
+    test eax, eax
+    jz 9f
+    mov [rsp + 32], eax
+    mov edi, eax
+    call _bit_alloc
+    mov r12, rax
+    mov ecx, [rsp + 32]
+    mov rdx, r12
+    call GetCurrentDirectoryA
+    test eax, eax
+    jz 8f
+    cmp eax, [rsp + 32]
+    jae 8f
+    mov rax, r12
+    add rsp, 48
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  mov rcx, r12
+    call free
+9:  lea rdi, [rip + Lrt_ecwd]
+    mov rsi, rbx
+    call _bit_die
+
+_bit_term_go:                       // rdi = путь, rsi = строка программы
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 32
+    mov rbx, rdi
+    mov r12, rsi
+    mov rcx, rdi
+    call SetCurrentDirectoryA
+    test eax, eax
+    jz 9f
+    add rsp, 32
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ego]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_errpath
+
+_bit_env_set:                       // rdi = имя, rsi = значение, rdx = строка программы
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 40
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    cmp byte ptr [rbx], 0
+    je 9f
+    mov rax, rbx
+1:  movzx ecx, byte ptr [rax]
+    test ecx, ecx
+    jz 2f
+    cmp ecx, 61
+    je 9f
+    inc rax
+    jmp 1b
+2:  mov rcx, rbx
+    mov rdx, r12
+    call _putenv_s
+    test eax, eax
+    jnz 9f
+    mov rcx, rbx
+    mov rdx, r12
+    call SetEnvironmentVariableA
+    test eax, eax
+    jz 9f
+    add rsp, 40
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eenv]
+    mov rsi, rbx
+    mov rdx, r13
+    call _bit_errpath
+
 // ── запуск: консоль в UTF-8, как терминал macOS и Linux; при выходе вернуть как было ──
 _bit_win_init:
     sub rsp, 40
@@ -710,7 +1360,7 @@ _bit_file_mtime:                    // rdi = путь, rsi = строка → с
     mov rbp, rsp
     push rbx
     push r12
-    sub rsp, 80
+    sub rsp, 112
     mov rbx, rdi
     mov r12, rsi
     mov rcx, rdi
@@ -719,13 +1369,22 @@ _bit_file_mtime:                    // rdi = путь, rsi = строка → с
     call GetFileAttributesExA
     test eax, eax
     jz 9f
-    mov rax, qword ptr [rsp + 52]
+    test dword ptr [rsp + 32], 0x400
+    jz 1f
+    mov [rsp + 80], rbx
+    lea rdi, [rsp + 80]
+    call _bit_follow_file_info
+    test rax, rax
+    jz 9f
+    mov rax, [rsp + 96]
+    jmp 2f
+1:  mov rax, qword ptr [rsp + 52]
     xor edx, edx
     mov rcx, 10000000
     div rcx
     mov rcx, 11644473600
     sub rax, rcx
-    add rsp, 80
+2:  add rsp, 112
     pop r12
     pop rbx
     pop rbp
@@ -4457,8 +5116,6 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
     pop rbp
     ret
 
-// ── proc (macOS): процессы без доступа к их памяти ──
-
 _bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы
     push rbp
     mov rbp, rsp
@@ -4469,6 +5126,31 @@ _bit_errpath:                       // rdi = текст, rsi = путь, rdx = �
     mov rdi, rax
     mov rsi, rbx
     call _bit_die
+
+_bit_dir_walk_info:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+    mov rdi, rbx
+    mov rsi, r13
+    mov rdx, r12
+    call _bit_walk_info_into
+    mov rax, r13
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
 
 _bit_input_num:                     // rdi = есть границы, rsi = от, rdx = до, rcx = строка
     push rbp
@@ -4798,22 +5480,6 @@ _bit_run_live:                      // rdi = команда: вывод сраз
     pop rbp
     ret
 
-_bit_wstatus:                       // edi = статус wait → код выхода (сигнал → 128+номер), запоминает его
-    mov eax, edi
-    cmp eax, -1
-    je 2f
-    mov ecx, eax
-    and ecx, 0x7f
-    jnz 1f
-    shr eax, 8
-    and eax, 0xff
-    jmp 3f
-1:  lea eax, [rcx + 128]
-    jmp 3f
-2:  mov eax, 127
-3:  mov [rip + Lrt_status], rax
-    ret
-
 _bit_status:                        // → код выхода последней команды
     mov rax, [rip + Lrt_status]
     ret
@@ -4825,7 +5491,10 @@ _bit_env:                           // rdi = имя → значение или 
     test rax, rax
     jnz 1f
     lea rax, [rip + Lrt_empty]
-1:  pop rbp
+1:  mov rdi, rax
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    pop rbp
     ret
 
 _bit_str_hex:                       // rdi = строка -> число (hex, можно с 0x)
@@ -5822,6 +6491,13 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
+Lrt_ermroot: .asciz "remove_all: \320\275\320\265\320\273\321\214\320\267\321\217 \321\203\320\264\320\260\320\273\321\217\321\202\321\214 \320\272\320\276\321\200\320\265\320\275\321\214, \320\277\321\203\321\201\321\202\320\276\320\271 \320\277\321\203\321\202\321\214, . \320\270\320\273\320\270 .."
+Lrt_ermtree: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\264\320\260\320\273\320\270\321\202\321\214 \320\277\320\260\320\277\320\272\321\203 \321\201 \321\201\320\276\320\264\320\265\321\200\320\266\320\270\320\274\321\213\320\274"
+Lrt_epermread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \320\277\321\200\320\260\320\262\320\260 \320\264\320\276\321\201\321\202\321\203\320\277\320\260: "
+Lrt_epermwrite: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\270\320\267\320\274\320\265\320\275\320\270\321\202\321\214 \320\277\321\200\320\260\320\262\320\260 \320\264\320\276\321\201\321\202\321\203\320\277\320\260: "
+Lrt_ecwd: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \321\202\320\265\320\272\321\203\321\211\321\203\321\216 \320\277\320\260\320\277\320\272\321\203"
+Lrt_ego: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\274\320\265\320\275\320\270\321\202\321\214 \320\277\320\260\320\277\320\272\321\203: "
+Lrt_eenv: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\264\320\260\321\202\321\214 \320\277\320\265\321\200\320\265\320\274\320\265\320\275\320\275\321\203\321\216 \320\276\320\272\321\200\321\203\320\266\320\265\320\275\320\270\321\217: "
 Lrt_wp_exe: .asciz ".exe"
 Lrt_wp_code: .asciz ", \320\272\320\276\320\264 \320\276\321\210\320\270\320\261\320\272\320\270 "
 Lrt_wp_eread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \320\277\320\260\320\274\321\217\321\202\321\214 \320\277\321\200\320\276\321\206\320\265\321\201\321\201\320\260 "

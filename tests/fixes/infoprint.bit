@@ -1,0 +1,4 @@
+host {
+    dir d = "data";
+    print(d >> walk("info"));
+}

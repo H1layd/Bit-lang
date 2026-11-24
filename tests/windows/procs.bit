@@ -1,0 +1,19 @@
+host {
+    proc r = "bit_proc_target.exe exit" >> start;
+    print("код выхода {r >> wait}");
+    proc p = "bit_proc_target.exe" >> start;
+    print("работает {p >> alive}, имя '{p >> name}'");
+    proc q = p >> pid >> proc;
+    print("тот же по pid: {q >> pid == p >> pid}");
+    proc found = "bit_proc_target" >> proc;
+    print("найден по имени: {found >> pid == p >> pid}");
+    do(p >> kill);
+    print("после kill код {p >> wait}, работает {p >> alive}");
+    proc none = "нет_такого_процесса_bit" >> proc;
+    print("нет: pid {none >> pid}, работает {none >> alive}, имя '{none >> name}', wait {none >> wait}");
+    recover {
+        do(none >> kill);
+    } else {
+        print("остановка отсутствующего запрещена");
+    }
+}

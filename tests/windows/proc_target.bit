@@ -1,0 +1,7 @@
+# Дочерний процесс для Windows-тестов; задержка даёт родителю открыть процесс.
+host {
+    if (term >> args >> get(0, "")) == "exit":
+        do(term >> wait(1000));
+        do(term >> exit(7));
+    do(term >> wait(30000));
+}

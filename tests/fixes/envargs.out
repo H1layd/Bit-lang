@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/envargs.bit, строка 2:
+  2 | do(term >> env("K"));
+  env ждёт 2 значение: env(...)
+1 

@@ -1,0 +1,64 @@
+host {
+    dir base = term >> folder;
+    dir outside = base >> dir("bit-outside-{term >> pid}");
+    dir root = base >> dir("bit-remove-{term >> pid}");
+    dir nested = root >> dir("nested");
+    do(outside >> make);
+    do(nested >> make);
+    file protected = outside >> file("keep.txt");
+    file local = nested >> file("local.txt");
+    do(protected >> write("keep"));
+    do(local >> write("local"));
+    dir link = root >> dir("link");
+    mas make_link = ("ln", "-s", outside >> path, link >> path);
+    string output = make_link >> run;
+    print("ссылка: {term >> status == 0}");
+    file file_link = root >> file("file-link");
+    mas make_file_link = ("ln", "-s", protected >> path, file_link >> path);
+    do(output >> ch(make_file_link >> run));
+    dir loop = root >> dir("loop");
+    mas make_loop = ("ln", "-s", root >> path, loop >> path);
+    do(output >> ch(make_loop >> run));
+    dir broken = root >> dir("broken");
+    mas make_broken = ("ln", "-s", "missing", broken >> path);
+    do(output >> ch(make_broken >> run));
+    file pipe = root >> file("fifo");
+    mas make_pipe = ("mkfifo", pipe >> path);
+    do(output >> ch(make_pipe >> run));
+    print("обход: {root >> walk('info') >> sz}");
+    for entry in root >> walk("info") {
+        if entry >> path == file_link >> path {
+            print("метаданные ссылки: {entry >> sz == 4 and entry >> modified == protected >> modified}");
+        }
+    }
+    do(term >> go(root));
+    dir dot = ".";
+    recover {
+        do(dot >> remove_all);
+    } else {
+        print("точка запрещена");
+    }
+    do(term >> go(base));
+    print("файл сохранён: {local >> exists}");
+    dir wrong = protected >> path;
+    recover {
+        do(wrong >> remove_all);
+    } else {
+        print("обычный файл запрещён");
+    }
+    do(root >> remove_all);
+    print("дерево удалено: {not (root >> exists)}");
+    print("внешний файл: {protected >> read}");
+    dir top_link = base >> dir("bit-top-link-{term >> pid}");
+    mas make_top = ("ln", "-s", outside >> path, top_link >> path);
+    do(output >> ch(make_top >> run));
+    do(top_link >> remove_all);
+    print("верхняя ссылка удалена: {not (top_link >> exists)}");
+    print("внешняя папка: {outside >> exists}");
+    recover {
+        do(root >> remove_all);
+    } else {
+        print("нет папки");
+    }
+    do(outside >> remove_all);
+}

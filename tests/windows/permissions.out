@@ -1,0 +1,4 @@
+Ошибка в tests/windows/permissions.bit, строка 3:
+  3 | print(f >> permissions);
+  permissions доступны на macOS и Linux; на Windows используй read_only (ACL пока не поддерживается)
+1 

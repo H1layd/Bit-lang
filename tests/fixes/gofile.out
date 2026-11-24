@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/gofile.bit, строка 3:
+  3 | do(term >> go(f));
+  go ждёт string или dir, а тут file
+1 

@@ -1,0 +1,4 @@
+Ошибка в tests/fixes/removeaction.bit, строка 3:
+  3 | all value = d >> remove_all;
+  remove_all меняет файловую систему: оберни действие в do(...)
+1 

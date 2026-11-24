@@ -1,0 +1,27 @@
+host {
+    dir d = "bit-readonly-{term >> pid}";
+    do(d >> make);
+    file f = d >> file("данные.txt");
+    do(f >> write("ok"));
+    do(f >> read_only(true));
+    print("файл: {f >> read_only}");
+    do(f >> read_only(false));
+    print("файл: {f >> read_only}");
+    do(d >> read_only(true));
+    print("папка: {d >> read_only}");
+    do(d >> read_only(false));
+    print("папка: {d >> read_only}");
+    file missing = d >> file("missing");
+    recover {
+        print(missing >> read_only);
+    } else {
+        print("нет файла: чтение");
+    }
+    recover {
+        do(missing >> read_only(true));
+    } else {
+        print("нет файла: изменение");
+    }
+    do(d >> remove_all);
+    print("удалено: {not (d >> exists)}");
+}

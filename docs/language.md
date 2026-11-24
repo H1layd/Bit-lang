@@ -473,10 +473,12 @@ do(f >> delete);
 | `d >> make` | create (with any missing parents) |
 | `d >> list` | `mas` of names inside (sorted) |
 | `d >> walk` | `mas` of paths to every file inside, nested folders included |
+| `d >> walk("info")` | `mas` of `FileInfo` records: path, size, and modification time |
 | `d >> file(name)` | a `file` inside the folder |
 | `d >> dir(name)` | a nested `dir` |
 | `d >> exists` | whether it exists |
 | `d >> remove` | delete an empty folder |
+| `do(d >> remove_all)` | delete the folder and all its contents |
 | `d >> name` / `path` | name / path |
 
 ```
@@ -499,6 +501,74 @@ for p in src >> walk {
         print("changed in the last hour: {p}");
     }
 }
+```
+
+`walk("info")` keeps the same traversal order as `walk`. The `"info"` argument must
+be a literal so the result type is known at build time. Each item is a built-in record
+(already defined; do not redeclare it):
+
+```
+record FileInfo:
+    string path;
+    num sz;
+    num modified;
+```
+
+`path` starts with the original directory path, `sz` is measured in bytes, and
+`modified` is in seconds since 1970. Records are snapshots; later file changes do
+not update them. For ordinary files, size and time come from the same type check on
+POSIX or from directory enumeration on Windows, with no separate request per field.
+Links to files expose target metadata and may require another request; broken links
+are skipped. Links to directories inside the tree are not followed.
+
+```
+dir src = "src";
+for entry in src >> walk("info") {
+    print("{entry >> path}: {entry >> sz} bytes, modified {entry >> modified}");
+}
+```
+
+Record arrays support `for`, `get`, `first`, `last`, `add`, `set`, `keep`, `each`,
+and slices. Create an empty array with `mas entries = (FileInfo);`.
+For printing or sorting, select fields: `entries >> each(it >> sz) >> sort`.
+Printing or sorting the records themselves is rejected at build time.
+
+`remove_all` is a separate action; `remove` and `delete` still require an empty
+folder. Nested symbolic links and Windows junctions are removed without traversing
+their targets. A root path pointing to a directory link removes the link itself.
+A regular file in place of the root directory, filesystem roots, empty paths, and
+final `.` / `..` components are rejected. Failures can be caught with `recover`;
+content already deleted is not restored. Windows READONLY is not cleared automatically:
+call `read_only(false)` first when needed.
+
+### Permissions (file and dir)
+
+| Form | What it does |
+|---|---|
+| `f/d >> read_only` | macOS/Linux: none of the write bits are set; Windows: READONLY is set |
+| `do(f/d >> read_only(true))` | clear all three write bits on macOS/Linux; set READONLY on Windows |
+| `do(f/d >> read_only(false))` | set all three write bits on macOS/Linux; clear READONLY on Windows |
+| `f/d >> permissions` | POSIX permission string, for example `"rw-r-----"` |
+| `do(f/d >> permissions("rw-r-----"))` | replace permissions on macOS/Linux |
+
+`f/d` means a file or directory. `read_only(false)` grants write permission to the owner,
+group, and others; it does not restore a saved mode. Other POSIX mode bits are preserved.
+On Windows this is a file attribute: it does not describe ACLs and does not prevent
+writing inside a directory.
+
+`permissions` is available only on macOS/Linux; using it on Windows gives a clear build
+error. ACLs are not supported yet. The string has exactly nine characters: `rwxrwxrwx`,
+with any character replaced by `-` in the same position. Invalid literals are rejected
+at build time; invalid dynamic strings fail at runtime and can be caught with `recover`.
+Setting permissions replaces the nine ordinary bits and clears setuid, setgid, and sticky.
+POSIX permission operations follow symbolic links to their targets. Windows `read_only`
+uses the path attributes returned by the system API.
+
+```
+file f = "data.txt";
+do(f >> read_only(true));
+print(f >> read_only);
+do(f >> read_only(false));
 ```
 
 ### bytes (raw memory)
@@ -571,6 +641,7 @@ produce the same sequence across architectures.
 |---|---|
 | `term >> args` | command-line arguments (`mas`) |
 | `term >> env("NAME")` | an environment variable |
+| `term >> folder` | the current working directory (`dir`, absolute path) |
 | `term >> pid` | the current process id |
 | `term >> status` | exit code of the last command or program |
 | `term >> error` | text of the last error caught by `recover` |
@@ -581,6 +652,27 @@ produce the same sequence across architectures.
 | `term >> clear` | clear the screen |
 | `term >> wait(ms)` | pause for milliseconds |
 | `term >> exit(code)` | exit with a code |
+| `term >> go(path)` | change the current directory; accepts `string` or `dir` |
+| `term >> env("NAME", "value")` | set an environment variable in the current program |
+
+`go` changes the base for all subsequent relative paths. Future `string >> run`,
+`mas >> run`, and `string >> start` inherit the current directory and environment;
+processes already running are unaffected. Changes do not affect the parent shell.
+A saved `term >> env("NAME")` value remains valid after the environment changes.
+An empty value reads as `""`; names must be nonempty and must not contain `=`.
+Failures in `go` or environment updates can be caught with `recover`; a failed `go`
+leaves the current directory unchanged. Windows updates both the process environment
+and the CRT copy so `env` reads and all launch forms see the new value.
+
+```
+dir previous = term >> folder;
+dir work = "working directory";
+do(work >> make);
+do(term >> go(work));
+do(term >> env("BIT_MODE", "test"));
+string mode = term >> env("BIT_MODE");
+do(term >> go(previous));
+```
 
 Console input is a declaration with `input`:
 

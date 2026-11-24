@@ -82,8 +82,11 @@ wait.
 - [x] **Sorting**: `a >> sort` returns a copy; `do(a >> sort)` sorts in place.
 - [x] **`proc` on Windows** through the system API (`OpenProcess`, `ReadProcessMemory`,
   `WriteProcessMemory`, `VirtualQueryEx`), checked on native Windows 11. The same program works on Linux.
-- [x] **Native Windows run**: `tests_win.sh` passes the whole suite on Windows 11 (29 tests; 6 tests
-  that need POSIX tools are skipped). Found and fixed: files written in text mode (`\n` became `\r\n`),
+- [x] **Native Windows run**: `tests_win.sh` checks 39 runtime tests and 53 expected compiler errors
+  on Windows 11. File tests use bit itself; commands, processes, and large stdin/stderr have
+  Windows variants. Only the root-directory write-denial test is skipped because it depends
+  on the OS and permissions. Unexpected build failures now fail the suite. Fixed Windows exit
+  codes being decoded as POSIX wait statuses. Previously fixed: files written in text mode (`\n` became `\r\n`),
   non-ASCII paths, commands and arguments broken by the ANSI code page, transliterated runtime
   messages. Windows programs are now UTF-8 throughout.
 - [ ] Run the updated runtimes on native Linux.
@@ -94,16 +97,22 @@ wait.
 
 In order. Each step ends with tests, updated seeds and both references.
 
-1. **Native test runs.** Done for Windows (`tests_win.sh`). Next: the same for Linux, and Windows
-   versions of the tests that now need POSIX tools.
+1. **Native test runs.** Done for Windows (`tests_win.sh`), including variants of tests that need
+   POSIX tools on macOS/Linux. Next: a native Linux run when the VPS is available again.
 2. ~~**Processes on macOS.**~~ Done: `start`, `pid`, `name`, `alive`, `wait`, `kill` and
    `"name" >> proc` work on macOS (libproc, `sysctl` for system processes); memory access is a clear
    build error there. Along the way: `kill` on a missing process (pid `-1`) on Linux would have
    signalled every process of the user — now it is a failure.
-3. **Working folder and environment.** Read and change the current folder; set environment
-   variables for programs started by `run` and `start`.
-4. **File system to the end.** Permissions (read, change), folder removal with its contents as an
-   explicit, visible action, file size and time in `walk` results without a second system call.
+3. ~~**Working folder and environment.**~~ Done: `term >> folder`, `do(term >> go(path))`
+   (`string` or `dir`), and `do(term >> env("K", "V"))`. New `run` and `start` calls inherit
+   the directory and environment. Windows updates both the process environment and CRT copy.
+   Tests cover saved `env` values, Unicode, spaces, invalid names, and failed directory changes.
+4. ~~**File system to the end.**~~ Done: `read_only` on all three OSes; `permissions` on
+   macOS/Linux with strict nine-character strings and build-time literal validation.
+   `do(d >> remove_all)` removes trees without traversing link or junction targets.
+   `d >> walk("info")` returns `FileInfo` records (`path`, `sz`, `modified`); ordinary files
+   need no separate size/time requests. Record arrays are supported. Self-hosting converged;
+   macOS: 187/187; Windows: 39 runtime checks and 53 expected compiler errors.
 5. **Reclaim strings that may escape their scope** — long-running programs should not grow.
 6. **The language design milestone** above: names, declarations, one rule for `do` and `>>`. These
    are decisions for the language's author; the code follows them.
@@ -118,6 +127,7 @@ In order. Each step ends with tests, updated seeds and both references.
 
 ## Not now — honestly
 
+- **Windows ACLs** — a separate permissions model; the `read_only` attribute is available for now.
 - **FFI (calling C)** — against the idea that the whole toolchain is its own. That would be another
   language.
 - **Threads / async** — one connection at a time is enough for now.

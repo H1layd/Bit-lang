@@ -1,5 +1,6 @@
 host {
-    dir scratch = "mktemp -d" >> run;
+    dir scratch = "bit-filechunks-{term >> pid}";
+    do(scratch >> make);
     file source = scratch >> file("source.bin");
     file copy = scratch >> file("copy.bin");
     bytes initial = mem >> take(5);
