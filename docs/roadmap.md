@@ -90,12 +90,15 @@ wait.
   non-ASCII paths, commands and arguments broken by the ANSI code page, transliterated runtime
   messages. Windows programs are now UTF-8 throughout.
 - [ ] Run the updated runtimes on native Linux.
+- [x] Linux in Colima: Debian, x86-64 under QEMU, unprivileged user;
+  95/95 and self-hosting passed, including `remove_all` protection for HOME and its ancestors.
+- [ ] Repeat the Windows HOME/USERPROFILE ancestor-protection run when SSH is available.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
 
-## Next — the plan
+## System capability milestones
 
-In order. Each step ends with tests, updated seeds and both references.
+Status of the milestones already started. Each change ends with checks and documentation updates.
 
 1. **Native test runs.** Done for Windows (`tests_win.sh`), including variants of tests that need
    POSIX tools on macOS/Linux. Next: a native Linux run when the VPS is available again.
@@ -113,9 +116,73 @@ In order. Each step ends with tests, updated seeds and both references.
    `d >> walk("info")` returns `FileInfo` records (`path`, `sz`, `modified`); ordinary files
    need no separate size/time requests. Record arrays are supported. Self-hosting converged;
    macOS: 187/187; Windows: 39 runtime checks and 53 expected compiler errors.
-5. **Reclaim strings that may escape their scope** — long-running programs should not grow.
-6. **The language design milestone** above: names, declarations, one rule for `do` and `>>`. These
-   are decisions for the language's author; the code follows them.
+
+## Next — a stable language and a flagship project
+
+1. **Finish the current work.** Run HOME/USERPROFILE ancestor protection on a real Windows
+   machine, then commit the fixes. macOS and Linux in Colima have been checked;
+   native Linux remains a separate portability check.
+2. **Memory and long-running programs.** Define ownership for strings, arrays, maps,
+   and records, returned values, and shared assignments. Reclaim objects without leaks
+   or premature frees; keep explicit management of `bytes`.
+3. **Consistent language rules.** Complete the design milestone above: declarations,
+   names, values and actions, `do`, `>>`, copying, and shared mutations. Remove ordinary
+   programming limits, including six parameters and mutual-recursion inference.
+   Syntax and new names are decisions for the language author.
+4. **Libraries and convenient package installation.** Extend `use` with module namespaces
+   and explicit public interfaces. Add project and dependency metadata, library versions,
+   a lockfile, a local cache, and installation with one command.
+   Details and the acceptance criterion are below.
+5. **A stable release.** Automated macOS, Linux, and Windows checks, self-hosting,
+   long-running memory tests, and clear diagnostics. Compiler binaries, simple installation,
+   versions and compatibility rules, plus project checking and formatting commands.
+6. **BitOS — a working name for the flagship project.** Build a system environment in bit
+   and develop it into an experimental OS with a kernel, processes, and a filesystem.
+   Use the project to exercise the language, extract reusable libraries, and install them
+   through the package manager.
+
+### Libraries and packages
+
+- [ ] Namespaces, public and internal declarations, and libraries without a `host` block.
+- [ ] Standard libraries written in bit over the built-in system facilities: data handling,
+  configuration, file formats, and common algorithms.
+- [ ] A project manifest: name, version, entry point, dependencies, supported targets,
+  and compatible compiler versions.
+- [ ] One-command package installation, version selection, dependency updates and removal.
+  Agree on command names and the manifest format before implementation.
+- [ ] Local folders and Git sources pinned to revisions first; then a registry with search,
+  descriptions, versions, and publishing of personal libraries.
+- [ ] Transitive dependency resolution, clear conflict errors, and a lockfile recording exact
+  versions, sources, and checksums.
+- [ ] A shared download cache, offline rebuilds, and reproducible dependency resolution
+  on a clean machine.
+- [ ] Acceptance criterion: a new project installs a library, imports its public interface,
+  and builds on another machine using the same lockfile.
+
+### BitOS: from a system environment to an operating system
+
+The working name can change. This is a long-term goal with independently testable
+milestones; the first stable bit release does not require a finished OS.
+
+1. **A Linux system environment.** A shell written in bit, service launching and supervision,
+   an event log, and file, network, and package management. Run the environment in a virtual
+   machine as a usable, integrated product.
+2. **Prepare for a kernel.** A separate freestanding compilation target without libc or
+   host OS dependencies, a boot entry, code and memory layout, a minimal runtime, hardware
+   access, and interrupt handling. The current runtime depends on system APIs;
+   this milestone requires compiler and platform-layer changes.
+3. **Boot a kernel in QEMU, x86-64.** Booting, serial output, memory allocation, and a timer.
+   The first result is a reproducibly built image that boots and executes kernel code
+   written in bit.
+4. **A minimal standalone OS.** Virtual memory and process isolation, scheduling, system
+   calls, basic drivers, a filesystem, and a user shell. Install and run bit programs
+   inside BitOS.
+5. **Self-host inside BitOS.** Port the compiler and tools: obtain source and packages,
+   build programs, and rebuild the compiler from within the OS.
+
+Each milestone must deliver a runnable result and identify concrete language limitations
+encountered during development. New language mechanisms and names require author agreement.
+
 
 ## Core language features
 
@@ -131,6 +198,6 @@ In order. Each step ends with tests, updated seeds and both references.
 - **FFI (calling C)** — against the idea that the whole toolchain is its own. That would be another
   language.
 - **Threads / async** — one connection at a time is enough for now.
-- **Unicode locales, DWARF debug info, a package manager, BSD / wasm, unsigned numbers, dates and time
+- **Unicode locales, DWARF debug info, BSD / wasm, unsigned numbers, dates and time
   zones, `const`, tuples** — growth in width and comfort; we come back when there is a concrete need
   or real users.
