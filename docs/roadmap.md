@@ -119,6 +119,10 @@ Status of the milestones already started. Each change ends with checks and docum
 
 ## Next — a stable language and a flagship project
 
+**Author-requested checkpoint:** continue work up to the package manager.
+Before implementing the package manager, stop, report progress, and wait for the author.
+Do not start the package manager or subsequent milestones until instructed.
+
 1. **Finish the current work.** Run HOME/USERPROFILE ancestor protection on a real Windows
    machine, then commit the fixes. macOS and Linux in Colima have been checked;
    native Linux remains a separate portability check.
