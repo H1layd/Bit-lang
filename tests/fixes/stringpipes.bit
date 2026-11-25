@@ -1,5 +1,7 @@
 fn pipe_make(num n) { return " value-{n} "; }
 fn pipe_fail() { return "bad-number" >> num; }
+fn pipe_fail_text() { do(pipe_fail()); return "never"; }
+fn pipe_piece(num n) { return "{n}"; }
 host {
     print(pipe_make(4) >> sz);
     print(pipe_make(4) >> trim);
@@ -11,6 +13,13 @@ host {
     mas parts = pipe_make(4) >> split("-");
     print(parts >> get(0, "missing"));
     print(parts >> get(1, "missing"));
+    print(pipe_make(4) >> replace(pipe_piece(4), pipe_piece(5)));
+    print(pipe_make(4) >> ends(pipe_piece(4) + " "));
+    recover {
+        print(pipe_make(4) >> replace(pipe_piece(4), pipe_fail_text()));
+    } else {
+        print("caught replacement");
+    }
     recover {
         print(pipe_make(9) >> get(pipe_fail()));
     } else {

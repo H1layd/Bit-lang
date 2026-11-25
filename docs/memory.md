@@ -47,7 +47,11 @@ parameters borrow the reference held by the caller. Temporary string receivers a
 through `sz`, string methods, `get`, and ordinary methods returning independent results; `recover` releases them if an argument or the
 method fails. For 50,000 `make(i) >> sz` calls returning roughly 1 KB strings, peak
 memory fell from 80,248,832 to 1,785,856 bytes with the same checksum, 51,438,890.
-Method arguments, actions, and other temporaries still require separate auditing.
+String arguments to `starts`, `ends`, `split`, and `replace` are held until the call
+finishes and released on later-argument failure via `recover`. For 50,000 calls to
+`starts(make(i))` with a roughly 1 KB argument, peak memory fell from 80,232,448 to
+1,802,240 bytes with the same result. Other methods, actions, and temporaries still
+require separate auditing.
 Parameters captured in shared storage still retain a permanent reference: this preserves
 correctness but leaks until explicit container-held string ownership is implemented.
 
@@ -86,6 +90,7 @@ macOS ARM64, three self-builds using an instrumented compiler copy. Median:
 | Partially integrate runtime string results | 5.351 s | 607,928,320 bytes |
 | Expand the string registry | 3.422 s | 615,383,040 bytes |
 | Clean up temporary method receivers | 3.622 s | 616,448,000 bytes |
+| Clean up string method arguments | 3.546 s | 616,792,064 bytes |
 
 The first partial integration increased time by 67% and memory by 15%; those figures
 were shown to the author. Partially integrating runtime results increased median time from 3.618 to 5.351 s (+48%)
@@ -96,7 +101,8 @@ samples. Expanding the table from 65,536 to 1,048,576 buckets lowered the median
 3.422 s but raised the peak by another 7,454,720 bytes. A small example with one dynamic
 string peaked at 1,703,936 bytes in either version; other programs may differ.
 After receiver cleanup, three self-build runs took 5.307, 3.583, and 3.622 s; median
-3.622 s and peak 616,448,000 bytes. The first run was markedly slower than the others. Small differences between adjacent measurements are
+3.622 s and peak 616,448,000 bytes. The first run was markedly slower than the others. After string method argument cleanup,
+three runs took 3.704, 3.434, and 3.546 s; median 3.546 s, peak 616,792,064 bytes. Small differences between adjacent measurements are
 not treated as guaranteed speedups because individual run times vary. Finish string
 ownership and reassess its cost before starting arrays.
 

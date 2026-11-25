@@ -6346,16 +6346,20 @@ fn str_method(num n, string mn, num line) {
         if c1(n) != 2 {
             do(fail("replace(что, на что), например s >> replace(\"a\", \"b\")", line));
         }
+        mas string_args = (num);
         do(push());
         do(expr(arg(n, 0)));
         do(coerce(RT, "string", line, "replace(...)"));
+        do(hold_call_string(arg(n, 0), "string", string_args));
         do(push());
         do(expr(arg(n, 1)));
         do(coerce(RT, "string", line, "replace(...)"));
+        do(hold_call_string(arg(n, 1), "string", string_args));
         do(op_acc_to(2));
         do(pop(pr(1)));
         do(pop(pr(0)));
         do(op_call("_bit_str_replace"));
+        do(drop_call_strings(string_args));
         do(res("string"));
         do(op_rt1("_bit_str_adopt"));
         do(RFRESH >> ch(true));
@@ -6364,14 +6368,17 @@ fn str_method(num n, string mn, num line) {
     if c1(n) != 1 or kind(arg(n, 0)) == "range" {
         do(fail("{mn}(строка), например s >> {mn}(\"привет\")", line));
     }
+    mas string_args = (num);
     do(push());
     do(expr(arg(n, 0)));
     do(coerce(RT, "string", line, "{mn}(...)"));
+    do(hold_call_string(arg(n, 0), "string", string_args));
     do(op_mov(cr("x1"), acc()));
     do(pop(acc()));
     do(op_acc_to(0));
     do(op_mov(pr(1), cr("x1")));
     do(op_call("_bit_str_{mn}"));
+    do(drop_call_strings(string_args));
     if mn == "split" {
         do(res("mas:string"));
     } else {

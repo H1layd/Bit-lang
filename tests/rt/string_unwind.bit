@@ -70,6 +70,13 @@ fn unwind_pipe_slice(num n) {
 fn unwind_pipe_char(num n) {
     return unwind_string(n) >> get(1);
 }
+fn unwind_fail_text() {
+    do(unwind_failure());
+    return "unreachable";
+}
+fn unwind_method_replace(num n) {
+    return "value-10" >> replace(unwind_string(n), unwind_string(2));
+}
 host {
     num caught = 0;
     all target = unwind_target;
@@ -118,6 +125,15 @@ host {
         do(unwind_pipe_trim(i));
         do(unwind_pipe_slice(i));
         do(unwind_pipe_char(i));
+        do(unwind_method_replace(i));
+        if "value-1" >> starts(unwind_string(i)) {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print("value-1" >> replace(unwind_string(i), unwind_fail_text()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
         recover {
             print(unwind_string(i) >> get(unwind_failure()));
         } else {
