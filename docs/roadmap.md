@@ -126,31 +126,48 @@ Do not start the package manager or subsequent milestones until instructed.
 1. **Finish the current work.** Run HOME/USERPROFILE ancestor protection on a real Windows
    machine, then commit the fixes. macOS and Linux in Colima have been checked;
    native Linux remains a separate portability check.
-2. **Memory and long-running programs.** Define ownership for strings, arrays, maps,
+2. **Open the project to people.** A `LICENSE` file (the author picks the license; without one
+   nobody may legally use the code). GitHub Actions: build, self-hosting and tests on macOS, Linux
+   and Windows on every commit, with a badge in the README. A run on a real Linux machine.
+   Compiler and runtime messages in English by default, Russian as an option, like the docs.
+3. **Memory and long-running programs.** Define ownership for strings, arrays, maps,
    and records, returned values, and shared assignments. Reclaim objects without leaks
    or premature frees; keep explicit management of `bytes`.
    Author decision: ordinary, non-atomic reference counts. Implement `string` first,
    followed by `mas`, `map`, and records. After each stage compare self-build time and
    peak `mem >> used`; show any significant slowdown before proceeding further.
    Shared-data cycles are not reclaimed automatically. See the [memory plan](memory.md).
-3. **Consistent language rules.** Complete the design milestone above: declarations,
+4. **Consistent language rules.** Complete the design milestone above: declarations,
    names, values and actions, `do`, `>>`, copying, and shared mutations. Remove ordinary
    programming limits, including six parameters and mutual-recursion inference.
    Syntax and new names are decisions for the language author.
-4. **Libraries and convenient package installation.** Extend `use` with module namespaces
+5. **Features for any program.** Concurrency (threads or async — the author decides), so a
+   server serves several clients and a monitor watches several things. Enums and "a value or
+   nothing" (optional). Raw terminal input without Enter — for interfaces such as an editor.
+   Talking to a running process while it works (write its stdin, read its stdout). Built-in HTTP
+   and TLS without an external `curl`. Unsigned numbers if data formats need them. Every new name
+   and syntax is agreed with the author.
+6. **Libraries and convenient package installation.** Extend `use` with module namespaces
    and explicit public interfaces. Add project and dependency metadata, library versions,
    a lockfile, a local cache, and installation with one command.
    Details and the acceptance criterion are below.
-5. **A stable release.** Automated macOS, Linux, and Windows checks, self-hosting,
+7. **A stable release.** Automated macOS, Linux, and Windows checks, self-hosting,
    long-running memory tests, and clear diagnostics. Compiler binaries, simple installation,
    versions and compatibility rules, plus project checking and formatting commands.
-6. **A dedicated IDE for bit.** A project editor with builds, execution, diagnostics,
+   A "bit in an hour" tutorial, an examples gallery, an online playground if possible.
+   Debug information (DWARF) so a debugger shows bit lines.
+8. **A dedicated IDE for bit.** A project editor with builds, execution, diagnostics,
    navigation, and completion, followed by debugging. Write the tooling core in bit
    and exercise the language with a real application. Details and acceptance criteria follow.
-7. **BitOS — a working name for the flagship project.** Build a system environment in bit
-   and develop it into an experimental OS with a kernel, processes, and a filesystem.
-   Use the project to exercise the language, extract reusable libraries, and install them
-   through the package manager.
+9. **Recognition on GitHub.** GitHub detects languages with the Linguist library; languages are
+   added by pull request. Requirements: the `.bit` extension appears in hundreds of other people's
+   repositories (forks excluded), a TextMate highlighting grammar under a free license, and code
+   samples. Check the clash of `.bit` with FPGA bitstream files and offer a way to tell them apart.
+   Path: users → grammar → PR to Linguist.
+10. **BitOS — a working name for the flagship project.** Build a system environment in bit
+    and develop it into an experimental OS with a kernel, processes, and a filesystem.
+    Use the project to exercise the language, extract reusable libraries, and install them
+    through the package manager.
 
 ### Libraries and packages
 
@@ -187,6 +204,9 @@ configuration. These details do not override the checkpoint before package-manag
   then prepares an index entry and PR text. The package author submits the PR.
 - [ ] Prepare the index structure, publication rules, and an example package; the author
   creates the GitHub repository. Update the reference, README, and roadmap in both languages.
+- [ ] First standard nibble packages: `json`, date and time (formatting, parsing, time zones),
+  search patterns or regular expressions, hashes and encodings (sha256, base64, hex),
+  cryptographically secure random bytes.
 - [ ] Standard libraries in bit: data handling, configuration, file formats, and algorithms.
   A dedicated registry server, mirror, search, and website in bit are a later milestone.
 - [ ] Acceptance criterion: a new project installs a library with one command, imports its
@@ -257,7 +277,6 @@ encountered during development. New language mechanisms and names require author
 - **Windows ACLs** — a separate permissions model; the `read_only` attribute is available for now.
 - **FFI (calling C)** — against the idea that the whole toolchain is its own. That would be another
   language.
-- **Threads / async** — one connection at a time is enough for now.
-- **Unicode locales, BSD / wasm, unsigned numbers, dates and time
-  zones, `const`, tuples** — growth in width and comfort; we come back when there is a concrete need
-  or real users.
+- **Unicode locales, BSD / wasm, `const`, tuples** — growth in width and comfort; we come back
+  when there is a concrete need or real users. Threads, unsigned numbers, dates and time moved
+  into the plan above.
