@@ -7956,7 +7956,7 @@ fn rt_arm(mas o) {
     do(o >> add("    cbz x1, 2f"));
     do(o >> add("    lsr x2, x0, #4"));
     do(o >> add("    eor x2, x2, x0, lsr #20"));
-    do(o >> add("    and x2, x2, #65535"));
+    do(o >> add("    and x2, x2, #1048575"));
     do(o >> add("    ldr x1, [x1, x2, lsl #3]"));
     do(o >> add("1:  cbz x1, 2f"));
     do(o >> add("    ldr x3, [x1]"));
@@ -8004,7 +8004,7 @@ fn rt_arm(mas o) {
     do(o >> add("    adrp x20, Lrt_str_registry@PAGE"));
     do(o >> add("    ldr x20, [x20, Lrt_str_registry@PAGEOFF]"));
     do(o >> add("    cbnz x20, 1f"));
-    do(o >> add("    mov x0, #65536"));
+    do(o >> add("    mov x0, #1048576"));
     do(o >> add("    mov x1, #8"));
     do(o >> add("    bl _calloc"));
     do(o >> add("    cbz x0, _bit_oom"));
@@ -8013,7 +8013,7 @@ fn rt_arm(mas o) {
     do(o >> add("    str x0, [x1, Lrt_str_registry@PAGEOFF]"));
     do(o >> add("1:  lsr x21, x19, #4"));
     do(o >> add("    eor x21, x21, x19, lsr #20"));
-    do(o >> add("    and x21, x21, #65535"));
+    do(o >> add("    and x21, x21, #1048575"));
     do(o >> add("    mov x0, #24"));
     do(o >> add("    bl _bit_alloc"));
     do(o >> add("    str x19, [x0]"));
@@ -8057,7 +8057,7 @@ fn rt_arm(mas o) {
     do(o >> add("    cbz x20, 2f"));
     do(o >> add("    lsr x1, x0, #4"));
     do(o >> add("    eor x1, x1, x0, lsr #20"));
-    do(o >> add("    and x1, x1, #65535"));
+    do(o >> add("    and x1, x1, #1048575"));
     do(o >> add("    add x20, x20, x1, lsl #3"));
     do(o >> add("1:  ldr x0, [x20]"));
     do(o >> add("    cbz x0, 2f"));
@@ -12990,7 +12990,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov rdx, rdi"));
     do(o >> add("    shr rdx, 20"));
     do(o >> add("    xor rcx, rdx"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    mov rax, [rax + rcx*8]"));
     do(o >> add("1:  test rax, rax"));
     do(o >> add("    jz 2f"));
@@ -13032,7 +13032,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov r12, [rip + Lrt_str_registry]"));
     do(o >> add("    test r12, r12"));
     do(o >> add("    jnz 1f"));
-    do(o >> add("    mov edi, 65536"));
+    do(o >> add("    mov edi, 1048576"));
     do(o >> add("    mov esi, 8"));
     do(o >> add("    call _calloc"));
     do(o >> add("    test rax, rax"));
@@ -13044,7 +13044,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov rax, rbx"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor r13, rax"));
-    do(o >> add("    and r13d, 65535"));
+    do(o >> add("    and r13d, 1048575"));
     do(o >> add("    mov edi, 24"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov [rax], rbx"));
@@ -13087,7 +13087,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov rax, rdi"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor rcx, rax"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    lea r12, [r12 + rcx*8]"));
     do(o >> add("1:  mov rax, [r12]"));
     do(o >> add("    test rax, rax"));
@@ -18372,7 +18372,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, rdi"));
     do(o >> add("    shr rdx, 20"));
     do(o >> add("    xor rcx, rdx"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    mov rax, [rax + rcx*8]"));
     do(o >> add("1:  test rax, rax"));
     do(o >> add("    jz 2f"));
@@ -18414,7 +18414,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov r12, [rip + Lrt_str_registry]"));
     do(o >> add("    test r12, r12"));
     do(o >> add("    jnz 1f"));
-    do(o >> add("    mov edi, 65536"));
+    do(o >> add("    mov edi, 1048576"));
     do(o >> add("    mov esi, 8"));
     do(o >> add("    call calloc@PLT"));
     do(o >> add("    test rax, rax"));
@@ -18426,7 +18426,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rbx"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor r13, rax"));
-    do(o >> add("    and r13d, 65535"));
+    do(o >> add("    and r13d, 1048575"));
     do(o >> add("    mov edi, 24"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov [rax], rbx"));
@@ -18469,7 +18469,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rdi"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor rcx, rax"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    lea r12, [r12 + rcx*8]"));
     do(o >> add("1:  mov rax, [r12]"));
     do(o >> add("    test rax, rax"));
@@ -26404,7 +26404,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov rdx, rdi"));
     do(o >> add("    shr rdx, 20"));
     do(o >> add("    xor rcx, rdx"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    mov rax, [rax + rcx*8]"));
     do(o >> add("1:  test rax, rax"));
     do(o >> add("    jz 2f"));
@@ -26446,7 +26446,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov r12, [rip + Lrt_str_registry]"));
     do(o >> add("    test r12, r12"));
     do(o >> add("    jnz 1f"));
-    do(o >> add("    mov edi, 65536"));
+    do(o >> add("    mov edi, 1048576"));
     do(o >> add("    mov esi, 8"));
     do(o >> add("    call _w_calloc"));
     do(o >> add("    test rax, rax"));
@@ -26458,7 +26458,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov rax, rbx"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor r13, rax"));
-    do(o >> add("    and r13d, 65535"));
+    do(o >> add("    and r13d, 1048575"));
     do(o >> add("    mov edi, 24"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov [rax], rbx"));
@@ -26501,7 +26501,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov rax, rdi"));
     do(o >> add("    shr rax, 20"));
     do(o >> add("    xor rcx, rax"));
-    do(o >> add("    and ecx, 65535"));
+    do(o >> add("    and ecx, 1048575"));
     do(o >> add("    lea r12, [r12 + rcx*8]"));
     do(o >> add("1:  mov rax, [r12]"));
     do(o >> add("    test rax, rax"));

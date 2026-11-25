@@ -57,8 +57,8 @@ _main:
     mov x0, x19
     bl _strlen
     cbnz x0, 9f
-    mov x0, #0x8b80
-    movk x0, #8, lsl #16
+    mov x0, #8
+    movk x0, #128, lsl #16
     bl _bit_alloc
     mov x21, x0
     mov x22, #0
@@ -69,23 +69,23 @@ _main:
     bl _bit_str_adopt
     str x0, [x21, x22, lsl #3]
     add x22, x22, #1
-    mov x1, #0x1170
-    movk x1, #1, lsl #16
+    mov x1, #1
+    movk x1, #16, lsl #16
     cmp x22, x1
     b.lt 1b
     mov x22, #0
 2:  ldr x0, [x21, x22, lsl #3]
     bl _bit_str_release
     add x22, x22, #1
-    mov x1, #0x1170
-    movk x1, #1, lsl #16
+    mov x1, #1
+    movk x1, #16, lsl #16
     cmp x22, x1
     b.lt 2b
     mov x0, x21
     bl _free
     adrp x1, Lrt_str_registry@PAGE
     ldr x1, [x1, Lrt_str_registry@PAGEOFF]
-    mov x2, #65536
+    mov x2, #1048576
 3:  ldr x3, [x1], #8
     cbnz x3, 9f
     subs x2, x2, #1

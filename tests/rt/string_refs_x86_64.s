@@ -63,7 +63,7 @@ MAIN:
     call STRLEN
     test rax, rax
     jnz 9f
-    mov edi, 560000
+    mov edi, 8388616
     call _bit_alloc
     mov r12, rax
     xor r13d, r13d
@@ -74,18 +74,18 @@ MAIN:
     call _bit_str_adopt
     mov [r12 + r13*8], rax
     inc r13
-    cmp r13, 70000
+    cmp r13, 1048577
     jl 1b
     xor r13d, r13d
 2:  mov rdi, [r12 + r13*8]
     call _bit_str_release
     inc r13
-    cmp r13, 70000
+    cmp r13, 1048577
     jl 2b
     mov rdi, r12
     call FREE
     mov rdx, [rip + Lrt_str_registry]
-    mov ecx, 65536
+    mov ecx, 1048576
 3:  cmp qword ptr [rdx], 0
     jne 9f
     add rdx, 8

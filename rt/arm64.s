@@ -321,7 +321,7 @@ _bit_str_find:
     cbz x1, 2f
     lsr x2, x0, #4
     eor x2, x2, x0, lsr #20
-    and x2, x2, #65535
+    and x2, x2, #1048575
     ldr x1, [x1, x2, lsl #3]
 1:  cbz x1, 2f
     ldr x3, [x1]
@@ -369,7 +369,7 @@ _bit_str_adopt:
     adrp x20, Lrt_str_registry@PAGE
     ldr x20, [x20, Lrt_str_registry@PAGEOFF]
     cbnz x20, 1f
-    mov x0, #65536
+    mov x0, #1048576
     mov x1, #8
     bl _calloc
     cbz x0, _bit_oom
@@ -378,7 +378,7 @@ _bit_str_adopt:
     str x0, [x1, Lrt_str_registry@PAGEOFF]
 1:  lsr x21, x19, #4
     eor x21, x21, x19, lsr #20
-    and x21, x21, #65535
+    and x21, x21, #1048575
     mov x0, #24
     bl _bit_alloc
     str x19, [x0]
@@ -422,7 +422,7 @@ _bit_str_release:
     cbz x20, 2f
     lsr x1, x0, #4
     eor x1, x1, x0, lsr #20
-    and x1, x1, #65535
+    and x1, x1, #1048575
     add x20, x20, x1, lsl #3
 1:  ldr x0, [x20]
     cbz x0, 2f

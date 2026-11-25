@@ -20,7 +20,7 @@ def write_unwind_probes(root, work, compiler):
     adrp x1, Lrt_str_registry@PAGE
     ldr x1, [x1, Lrt_str_registry@PAGEOFF]
     cbz x1, Lprobe_unwind_bad
-    mov x2, #65536
+    mov x2, #1048576
 Lprobe_unwind_scan:
     ldr x3, [x1], #8
     cbnz x3, Lprobe_unwind_bad
@@ -37,7 +37,7 @@ Lprobe_unwind_end:
     mov rdx, [rip + Lrt_str_registry]
     test rdx, rdx
     jz Lprobe_unwind_bad
-    mov ecx, 65536
+    mov ecx, 1048576
 Lprobe_unwind_scan:
     cmp qword ptr [rdx], 0
     jne Lprobe_unwind_bad
@@ -94,7 +94,7 @@ def main():
         (work / f"{name}.s").write_text(driver + "\n" + (root / "rt" / runtime).read_text())
     write_unwind_probes(root, work, (root / args.compiler).resolve())
     for prefix, description in (
-        ("", "reference counts and 70000 colliding entries"),
+        ("", "reference counts and 1048577 entries with guaranteed collisions"),
         ("unwind-", "compiled calls and recover leave no live string references"),
     ):
         if platform.system() == "Darwin":

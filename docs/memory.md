@@ -18,7 +18,7 @@ contract from behavior already available in ordinary programs.
 - [x] Capture a baseline and add a repeatable measurement tool.
 - [x] Add private adoption, retain, and release operations.
 - [x] Test idempotent adoption, multiple owners, last-reference release, null, literals,
-  and hash collisions with 70,000 strings on macOS ARM64 and x86-64.
+  and hash collisions with 1,048,577 strings on macOS ARM64 and x86-64.
 - [x] Assemble standalone Linux and Windows probes.
 - [x] Update cleanup records on `ch` and `input` for nonescaping local strings; retain
   the replacement before releasing the old value, including self-assignment.
@@ -52,7 +52,7 @@ container-held string ownership is implemented.
 Reference counts live in a separate address-indexed registry. This preserves UTF-8 pointer
 representation and avoids reading headers before unknown pointers. Unknown pointers
 are not freed. The registry is allocated on first adoption; the current version uses
-65,536 buckets and separate nodes. Pointers outside the conservative address range of
+1,048,576 buckets and separate nodes. Pointers outside the conservative address range of
 adopted strings are rejected before lookup; the range never shrinks after release.
 The compiler emits no ownership operations for literal string arguments.
 
@@ -80,12 +80,16 @@ macOS ARM64, three self-builds using an instrumented compiler copy. Median:
 | Borrow immutable parameters | 3.744 s | 553,353,216 bytes |
 | Account for call argument and result ownership | 3.618 s | 549,437,440 bytes |
 | Partially integrate runtime string results | 5.351 s | 607,928,320 bytes |
+| Expand the string registry | 3.422 s | 615,383,040 bytes |
 
 The first partial integration increased time by 67% and memory by 15%; those figures
 were shown to the author. Partially integrating runtime results increased median time from 3.618 to 5.351 s (+48%)
 and peak memory from 549,437,440 to 607,928,320 bytes (+11%). Compared with baseline,
 that is about 82% slower and 17% higher peak memory. The figures were shown to the author;
-the next step is to identify and reduce the overhead. Small differences between adjacent measurements are
+profiling was the next step. Registry lookup accounted for about 60% of self-build
+samples. Expanding the table from 65,536 to 1,048,576 buckets lowered the median to
+3.422 s but raised the peak by another 7,454,720 bytes. A small example with one dynamic
+string peaked at 1,703,936 bytes in either version; other programs may differ. Small differences between adjacent measurements are
 not treated as guaranteed speedups because individual run times vary. Finish string
 ownership and reassess its cost before starting arrays.
 

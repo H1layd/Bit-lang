@@ -318,7 +318,7 @@ _bit_str_find:
     mov rdx, rdi
     shr rdx, 20
     xor rcx, rdx
-    and ecx, 65535
+    and ecx, 1048575
     mov rax, [rax + rcx*8]
 1:  test rax, rax
     jz 2f
@@ -360,7 +360,7 @@ _bit_str_adopt:
     mov r12, [rip + Lrt_str_registry]
     test r12, r12
     jnz 1f
-    mov edi, 65536
+    mov edi, 1048576
     mov esi, 8
     call _calloc
     test rax, rax
@@ -372,7 +372,7 @@ _bit_str_adopt:
     mov rax, rbx
     shr rax, 20
     xor r13, rax
-    and r13d, 65535
+    and r13d, 1048575
     mov edi, 24
     call _bit_alloc
     mov [rax], rbx
@@ -415,7 +415,7 @@ _bit_str_release:
     mov rax, rdi
     shr rax, 20
     xor rcx, rax
-    and ecx, 65535
+    and ecx, 1048575
     lea r12, [r12 + rcx*8]
 1:  mov rax, [r12]
     test rax, rax
