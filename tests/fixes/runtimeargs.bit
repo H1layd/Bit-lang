@@ -1,0 +1,25 @@
+fn arg_key(num n) { return "BIT_RUNTIME_TEST_{n}"; }
+fn arg_value(num n) { return "value-{n}"; }
+fn arg_fail() { print("bad" >> num); return "unreachable"; }
+host {
+    do(term >> env(arg_key(1), arg_value(2)));
+    print(term >> env(arg_key(1)));
+    recover {
+        do(term >> env(arg_key(2), arg_fail()));
+    } else {
+        print("caught");
+    }
+    print(term >> env(arg_key(2)));
+    dir scratch = "bit-args-{term >> pid}";
+    do(scratch >> make);
+    file output = scratch >> file("value.txt");
+    do(output >> write(arg_value(3)));
+    print(output >> read);
+    map values = (string);
+    do(values >> set(arg_key(4), arg_value(5)));
+    print(values >> get(arg_key(4), "missing"));
+    do(values >> remove(arg_key(4)));
+    print(values >> sz);
+    do(output >> remove);
+    do(scratch >> remove);
+}

@@ -126,6 +126,15 @@ host {
         do(unwind_pipe_slice(i));
         do(unwind_pipe_char(i));
         do(unwind_method_replace(i));
+        do(random >> seed(unwind_string(i)));
+        if term >> env(unwind_string(i)) >> sz > 1000000 {
+            print("unexpected-environment" >> num);
+        }
+        recover {
+            do(term >> env(unwind_string(i), unwind_fail_text()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
         if "value-1" >> starts(unwind_string(i)) {
             do(caught >> ch(caught + 1));
         }

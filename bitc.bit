@@ -5318,6 +5318,7 @@ fn is_builtin(num n) {
 
 fn rt_call(string f, bool has_obj, num m, string argstr, bool lf, string mode) {
     mas ats = split(argstr, 44);
+    mas string_args = (num);
     num na = ats >> sz;
     num ac = c1(m);
     string mn = fs(m);
@@ -5341,6 +5342,10 @@ fn rt_call(string f, bool has_obj, num m, string argstr, bool lf, string mode) {
         }
         do(expr(a));
         do(coerce(RT, ats >> get(k, ""), ln(a), "{mn}(...)"));
+        # Map insertion captures keys and values; it needs container ownership first.
+        if f != "_bit_map_set" {
+            do(hold_call_string(a, ats >> get(k, ""), string_args));
+        }
         do(push());
     }
     num total = n0 + na;
@@ -5365,6 +5370,7 @@ fn rt_call(string f, bool has_obj, num m, string argstr, bool lf, string mode) {
         do(op_addr(pr(reg), mode));
     }
     do(op_call(f));
+    do(drop_call_strings(string_args));
 }
 
 fn term_action(num e) {

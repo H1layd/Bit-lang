@@ -50,8 +50,11 @@ memory fell from 80,248,832 to 1,785,856 bytes with the same checksum, 51,438,89
 String arguments to `starts`, `ends`, `split`, and `replace` are held until the call
 finishes and released on later-argument failure via `recover`. For 50,000 calls to
 `starts(make(i))` with a roughly 1 KB argument, peak memory fell from 80,232,448 to
-1,802,240 bytes with the same result. Other methods, actions, and temporaries still
-require separate auditing.
+1,802,240 bytes with the same result. Ordinary runtime calls now hold string arguments until return and release them on
+failure; map insertion is excluded because it stores the supplied values and still
+needs explicit container ownership. For 50,000 `random >> seed(make(i))` calls with
+roughly 1 KB arguments, peak memory fell from 80,265,216 to 1,835,008 bytes with the
+same result. Other argument paths and temporaries still require auditing.
 Parameters captured in shared storage still retain a permanent reference: this preserves
 correctness but leaks until explicit container-held string ownership is implemented.
 
@@ -91,6 +94,7 @@ macOS ARM64, three self-builds using an instrumented compiler copy. Median:
 | Expand the string registry | 3.422 s | 615,383,040 bytes |
 | Clean up temporary method receivers | 3.622 s | 616,448,000 bytes |
 | Clean up string method arguments | 3.546 s | 616,792,064 bytes |
+| Clean up runtime-call arguments | 3.404 s | 616,939,520 bytes |
 
 The first partial integration increased time by 67% and memory by 15%; those figures
 were shown to the author. Partially integrating runtime results increased median time from 3.618 to 5.351 s (+48%)
@@ -102,7 +106,9 @@ samples. Expanding the table from 65,536 to 1,048,576 buckets lowered the median
 string peaked at 1,703,936 bytes in either version; other programs may differ.
 After receiver cleanup, three self-build runs took 5.307, 3.583, and 3.622 s; median
 3.622 s and peak 616,448,000 bytes. The first run was markedly slower than the others. After string method argument cleanup,
-three runs took 3.704, 3.434, and 3.546 s; median 3.546 s, peak 616,792,064 bytes. Small differences between adjacent measurements are
+three runs took 3.704, 3.434, and 3.546 s; median 3.546 s, peak 616,792,064 bytes.
+After runtime-call argument cleanup, three runs took 3.706, 3.395, and 3.404 s; median
+3.404 s, peak 616,939,520 bytes. Small differences between adjacent measurements are
 not treated as guaranteed speedups because individual run times vary. Finish string
 ownership and reassess its cost before starting arrays.
 
@@ -110,11 +116,11 @@ A returned-string example reached 2,015,232 bytes of peak RSS at 10,000 calls an
 11,337,728 bytes at 300,000 calls before integration. After partial integration, both
 sizes reached 1,785,856 bytes with matching checksums. This validates one scenario,
 not the absence of all string leaks. At this stage macOS ARM64/x86-64 functional checks
-passed 203/203 after temporary receiver cleanup and self-hosting converged. Windows 11
-via SSH passed 47/47 runtime checks, 53 expected compile errors, and both registry and
+passed 205/205 after runtime argument cleanup and self-hosting converged. Windows 11
+via SSH passed 48/48 runtime checks, 53 expected compile errors, and both registry and
 cleanup probes. `remove_all` tests cover HOME and USERPROFILE, their ancestors, a sibling,
 and the failure path. Linux x86-64 under QEMU in Colima: self-hosting converged,
-the latest full run passed 102/102 tests, as did both private probes. One earlier full run had an unexplained
+the latest full run passed 103/103 tests, as did both private probes. One earlier full run had an unexplained
 `envaction` mismatch; 100 isolated repetitions and subsequent full runs passed.
 Subsequent checks showed intermittent SIGSEGV of the ARM `qemu-x86_64` process:
 2 of 1,000 runs for the current compiler and 6 of 1,500 on the previous commit.
