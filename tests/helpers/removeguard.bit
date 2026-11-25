@@ -1,0 +1,68 @@
+fn check_remove_guards(mas keys, bool block_folder) {
+    dir base = term >> folder;
+    string name = "bit-дом с пробелом-{term >> pid}";
+    dir sandbox = base >> dir(name);
+    dir parent = sandbox >> dir("parent");
+    dir home = parent >> dir("home");
+    do(home >> make);
+    file keep = home >> file("keep.txt");
+    do(keep >> write("keep"));
+    string old_home = term >> env("HOME");
+    string old_profile = term >> env("USERPROFILE");
+    for key in keys {
+        do(term >> env("HOME", ""));
+        do(term >> env("USERPROFILE", ""));
+        do(term >> env(key, home >> path + "/"));
+        mas paths = (home >> path, name + "/parent/home", base >> path + "/./" + name + "/parent/home/", parent >> path, sandbox >> path);
+        for path in paths {
+            dir target = path;
+            recover {
+                do(target >> remove_all);
+                print("ошибка: домашняя папка удалена");
+            } else {
+                print("{key}: {term >> error >> starts('remove_all: нельзя удалять домашнюю папку: ')}");
+            }
+            print("сохранён: {keep >> exists}");
+        }
+        dir neighbor = parent >> dir("homeX");
+        do(neighbor >> make);
+        file trash = neighbor >> file("trash");
+        do(trash >> write("trash"));
+        do(neighbor >> remove_all);
+        print("соседняя homeX удалена: {not (neighbor >> exists)}");
+        print("файл в доме сохранён: {keep >> read == 'keep'}");
+    }
+    do(term >> env("HOME", old_home));
+    do(term >> env("USERPROFILE", old_profile));
+    dir blocked = home >> dir("blocked");
+    do(blocked >> make);
+    file child = blocked >> file("child.txt");
+    do(child >> write("child"));
+    if block_folder {
+        do(blocked >> read_only(true));
+    } else {
+        do(child >> read_only(true));
+    }
+    recover {
+        do(home >> remove_all);
+        print("ошибка: ожидался сбой");
+    } else {
+        string error = term >> error >> replace("\\", "/");
+        string path = child >> path >> replace("\\", "/");
+        print("путь вложенного сбоя: {error >> ends(path)}");
+    }
+    if block_folder {
+        do(blocked >> read_only(false));
+    } else {
+        do(child >> read_only(false));
+    }
+    do(home >> remove_all);
+    recover {
+        do(home >> remove_all);
+    } else {
+        string error = term >> error >> replace("\\", "/");
+        string path = home >> path >> replace("\\", "/");
+        print("путь отсутствующей папки: {error >> ends(path)}");
+    }
+    do(sandbox >> remove_all);
+}

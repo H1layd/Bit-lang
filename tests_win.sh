@@ -1,8 +1,11 @@
 #!/bin/sh
 # Тесты bit на настоящей Windows: собирает примеры и тесты под Windows, запускает их по SSH
 # и сравнивает вывод с ожидаемым. Запуск: ./tests_win.sh хост   (хост из ~/.ssh/config)
+# Без запуска на Windows: ./tests_win.sh --build-only
 cd "$(dirname "$0")"
-H="${1:?укажи хост: ./tests_win.sh хост}"
+H="${1:?укажи хост: ./tests_win.sh хост (или --build-only)}"
+build_only=0
+[ "$H" != --build-only ] || build_only=1
 W="${TMPDIR:-/tmp}/bit_win_tests"
 rm -rf "$W"; mkdir -p "$W/got"
 bat="$W/all.bat"
@@ -44,6 +47,11 @@ for f in tests/fixes/*.bit; do
     [ ! -f "${variant%.bit}.out" ] || expected="${variant%.bit}.out"
     add "fix_$(basename "$n")" "$f" "$inp" "$expected" 1 || exit 1
 done
+if [ "$build_only" = 1 ]; then
+    set -- "$W"/*.exp
+    echo "Windows: собрано $# запусков; ошибки сборки проверены: $compile_only; на Windows не запускалось"
+    exit 0
+fi
 ssh "$H" "rmdir /s /q bit-win-tests 2>nul & mkdir bit-win-tests" || exit 1
 (cd "$W" && scp -q ./*.exe ./*.in all.bat "$H:bit-win-tests/") || exit 1
 ssh "$H" "cd bit-win-tests && all.bat" >/dev/null 2>&1

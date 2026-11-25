@@ -156,11 +156,7 @@ _bit_print:
     ret
 
 _bit_drop_str:
-    sub rsp, 40
-    mov rcx, rdi
-    call free
-    add rsp, 40
-    ret
+    jmp _bit_str_release
 
 _bit_string_str:
     mov rax, rdi
@@ -528,6 +524,151 @@ _w_system:
 
 
 
+_bit_remove_is_home:                // canonical target -> bool
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    lea rdi, [rip + Lrt_remove_profile]
+    call _w_getenv
+    test rax, rax
+    jz 1f
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_remove_same_home
+    test rax, rax
+    jnz 2f
+1:  lea rdi, [rip + Lrt_remove_home]
+    call _w_getenv
+    test rax, rax
+    jz 2f
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_remove_same_home
+2:  pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_remove_canonical:              // path -> owned resolved Windows path or 0
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 56
+    mov rcx, rdi
+    xor edx, edx
+    mov r8d, 7
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 3
+    mov qword ptr [rsp + 40], 0x02000000
+    mov qword ptr [rsp + 48], 0
+    call CreateFileA
+    cmp rax, -1
+    je 7f
+    mov rbx, rax
+    mov rcx, rax
+    xor edx, edx
+    xor r8d, r8d
+    xor r9d, r9d
+    call GetFinalPathNameByHandleA
+    test eax, eax
+    jz 6f
+    lea r13d, [eax + 1]
+    mov edi, r13d
+    call _bit_alloc
+    mov r12, rax
+    mov rcx, rbx
+    mov rdx, r12
+    mov r8d, r13d
+    xor r9d, r9d
+    call GetFinalPathNameByHandleA
+    test eax, eax
+    jz 5f
+    cmp eax, r13d
+    jae 5f
+    mov rcx, rbx
+    call CloseHandle
+    mov rax, r12
+    jmp 8f
+5:  mov rdi, r12
+    call _w_free
+6:  mov rcx, rbx
+    call CloseHandle
+7:  xor eax, eax
+8:  add rsp, 56
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_remove_same_home:              // target, HOME value -> HOME equals/is inside target
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 48
+    mov r14, rsi
+    cmp byte ptr [rsi], 0
+    je 7f
+    call _bit_remove_canonical
+    test rax, rax
+    jz 7f
+    mov rbx, rax
+    mov rdi, r14
+    call _bit_remove_canonical
+    test rax, rax
+    jz 6f
+    mov r13, rax
+    xor r12d, r12d
+    mov rcx, rbx
+    mov rdx, r13
+    call lstrcmpiA
+    test eax, eax
+    sete r12b
+    test r12d, r12d
+    jnz 5f
+    mov rdi, rbx
+    call _w_strlen
+    mov [rsp + 32], rax
+    mov rdi, r13
+    call _w_strlen
+    cmp rax, [rsp + 32]
+    jbe 5f
+    mov rax, [rsp + 32]
+    cmp byte ptr [rbx + rax - 1], 92
+    je 1f
+    cmp byte ptr [r13 + rax], 92
+    jne 5f
+1:  mov byte ptr [r13 + rax], 0
+    mov rcx, rbx
+    mov rdx, r13
+    call lstrcmpiA
+    test eax, eax
+    sete r12b
+5:  mov rdi, r13
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+    mov rax, r12
+    jmp 8f
+6:  mov rdi, rbx
+    call _w_free
+7:  xor eax, eax
+8:  add rsp, 48
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
 _bit_dir_remove_all:
     push rbp
     mov rbp, rsp
@@ -632,6 +773,10 @@ _bit_dir_remove_all:
 22: cmp edx, 2
     jb 6f
 3:  mov rdi, r13
+    call _bit_remove_is_home
+    test rax, rax
+    jnz 36f
+    mov rdi, r13
     mov esi, 1
     call _bit_win_remove_tree
     mov r14, rax
@@ -653,18 +798,26 @@ _bit_dir_remove_all:
     jmp 8f
 7:  mov rdi, r13
     call _w_free
-9:  mov rdi, rbx
-    call _w_free
+9:  lea rdi, [rip + Lrt_ermtree]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
 10: lea rdi, [rip + Lrt_ermtree]
-    mov rsi, r12
-    call _bit_die
-8:  mov rdi, rbx
+    mov rsi, r14
+    mov rdx, r12
+    call _bit_remove_error
+36: mov rdi, r13
     call _w_free
-    lea rdi, [rip + Lrt_ermroot]
-    mov rsi, r12
-    call _bit_die
+    lea rdi, [rip + Lrt_ermhome]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
+8:  lea rdi, [rip + Lrt_ermroot]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
 
-_bit_win_remove_tree:               // path, require directory -> 0/-1
+_bit_win_remove_tree:               // path, require directory -> 0/owned error path
     push rbp
     mov rbp, rsp
     push rbx
@@ -675,6 +828,7 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     sub rsp, 408
     mov rbx, rdi
     mov [rsp + 392], rsi
+    mov qword ptr [rsp + 400], 0
     mov rcx, rdi
     xor edx, edx
     mov r8d, 3
@@ -738,7 +892,7 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     mov rdi, [rsp + 384]
     call _w_free
     test r15, r15
-    jnz 7f
+    jnz 11f
 4:  mov rcx, r14
     lea rdx, [rsp + 64]
     call FindNextFileA
@@ -761,11 +915,17 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     jz 9f
     xor eax, eax
     jmp 10f
+11: mov [rsp + 400], r15
 7:  mov rcx, r14
     call FindClose
 8:  mov rcx, r12
     call CloseHandle
-9:  mov rax, -1
+9:  mov rax, [rsp + 400]
+    test rax, rax
+    jnz 10f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
 10: add rsp, 408
     pop r15
     pop r14
@@ -2476,6 +2636,139 @@ _w_inet_ntop:
     ret
 
 
+_bit_str_find:
+    xor eax, eax
+    cmp rdi, [rip + Lrt_str_low]
+    jb 2f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 2f
+    mov rax, [rip + Lrt_str_registry]
+    test rax, rax
+    jz 2f
+    mov rcx, rdi
+    shr rcx, 4
+    mov rdx, rdi
+    shr rdx, 20
+    xor rcx, rdx
+    and ecx, 65535
+    mov rax, [rax + rcx*8]
+1:  test rax, rax
+    jz 2f
+    cmp [rax], rdi
+    je 2f
+    mov rax, [rax + 16]
+    jmp 1b
+2:  ret
+
+_bit_str_retain:
+    mov rax, rdi
+    cmp rdi, [rip + Lrt_str_low]
+    jb 3f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 3f
+    push rbp
+    mov rbp, rsp
+    call _bit_str_find
+    test rax, rax
+    jz 1f
+    inc qword ptr [rax + 8]
+1:  mov rax, rdi
+    pop rbp
+3:  ret
+
+_bit_str_adopt:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    test rdi, rdi
+    jz 2f
+    call _bit_str_find
+    test rax, rax
+    jnz 2f
+    mov r12, [rip + Lrt_str_registry]
+    test r12, r12
+    jnz 1f
+    mov edi, 65536
+    mov esi, 8
+    call _w_calloc
+    test rax, rax
+    jz _bit_oom
+    mov r12, rax
+    mov [rip + Lrt_str_registry], rax
+1:  mov r13, rbx
+    shr r13, 4
+    mov rax, rbx
+    shr rax, 20
+    xor r13, rax
+    and r13d, 65535
+    mov edi, 24
+    call _bit_alloc
+    mov [rax], rbx
+    mov qword ptr [rax + 8], 1
+    mov rcx, [r12 + r13*8]
+    mov [rax + 16], rcx
+    mov [r12 + r13*8], rax
+    // Conservative bounds never shrink: pointers outside them cannot be owned strings.
+    mov rax, [rip + Lrt_str_low]
+    cmp rbx, rax
+    cmovb rax, rbx
+    mov [rip + Lrt_str_low], rax
+    mov rax, [rip + Lrt_str_high]
+    cmp rbx, rax
+    cmova rax, rbx
+    mov [rip + Lrt_str_high], rax
+2:  mov rax, rbx
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_str_release:
+    cmp rdi, [rip + Lrt_str_low]
+    jb 3f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 3f
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, [rip + Lrt_str_registry]
+    test r12, r12
+    jz 2f
+    mov rcx, rdi
+    shr rcx, 4
+    mov rax, rdi
+    shr rax, 20
+    xor rcx, rax
+    and ecx, 65535
+    lea r12, [r12 + rcx*8]
+1:  mov rax, [r12]
+    test rax, rax
+    jz 2f
+    cmp [rax], rbx
+    je 4f
+    lea r12, [rax + 16]
+    jmp 1b
+4:  dec qword ptr [rax + 8]
+    jnz 2f
+    mov rcx, [rax + 16]
+    mov [r12], rcx
+    mov rdi, rax
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+2:  pop r12
+    pop rbx
+    pop rbp
+3:  ret
+
 _bit_to_str:                        // rdi = значение, rsi = вид (0 num, 1 dec, 2 string, 3 bool)
     cmp rsi, 0
     je _bit_num_str
@@ -3030,7 +3323,9 @@ _bit_str_slice:                     // rdi = строка, rsi = от, rdx = д�
     mov byte ptr [r12 + r14], 0
     mov rax, r12
     jmp 10f
-8:  lea rax, [rip + Lrt_empty]
+8:  lea rdi, [rip + Lrt_empty]
+    xor esi, esi
+    call _bit_substr
 10: pop r14
     pop r13
     pop r12
@@ -3826,6 +4121,10 @@ _bit_random_range:                  // Inclusive signed bounds, source line.
 9:  lea rdi, [rip + Lrt_random_bounds]
 7:  mov rsi, r13
     call _bit_die
+
+
+// String ownership registry. Unknown pointers (literals and borrowed values) are ignored.
+// Node layout: payload, references, next. Ownership adoption is explicit and idempotent.
 
 _bit_map_find:                      // map, key -> index or -1
     push rbp
@@ -4769,23 +5068,51 @@ _bit_basename:                      // rdi = путь → имя после по
     pop rbp
     ret
 
-_bit_file_line:                     // rdi = путь, rsi = номер строки, rdx = строка программы
+_bit_file_line:                     // path, index, source line -> independent copy
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    mov rbx, rsi
+    push r13
+    push r14
+    mov r12, rsi
     mov rsi, rdx
-    call _bit_file_lines
-    test rbx, rbx
-    js 1f
-    cmp rbx, [rax + 8]
-    jge 1f
-    mov rax, [rax]
-    mov rax, [rax + rbx*8]
-    jmp 2f
-1:  lea rax, [rip + Lrt_empty]
-2:  pop r12
+    call _bit_file_read
+    mov rbx, rax
+    mov r13, rax
+    test r12, r12
+    js 4f
+1:  test r12, r12
+    jz 2f
+    movzx eax, byte ptr [r13]
+    inc r13
+    test al, al
+    jz 4f
+    cmp al, 10
+    jne 1b
+    dec r12
+    jmp 1b
+2:  mov r14, r13
+3:  mov al, [r13]
+    test al, al
+    jz 5f
+    cmp al, 10
+    je 5f
+    inc r13
+    jmp 3b
+4:  lea r14, [rip + Lrt_empty]
+    mov r13, r14
+5:  mov rdi, r14
+    mov rsi, r13
+    sub rsi, r14
+    call _bit_substr
+    mov r12, rax
+    mov rdi, rbx
+    call _w_free
+    mov rax, r12
+    pop r14
+    pop r13
+    pop r12
     pop rbx
     pop rbp
     ret
@@ -5151,6 +5478,23 @@ _bit_dir_walk_info:
     pop rbx
     pop rbp
     ret
+
+_bit_remove_error:                  // message, owned path, line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rsi
+    mov r12, rdx
+    call _bit_cat
+    push rax
+    push rax
+    mov rdi, rbx
+    call _w_free
+    pop rdi
+    pop rax
+    mov rsi, r12
+    call _bit_die
 
 _bit_input_num:                     // rdi = есть границы, rsi = от, rdx = до, rcx = строка
     push rbp
@@ -6452,6 +6796,9 @@ _bit_proc_scan:                     // rdi = pid, rsi = число, rdx = стр
 
 .data
 .p2align 3
+Lrt_str_registry: .quad 0
+Lrt_str_low: .quad -1
+Lrt_str_high: .quad 0
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
@@ -6491,8 +6838,11 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
-Lrt_ermroot: .asciz "remove_all: \320\275\320\265\320\273\321\214\320\267\321\217 \321\203\320\264\320\260\320\273\321\217\321\202\321\214 \320\272\320\276\321\200\320\265\320\275\321\214, \320\277\321\203\321\201\321\202\320\276\320\271 \320\277\321\203\321\202\321\214, . \320\270\320\273\320\270 .."
-Lrt_ermtree: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\264\320\260\320\273\320\270\321\202\321\214 \320\277\320\260\320\277\320\272\321\203 \321\201 \321\201\320\276\320\264\320\265\321\200\320\266\320\270\320\274\321\213\320\274"
+Lrt_remove_home: .asciz "HOME"
+Lrt_remove_profile: .asciz "USERPROFILE"
+Lrt_ermhome: .asciz "remove_all: \320\275\320\265\320\273\321\214\320\267\321\217 \321\203\320\264\320\260\320\273\321\217\321\202\321\214 \320\264\320\276\320\274\320\260\321\210\320\275\321\216\321\216 \320\277\320\260\320\277\320\272\321\203: "
+Lrt_ermroot: .asciz "remove_all: \320\275\320\265\320\273\321\214\320\267\321\217 \321\203\320\264\320\260\320\273\321\217\321\202\321\214 \320\272\320\276\321\200\320\265\320\275\321\214, \320\277\321\203\321\201\321\202\320\276\320\271 \320\277\321\203\321\202\321\214, . \320\270\320\273\320\270 ..: "
+Lrt_ermtree: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\264\320\260\320\273\320\270\321\202\321\214 \320\277\320\260\320\277\320\272\321\203 \321\201 \321\201\320\276\320\264\320\265\321\200\320\266\320\270\320\274\321\213\320\274: "
 Lrt_epermread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \320\277\321\200\320\260\320\262\320\260 \320\264\320\276\321\201\321\202\321\203\320\277\320\260: "
 Lrt_epermwrite: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\270\320\267\320\274\320\265\320\275\320\270\321\202\321\214 \320\277\321\200\320\260\320\262\320\260 \320\264\320\276\321\201\321\202\321\203\320\277\320\260: "
 Lrt_ecwd: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \321\202\320\265\320\272\321\203\321\211\321\203\321\216 \320\277\320\260\320\277\320\272\321\203"

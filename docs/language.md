@@ -537,7 +537,12 @@ Printing or sorting the records themselves is rejected at build time.
 folder. Nested symbolic links and Windows junctions are removed without traversing
 their targets. A root path pointing to a directory link removes the link itself.
 A regular file in place of the root directory, filesystem roots, empty paths, and
-final `.` / `..` components are rejected. Failures can be caught with `recover`;
+final `.` / `..` components are rejected. Home directories are protected: POSIX
+compares canonical target and `HOME` paths; Windows resolves paths through file handles
+and checks both `USERPROFILE` and `HOME`, ignoring case. Removal is rejected for home
+itself and any ancestor containing it. Component boundaries matter: `home` does not
+block deletion of its sibling `homeX`. Failures include the path where removal
+stopped, including nested files, and can be caught with `recover`;
 content already deleted is not restored. Windows READONLY is not cleared automatically:
 call `read_only(false)` first when needed.
 
@@ -608,6 +613,12 @@ Free a buffer once through any name that refers to it. All aliases and addresses
 become invalid at that point. Keeping them valid up to the point of use is the program's responsibility.
 The compiler releases temporary strings and strings in local declarations when it can prove they
 stay within scope. Strings that may escape their scope can stay allocated for the life of the process.
+
+The chosen model is ordinary reference counting: strings first, then arrays, maps,
+and records. Compiler integration is not finished yet, so the current limitation above
+still applies. A known limitation of the chosen model is that shared-data cycles are
+not reclaimed automatically; those links must be broken explicitly. `bytes` retains
+explicit `free`, and reference counts will not use atomic operations.
 
 ### mem (computer memory)
 

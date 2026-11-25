@@ -1,0 +1,33 @@
+fn make_string(num value) {
+    return "value-{value}";
+}
+fn make_local(num value) {
+    string local = make_string(value);
+    return local;
+}
+fn identity(string value) {
+    return value;
+}
+fn constant() {
+    return "literal";
+}
+fn combine(string first, string second) {
+    return "{first}:{second}";
+}
+host {
+    print(make_string(1));
+    print(make_local(2));
+    print(identity(make_string(3)));
+    print(identity(constant()));
+    print(combine(make_local(4), identity(make_string(5))));
+    all echo = (string value) -> value;
+    print(echo(make_local(6)));
+    num sum = 0;
+    for i in 0:9999 {
+        string value = identity(make_local(i));
+        do(sum >> ch(sum + value >> sz));
+    }
+    print(sum);
+    do(make_local(7));
+    print("done");
+}

@@ -1,0 +1,47 @@
+fn unwind_make(num value) {
+    return "value-{value}";
+}
+fn unwind_pair(string value, num marker) {
+    return "{value}:{marker}";
+}
+fn unwind_number() {
+    return "not-a-number" >> num;
+}
+fn unwind_reject(string value) {
+    do(unwind_number());
+}
+fn unwind_caught(string value) {
+    recover {
+        do(unwind_number());
+    } else {
+        return value;
+    }
+    return "unexpected";
+}
+host {
+    string survivor = unwind_make(100);
+    num caught = 0;
+    all pair = (string value, num marker) -> "{value}:{marker}";
+    for i in 0:39 {
+        recover {
+            print(unwind_pair(unwind_make(i), unwind_number()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(pair(unwind_make(i), unwind_number()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            do(unwind_reject(unwind_make(i)));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+    }
+    print(caught);
+    print(survivor);
+    print(unwind_caught(unwind_make(7)));
+    print(unwind_pair(unwind_make(8), 9));
+    print(pair(unwind_make(10), 11));
+}

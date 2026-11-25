@@ -129,6 +129,10 @@ Do not start the package manager or subsequent milestones until instructed.
 2. **Memory and long-running programs.** Define ownership for strings, arrays, maps,
    and records, returned values, and shared assignments. Reclaim objects without leaks
    or premature frees; keep explicit management of `bytes`.
+   Author decision: ordinary, non-atomic reference counts. Implement `string` first,
+   followed by `mas`, `map`, and records. After each stage compare self-build time and
+   peak `mem >> used`; show any significant slowdown before proceeding further.
+   Shared-data cycles are not reclaimed automatically. See the [memory plan](memory.md).
 3. **Consistent language rules.** Complete the design milestone above: declarations,
    names, values and actions, `do`, `>>`, copying, and shared mutations. Remove ordinary
    programming limits, including six parameters and mutual-recursion inference.
@@ -140,28 +144,80 @@ Do not start the package manager or subsequent milestones until instructed.
 5. **A stable release.** Automated macOS, Linux, and Windows checks, self-hosting,
    long-running memory tests, and clear diagnostics. Compiler binaries, simple installation,
    versions and compatibility rules, plus project checking and formatting commands.
-6. **BitOS — a working name for the flagship project.** Build a system environment in bit
+6. **A dedicated IDE for bit.** A project editor with builds, execution, diagnostics,
+   navigation, and completion, followed by debugging. Write the tooling core in bit
+   and exercise the language with a real application. Details and acceptance criteria follow.
+7. **BitOS — a working name for the flagship project.** Build a system environment in bit
    and develop it into an experimental OS with a kernel, processes, and a filesystem.
    Use the project to exercise the language, extract reusable libraries, and install them
    through the package manager.
 
 ### Libraries and packages
 
-- [ ] Namespaces, public and internal declarations, and libraries without a `host` block.
-- [ ] Standard libraries written in bit over the built-in system facilities: data handling,
-  configuration, file formats, and common algorithms.
-- [ ] A project manifest: name, version, entry point, dependencies, supported targets,
-  and compatible compiler versions.
-- [ ] One-command package installation, version selection, dependency updates and removal.
-  Agree on command names and the manifest format before implementation.
-- [ ] Local folders and Git sources pinned to revisions first; then a registry with search,
-  descriptions, versions, and publishing of personal libraries.
-- [ ] Transitive dependency resolution, clear conflict errors, and a lockfile recording exact
-  versions, sources, and checksums.
-- [ ] A shared download cache, offline rebuilds, and reproducible dependency resolution
-  on a clean machine.
-- [ ] Acceptance criterion: a new project installs a library, imports its public interface,
-  and builds on another machine using the same lockfile.
+Author-approved package handoff decisions: one command, `bit`, with `bitc` retained as
+an alias; the registry is **nibble**. Initially it is a GitHub index repository without
+a dedicated server; packages are published through pull requests to the index.
+The intended workflow is `bit add json`, making the dependency available without manual
+configuration. These details do not override the checkpoint before package-manager work.
+
+- [ ] First agree on namespaces, public and internal declarations, libraries without
+  `host`, and access to library functions. Current `use` merges file namespaces.
+  Present examples to the author, then implement modules and their tests.
+- [ ] Agree on package imports (proposal: `use json;` alongside `use "path.bit";`),
+  the library entry point (proposal: `lib.bit`), and project filenames and formats.
+- [ ] Proposals requiring agreement: `bit.deps` with “name version” lines (`1.2` selects
+  the latest `1.2.x`); `bit.lock` with exact versions, HTTPS sources, and full commit SHAs;
+  `index/<name>` entries containing “version git-url full-SHA”. Defer more complex version
+  ranges. Define transitive dependency resolution and conflict diagnostics before
+  implementing the format.
+- [ ] After the checkpoint and the author's instruction: a package module written in bit,
+  linked into the compiler; a unified `bit` command preserving `bitc` compatibility.
+  Proposed subcommands: `add`, `remove`, `update`, `search`, `publish`; `build` / `run`
+  automatically fetch missing dependencies recorded in the lockfile.
+- [ ] A local offline test index: adding packages, locking, rebuilding from cache,
+  mismatched SHAs, invalid names, and missing `git`. Then system-git downloads, caching,
+  and checks on macOS, Windows, and Linux. Pass git arguments as an array, without a shell.
+- [ ] HTTPS only; no installation scripts. Package names contain 1–64 characters from
+  `a-z`, `0-9`, `-`, with no paths. Verify full downloaded commit SHAs and report the index
+  revision used. A mismatch produces a clear error and stops the build.
+- [ ] An immutable cache at `~/.bit/nibble/<name>/<version>-<commit>/`
+  (Windows: `%USERPROFILE%\.bit\nibble\...`); offline builds when every verified locked
+  dependency is cached. Agree on the cache location before implementing it.
+- [ ] `update`, `remove`, `search`; `publish` checks the build, entry point, and version tag,
+  then prepares an index entry and PR text. The package author submits the PR.
+- [ ] Prepare the index structure, publication rules, and an example package; the author
+  creates the GitHub repository. Update the reference, README, and roadmap in both languages.
+- [ ] Standard libraries in bit: data handling, configuration, file formats, and algorithms.
+  A dedicated registry server, mirror, search, and website in bit are a later milestone.
+- [ ] Acceptance criterion: a new project installs a library with one command, imports its
+  public interface, and builds on another machine using the same lockfile; cached rebuilds
+  work offline. Record missing language features and discuss them with the author instead
+  of replacing them with external implementations.
+
+### A dedicated IDE for bit
+
+A separate product before the OS milestone. Agree on its name, interface, and graphics
+implementation with the author before development. An existing editor extension can
+validate tooling along the way, but the deliverable is a dedicated IDE. Write the tooling
+core in bit; plan missing UI and system facilities as language work without FFI.
+
+1. **Prepare the compiler.** Machine-readable diagnostics with files and positions,
+   symbol and type information, and resilient parsing of incomplete code. Extract shared
+   compiler modules so the editor can reuse them.
+2. **Editor and projects.** Open folders, browse a file tree, edit tabs, search and replace,
+   save files, restore unsaved text, and configure projects. Check Russian text, Unicode,
+   keyboard navigation, and large source files.
+3. **Everyday development.** Build and run through `bit`, view output, stop programs,
+   jump from diagnostics to source, format code, and inspect nibble dependencies.
+4. **Code understanding.** Go to definition, find references, inspect types, complete code,
+   and rename symbols respecting scope. Refresh information during editing without a full
+   compiler self-build on each keystroke.
+5. **Debugging.** First add debug information and the required compiler support, then
+   breakpoints, stepping, call stacks, and value inspection. Select platform facilities
+   and a debugger protocol separately; launching a program alone does not complete debugging.
+6. **Acceptance criterion.** On macOS, Windows, and Linux, open the compiler source,
+   edit it, build and run the result, follow diagnostics, and debug a small program.
+   Reproduce IDE builds from its own source.
 
 ### BitOS: from a system environment to an operating system
 
@@ -202,6 +258,6 @@ encountered during development. New language mechanisms and names require author
 - **FFI (calling C)** — against the idea that the whole toolchain is its own. That would be another
   language.
 - **Threads / async** — one connection at a time is enough for now.
-- **Unicode locales, DWARF debug info, BSD / wasm, unsigned numbers, dates and time
+- **Unicode locales, BSD / wasm, unsigned numbers, dates and time
   zones, `const`, tuples** — growth in width and comfort; we come back when there is a concrete need
   or real users.

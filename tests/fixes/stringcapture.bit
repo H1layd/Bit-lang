@@ -1,0 +1,48 @@
+record Capture:
+    string text;
+string captured_global = "empty";
+mas captured_array = (string);
+map captured_map = (string);
+fn capture_make(num n) {
+    return "captured-{n}";
+}
+fn capture_array(string value) {
+    do(captured_array >> add(value));
+}
+fn capture_global(string value) {
+    do(captured_global >> ch(value));
+}
+fn capture_map(string key, string value) {
+    do(captured_map >> set(key, value));
+}
+fn capture_record(string value) {
+    return Capture(value);
+}
+fn capture_produce() {
+    string array_value = capture_make(1);
+    do(capture_array(array_value));
+    do(array_value >> ch("changed"));
+    string global_value = capture_make(2);
+    do(capture_global(global_value));
+    do(global_value >> ch("changed"));
+    string key = "k-{3}";
+    string map_value = capture_make(3);
+    do(capture_map(key, map_value));
+    do(key >> ch("changed"));
+    do(map_value >> ch("changed"));
+    string record_value = capture_make(4);
+    all record = capture_record(record_value);
+    do(record_value >> ch("changed"));
+    return record;
+}
+host {
+    all record = capture_produce();
+    print(captured_array >> get(0, "missing"));
+    print(captured_global);
+    print(captured_map >> get("k-3", "missing"));
+    print(record >> text);
+    string first = capture_make(5);
+    string alias = first;
+    do(first >> ch("changed"));
+    print(alias);
+}

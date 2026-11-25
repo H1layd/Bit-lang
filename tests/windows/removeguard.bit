@@ -1,0 +1,5 @@
+use "../helpers/removeguard.bit";
+host {
+    mas keys = ("USERPROFILE", "HOME");
+    do(check_remove_guards(keys, false));
+}

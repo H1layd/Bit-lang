@@ -301,6 +301,142 @@ _bit_random_range:                  // Inclusive signed bounds, source line.
 7:  mov rsi, r13
     call _bit_die
 
+
+// String ownership registry. Unknown pointers (literals and borrowed values) are ignored.
+// Node layout: payload, references, next. Ownership adoption is explicit and idempotent.
+_bit_str_find:
+    xor eax, eax
+    cmp rdi, [rip + Lrt_str_low]
+    jb 2f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 2f
+    mov rax, [rip + Lrt_str_registry]
+    test rax, rax
+    jz 2f
+    mov rcx, rdi
+    shr rcx, 4
+    mov rdx, rdi
+    shr rdx, 20
+    xor rcx, rdx
+    and ecx, 65535
+    mov rax, [rax + rcx*8]
+1:  test rax, rax
+    jz 2f
+    cmp [rax], rdi
+    je 2f
+    mov rax, [rax + 16]
+    jmp 1b
+2:  ret
+
+_bit_str_retain:
+    mov rax, rdi
+    cmp rdi, [rip + Lrt_str_low]
+    jb 3f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 3f
+    push rbp
+    mov rbp, rsp
+    call _bit_str_find
+    test rax, rax
+    jz 1f
+    inc qword ptr [rax + 8]
+1:  mov rax, rdi
+    pop rbp
+3:  ret
+
+_bit_str_adopt:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    test rdi, rdi
+    jz 2f
+    call _bit_str_find
+    test rax, rax
+    jnz 2f
+    mov r12, [rip + Lrt_str_registry]
+    test r12, r12
+    jnz 1f
+    mov edi, 65536
+    mov esi, 8
+    call _calloc
+    test rax, rax
+    jz _bit_oom
+    mov r12, rax
+    mov [rip + Lrt_str_registry], rax
+1:  mov r13, rbx
+    shr r13, 4
+    mov rax, rbx
+    shr rax, 20
+    xor r13, rax
+    and r13d, 65535
+    mov edi, 24
+    call _bit_alloc
+    mov [rax], rbx
+    mov qword ptr [rax + 8], 1
+    mov rcx, [r12 + r13*8]
+    mov [rax + 16], rcx
+    mov [r12 + r13*8], rax
+    // Conservative bounds never shrink: pointers outside them cannot be owned strings.
+    mov rax, [rip + Lrt_str_low]
+    cmp rbx, rax
+    cmovb rax, rbx
+    mov [rip + Lrt_str_low], rax
+    mov rax, [rip + Lrt_str_high]
+    cmp rbx, rax
+    cmova rax, rbx
+    mov [rip + Lrt_str_high], rax
+2:  mov rax, rbx
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_str_release:
+    cmp rdi, [rip + Lrt_str_low]
+    jb 3f
+    cmp rdi, [rip + Lrt_str_high]
+    ja 3f
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    mov r12, [rip + Lrt_str_registry]
+    test r12, r12
+    jz 2f
+    mov rcx, rdi
+    shr rcx, 4
+    mov rax, rdi
+    shr rax, 20
+    xor rcx, rax
+    and ecx, 65535
+    lea r12, [r12 + rcx*8]
+1:  mov rax, [r12]
+    test rax, rax
+    jz 2f
+    cmp [rax], rbx
+    je 4f
+    lea r12, [rax + 16]
+    jmp 1b
+4:  dec qword ptr [rax + 8]
+    jnz 2f
+    mov rcx, [rax + 16]
+    mov [r12], rcx
+    mov rdi, rax
+    call _free
+    mov rdi, rbx
+    call _free
+2:  pop r12
+    pop rbx
+    pop rbp
+3:  ret
+
 _bit_alloc:                         // rdi = байты → rax = память
     push rbp
     mov rbp, rsp
@@ -1794,6 +1930,105 @@ _bit_dir_list:                      // rdi = путь, rsi = строка → ma
 
 
 
+
+_bit_remove_is_home:                // path -> bool, compare canonical HOME paths
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    lea rdi, [rip + Lrt_remove_home]
+    call _getenv
+    test rax, rax
+    jz 7f
+    cmp byte ptr [rax], 0
+    je 7f
+    mov rdi, rax
+    xor esi, esi
+    call _realpath
+    test rax, rax
+    jz 7f
+    mov r12, rax
+    mov rdi, rbx
+    xor esi, esi
+    call _realpath
+    mov r13, rax
+    xor ebx, ebx
+    test rax, rax
+    jz 1f
+    xor ecx, ecx
+2:  mov al, [r13 + rcx]
+    test al, al
+    jz 3f
+    cmp al, [r12 + rcx]
+    jne 1f
+    inc rcx
+    jmp 2b
+3:  cmp byte ptr [r13 + rcx - 1], 47
+    je 4f
+    cmp byte ptr [r12 + rcx], 0
+    je 4f
+    cmp byte ptr [r12 + rcx], 47
+    jne 1f
+4:  mov ebx, 1
+1:  mov rdi, r12
+    call _free
+    mov rdi, r13
+    call _free
+    mov rax, rbx
+    jmp 8f
+7:  xor eax, eax
+8:  add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_remove_error:                  // message, owned path, line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rsi
+    mov r12, rdx
+    call _bit_cat
+    push rax
+    push rax
+    mov rdi, rbx
+    call _free
+    pop rdi
+    pop rax
+    mov rsi, r12
+    call _bit_die
+
+_bit_remove_prefix:                 // parent name, owned child error path -> owned full path
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rsi
+    lea rsi, [rip + Lrt_slash]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, rax
+    mov rsi, rbx
+    call _bit_cat
+    push rax
+    push rax
+    mov rdi, r12
+    call _free
+    mov rdi, rbx
+    call _free
+    pop rax
+    pop rcx
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_dir_remove_all:                // path, line; never descend through symbolic links
     push rbp
     mov rbp, rsp
@@ -1835,7 +2070,11 @@ _bit_dir_remove_all:                // path, line; never descend through symboli
     jne 5f
     cmp byte ptr [rax + 2], 0
     je 8f
-5:  mov rdi, -2
+5:  mov rdi, rbx
+    call _bit_remove_is_home
+    test rax, rax
+    jnz 11f
+    mov rdi, -2
     mov rsi, rbx
     mov rdx, r12
     mov ecx, 1
@@ -1851,16 +2090,20 @@ _bit_dir_remove_all:                // path, line; never descend through symboli
     pop rbx
     pop rbp
     ret
-8:  mov rdi, rbx
-    call _free
-    lea rdi, [rip + Lrt_ermroot]
-    mov rsi, r12
-    call _bit_die
+8:  lea rdi, [rip + Lrt_ermroot]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
+11: lea rdi, [rip + Lrt_ermhome]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
 9:  lea rdi, [rip + Lrt_ermtree]
-    mov rsi, r12
-    call _bit_die
+    mov rsi, r13
+    mov rdx, r12
+    call _bit_remove_error
 
-_bit_remove_at:                     // parent fd, name, line, require directory -> 0/-1
+_bit_remove_at:                     // parent fd, name, line, require directory -> 0/owned error path
     push rbp
     mov rbp, rsp
     push rbx
@@ -1930,7 +2173,7 @@ _bit_remove_at:                     // parent fd, name, line, require directory 
     jmp 3b
 5:  call ___error
     cmp dword ptr [rax], 0
-    jne 8f
+    jne 11f
     mov rdi, r14
     call _closedir
     test eax, eax
@@ -1947,9 +2190,18 @@ _bit_remove_at:                     // parent fd, name, line, require directory 
     jmp 9f
 7:  xor eax, eax
     jmp 10f
-8:  mov rdi, r14
+8:  mov [rsp + 168], rax
+    mov rdi, r14
     call _closedir
-9:  mov rax, -1
+    mov rdi, r12
+    mov rsi, [rsp + 168]
+    call _bit_remove_prefix
+    jmp 10f
+11: mov rdi, r14
+    call _closedir
+9:  mov rdi, r12
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
 10: add rsp, 184
     pop r15
     pop r14
@@ -3185,7 +3437,9 @@ _bit_str_slice:                     // rdi = строка, rsi = от, rdx = д�
     mov byte ptr [r12 + r14], 0
     mov rax, r12
     jmp 10f
-8:  lea rax, [rip + Lrt_empty]
+8:  lea rdi, [rip + Lrt_empty]
+    xor esi, esi
+    call _bit_substr
 10: pop r14
     pop r13
     pop r12
@@ -3193,23 +3447,51 @@ _bit_str_slice:                     // rdi = строка, rsi = от, rdx = д�
     pop rbp
     ret
 
-_bit_file_line:                     // rdi = путь, rsi = номер строки, rdx = строка программы
+_bit_file_line:                     // path, index, source line -> independent copy
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    mov rbx, rsi
+    push r13
+    push r14
+    mov r12, rsi
     mov rsi, rdx
-    call _bit_file_lines
-    test rbx, rbx
-    js 1f
-    cmp rbx, [rax + 8]
-    jge 1f
-    mov rax, [rax]
-    mov rax, [rax + rbx*8]
-    jmp 2f
-1:  lea rax, [rip + Lrt_empty]
-2:  pop r12
+    call _bit_file_read
+    mov rbx, rax
+    mov r13, rax
+    test r12, r12
+    js 4f
+1:  test r12, r12
+    jz 2f
+    movzx eax, byte ptr [r13]
+    inc r13
+    test al, al
+    jz 4f
+    cmp al, 10
+    jne 1b
+    dec r12
+    jmp 1b
+2:  mov r14, r13
+3:  mov al, [r13]
+    test al, al
+    jz 5f
+    cmp al, 10
+    je 5f
+    inc r13
+    jmp 3b
+4:  lea r14, [rip + Lrt_empty]
+    mov r13, r14
+5:  mov rdi, r14
+    mov rsi, r13
+    sub rsi, r14
+    call _bit_substr
+    mov r12, rax
+    mov rdi, rbx
+    call _free
+    mov rax, r12
+    pop r14
+    pop r13
+    pop r12
     pop rbx
     pop rbp
     ret
@@ -3823,12 +4105,8 @@ _bit_str_hex:                       // rdi = строка -> число (hex, м
     pop rbp
     ret
 
-_bit_drop_str:                      // rdi = строка (куча) -> освободить
-    push rbp
-    mov rbp, rsp
-    call _free
-    pop rbp
-    ret
+_bit_drop_str:                      // release an adopted string reference
+    jmp _bit_str_release
 
 _bit_bytes_free:                    // rdi = bytes (или 0) -> освободить буфер и описатель
     test rdi, rdi
@@ -4988,6 +5266,9 @@ _bit_term_stderr:                   // → копия stderr последнег�
 
 .section __DATA,__data
 .p2align 3
+Lrt_str_registry: .quad 0
+Lrt_str_low: .quad -1
+Lrt_str_high: .quad 0
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
@@ -5068,8 +5349,10 @@ Lrt_a: .asciz "a"
 Lrt_r: .asciz "r"
 Lrt_empty: .asciz ""
 
-Lrt_ermroot: .asciz "remove_all: нельзя удалять корень, пустой путь, . или .."
-Lrt_ermtree: .asciz "не могу удалить папку с содержимым"
+Lrt_ermroot: .asciz "remove_all: нельзя удалять корень, пустой путь, . или ..: "
+Lrt_ermtree: .asciz "не могу удалить папку с содержимым: "
+Lrt_remove_home: .asciz "HOME"
+Lrt_ermhome: .asciz "remove_all: нельзя удалять домашнюю папку: "
 Lrt_permchars: .asciz "rwxrwxrwx"
 Lrt_epermissions: .asciz "permissions: нужны ровно 9 символов rwx на своих местах или -"
 Lrt_epermread: .asciz "не могу узнать права доступа: "

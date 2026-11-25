@@ -13,7 +13,7 @@ def octal(s):
                          for b in s.encode()) + '"'
 
 # ── функции из System V «как есть» (оборачиваем только libc-вызовы) ──
-NEED = ["_bit_to_str", "_bit_mas_new", "_bit_mas_add", "_bit_mas_insert",
+NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release", "_bit_to_str", "_bit_mas_new", "_bit_mas_add", "_bit_mas_insert",
         "_bit_mas_remove", "_bit_mas_str",
         "_bit_mas_slice", "_bit_mas_sum", "_bit_mas_sort",
         "_bit_bytes_new", "_bit_bytes_add", "_bit_bytes_slice", "_bit_bytes_text",
@@ -42,7 +42,7 @@ FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines
          "_bit_move", "_bit_copy_temp", "_bit_copy", "_bit_dir_make", "_bit_basename",
          "_bit_file_line", "_bit_file_slice", "_bit_file_load", "_bit_file_save",
          "_bit_file_load_at", "_bit_file_save_at", "_bit_dir_walk", "_bit_walk_into",
-         "_bit_errpath", "_bit_dir_walk_info",
+         "_bit_errpath", "_bit_dir_walk_info", "_bit_remove_error",
          "_bit_input_num", "_bit_input_dec", "_bit_input_str", "_bit_input_bool",
          "_bit_os_host", "_bit_os_user", "_bit_os_now", "_bit_os_procs",
          "_bit_run", "_bit_run_live", "_bit_status",
@@ -323,11 +323,7 @@ _bit_print:
     ret
 
 _bit_drop_str:
-    sub rsp, 40
-    mov rcx, rdi
-    call free
-    add rsp, 40
-    ret
+    jmp _bit_str_release
 
 _bit_string_str:
     mov rax, rdi
@@ -528,6 +524,151 @@ _bit_mem_used:
 # ── обёртки и функции для файлов/ввода/ОС, написанные под Windows вручную ──
 WINEXTRA = r"""
 
+_bit_remove_is_home:                // canonical target -> bool
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rdi
+    lea rdi, [rip + Lrt_remove_profile]
+    call _w_getenv
+    test rax, rax
+    jz 1f
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_remove_same_home
+    test rax, rax
+    jnz 2f
+1:  lea rdi, [rip + Lrt_remove_home]
+    call _w_getenv
+    test rax, rax
+    jz 2f
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_remove_same_home
+2:  pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_remove_canonical:              // path -> owned resolved Windows path or 0
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 56
+    mov rcx, rdi
+    xor edx, edx
+    mov r8d, 7
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 3
+    mov qword ptr [rsp + 40], 0x02000000
+    mov qword ptr [rsp + 48], 0
+    call CreateFileA
+    cmp rax, -1
+    je 7f
+    mov rbx, rax
+    mov rcx, rax
+    xor edx, edx
+    xor r8d, r8d
+    xor r9d, r9d
+    call GetFinalPathNameByHandleA
+    test eax, eax
+    jz 6f
+    lea r13d, [eax + 1]
+    mov edi, r13d
+    call _bit_alloc
+    mov r12, rax
+    mov rcx, rbx
+    mov rdx, r12
+    mov r8d, r13d
+    xor r9d, r9d
+    call GetFinalPathNameByHandleA
+    test eax, eax
+    jz 5f
+    cmp eax, r13d
+    jae 5f
+    mov rcx, rbx
+    call CloseHandle
+    mov rax, r12
+    jmp 8f
+5:  mov rdi, r12
+    call _w_free
+6:  mov rcx, rbx
+    call CloseHandle
+7:  xor eax, eax
+8:  add rsp, 56
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_remove_same_home:              // target, HOME value -> HOME equals/is inside target
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 48
+    mov r14, rsi
+    cmp byte ptr [rsi], 0
+    je 7f
+    call _bit_remove_canonical
+    test rax, rax
+    jz 7f
+    mov rbx, rax
+    mov rdi, r14
+    call _bit_remove_canonical
+    test rax, rax
+    jz 6f
+    mov r13, rax
+    xor r12d, r12d
+    mov rcx, rbx
+    mov rdx, r13
+    call lstrcmpiA
+    test eax, eax
+    sete r12b
+    test r12d, r12d
+    jnz 5f
+    mov rdi, rbx
+    call _w_strlen
+    mov [rsp + 32], rax
+    mov rdi, r13
+    call _w_strlen
+    cmp rax, [rsp + 32]
+    jbe 5f
+    mov rax, [rsp + 32]
+    cmp byte ptr [rbx + rax - 1], 92
+    je 1f
+    cmp byte ptr [r13 + rax], 92
+    jne 5f
+1:  mov byte ptr [r13 + rax], 0
+    mov rcx, rbx
+    mov rdx, r13
+    call lstrcmpiA
+    test eax, eax
+    sete r12b
+5:  mov rdi, r13
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+    mov rax, r12
+    jmp 8f
+6:  mov rdi, rbx
+    call _w_free
+7:  xor eax, eax
+8:  add rsp, 48
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+
 _bit_dir_remove_all:
     push rbp
     mov rbp, rsp
@@ -632,6 +773,10 @@ _bit_dir_remove_all:
 22: cmp edx, 2
     jb 6f
 3:  mov rdi, r13
+    call _bit_remove_is_home
+    test rax, rax
+    jnz 36f
+    mov rdi, r13
     mov esi, 1
     call _bit_win_remove_tree
     mov r14, rax
@@ -653,18 +798,26 @@ _bit_dir_remove_all:
     jmp 8f
 7:  mov rdi, r13
     call _w_free
-9:  mov rdi, rbx
-    call _w_free
+9:  lea rdi, [rip + Lrt_ermtree]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
 10: lea rdi, [rip + Lrt_ermtree]
-    mov rsi, r12
-    call _bit_die
-8:  mov rdi, rbx
+    mov rsi, r14
+    mov rdx, r12
+    call _bit_remove_error
+36: mov rdi, r13
     call _w_free
-    lea rdi, [rip + Lrt_ermroot]
-    mov rsi, r12
-    call _bit_die
+    lea rdi, [rip + Lrt_ermhome]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
+8:  lea rdi, [rip + Lrt_ermroot]
+    mov rsi, rbx
+    mov rdx, r12
+    call _bit_remove_error
 
-_bit_win_remove_tree:               // path, require directory -> 0/-1
+_bit_win_remove_tree:               // path, require directory -> 0/owned error path
     push rbp
     mov rbp, rsp
     push rbx
@@ -675,6 +828,7 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     sub rsp, 408
     mov rbx, rdi
     mov [rsp + 392], rsi
+    mov qword ptr [rsp + 400], 0
     mov rcx, rdi
     xor edx, edx
     mov r8d, 3
@@ -738,7 +892,7 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     mov rdi, [rsp + 384]
     call _w_free
     test r15, r15
-    jnz 7f
+    jnz 11f
 4:  mov rcx, r14
     lea rdx, [rsp + 64]
     call FindNextFileA
@@ -761,11 +915,17 @@ _bit_win_remove_tree:               // path, require directory -> 0/-1
     jz 9f
     xor eax, eax
     jmp 10f
+11: mov [rsp + 400], r15
 7:  mov rcx, r14
     call FindClose
 8:  mov rcx, r12
     call CloseHandle
-9:  mov rax, -1
+9:  mov rax, [rsp + 400]
+    test rax, rax
+    jnz 10f
+    mov rdi, rbx
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
 10: add rsp, 408
     pop r15
     pop r14
@@ -3265,6 +3425,9 @@ _bit_proc_scan:                     // rdi = pid, rsi = число, rdx = стр
 FOOT_HEAD = r"""
 .data
 .p2align 3
+Lrt_str_registry: .quad 0
+Lrt_str_low: .quad -1
+Lrt_str_high: .quad 0
 Lrt_argc: .quad 0
 Lrt_argv: .quad 0
 Lrt_status: .quad 0
@@ -3307,8 +3470,10 @@ Lrt_edns: .asciz "ne mogu najti adres hosta"
 """
 
 NEWSTR = {
-    "Lrt_ermroot": "remove_all: нельзя удалять корень, пустой путь, . или ..",
-    "Lrt_ermtree": "не могу удалить папку с содержимым",
+    "Lrt_remove_home": "HOME", "Lrt_remove_profile": "USERPROFILE",
+    "Lrt_ermhome": "remove_all: нельзя удалять домашнюю папку: ",
+    "Lrt_ermroot": "remove_all: нельзя удалять корень, пустой путь, . или ..: ",
+    "Lrt_ermtree": "не могу удалить папку с содержимым: ",
     "Lrt_epermread": "не могу узнать права доступа: ",
     "Lrt_epermwrite": "не могу изменить права доступа: ",
     "Lrt_ecwd": "не могу узнать текущую папку",

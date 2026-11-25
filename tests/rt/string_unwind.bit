@@ -1,0 +1,102 @@
+fn unwind_string(num n) {
+    return "value-{n}";
+}
+fn unwind_target(string value, num marker) {
+    return value >> sz + marker;
+}
+fn unwind_failure() {
+    return "invalid-number" >> num;
+}
+fn unwind_body_failure(string value) {
+    do(unwind_failure());
+}
+fn unwind_replace() {
+    string value = "seed";
+    for i in 0:99 {
+        do(value >> ch(unwind_string(i)));
+        do(value >> ch(value));
+    }
+    return value;
+}
+fn unwind_format(string value) {
+    return "[{value}]";
+}
+fn unwind_replaced_failure() {
+    string value = "seed";
+    do(value >> ch(unwind_string(9)));
+    do(value >> ch(value));
+    do(unwind_failure());
+}
+fn unwind_parameter_recover(string value) {
+    do(value >> ch("[{value}]"));
+    recover {
+        do(unwind_failure());
+    } else {
+        return value;
+    }
+    return value;
+}
+fn unwind_parameter_borrowed(string value) {
+    recover {
+        do(unwind_failure());
+    } else {
+        return value;
+    }
+    return value;
+}
+fn unwind_runtime_slice() {
+    return "абвг" >> get(1:2);
+}
+fn unwind_runtime_empty() {
+    return "abc" >> get(2:1);
+}
+fn unwind_runtime_name() {
+    file path = "folder/name.txt";
+    return path >> name;
+}
+fn unwind_runtime_bytes() {
+    bytes data = mem >> take(2);
+    do(data >> set(0, 65) >> set(1, 66));
+    string result = data >> text;
+    do(data >> free);
+    return result;
+}
+host {
+    num caught = 0;
+    all target = unwind_target;
+    for n in 0:63 {
+        recover {
+            do(unwind_target(unwind_string(n), unwind_failure()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            do(target(unwind_string(n), unwind_failure()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            do(unwind_body_failure(unwind_string(n)));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            do(unwind_replaced_failure());
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+    }
+    if caught != 256 {
+        print("wrong-recovery-count" >> num);
+    }
+    do(unwind_target(unwind_string(7), 2));
+    do(target(unwind_string(8), 3));
+    do(unwind_replace());
+    do(unwind_format(unwind_string(6)));
+    do(unwind_parameter_recover(unwind_string(10)));
+    do(unwind_parameter_borrowed(unwind_string(11)));
+    do(unwind_runtime_slice());
+    do(unwind_runtime_empty());
+    do(unwind_runtime_name());
+    do(unwind_runtime_bytes());
+}

@@ -1,0 +1,48 @@
+fn replace_make(num value) {
+    return "item-{value}";
+}
+fn replace_local(num count) {
+    string value = "seed";
+    for i in 0:count - 1 {
+        do(value >> ch(replace_make(i)));
+        do(value >> ch(value));
+    }
+    return value;
+}
+fn replace_parameter(string value) {
+    do(value >> ch("[{value}]"));
+    do(value >> ch(value));
+    return value;
+}
+fn replace_empty() {
+    string value();
+    do(value >> ch(replace_make(5)));
+    do(value >> ch("literal"));
+    do(value >> ch(replace_make(6)));
+    return value;
+}
+host {
+    print(replace_local(10000));
+    print(replace_parameter(replace_make(7)));
+    print(replace_empty());
+    string outer = replace_make(100);
+    for i in 0:2 {
+        string inner = "seed";
+        do(inner >> ch(replace_make(i)));
+        print(inner);
+        if i == 0 { next; }
+        break;
+    }
+    recover {
+        string before_failure = "seed";
+        do(before_failure >> ch(replace_make(9)));
+        do(before_failure >> ch(before_failure));
+        print("invalid" >> num);
+    } else {
+        print("caught");
+    }
+    print(outer);
+    do(outer >> ch("literal"));
+    do(outer >> ch(replace_make(101)));
+    print(outer);
+}

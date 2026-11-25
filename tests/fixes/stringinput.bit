@@ -1,0 +1,12 @@
+host {
+    string value >> input();
+    print(value);
+    do(value >> input());
+    print(value);
+    recover {
+        do(value >> input());
+    } else {
+        print("EOF caught");
+    }
+    print(value);
+}

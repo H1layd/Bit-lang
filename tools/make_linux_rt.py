@@ -21,8 +21,16 @@ t = re.sub(r"\b(call|jmp) _(?!bit_|_)([a-z_0-9]+)\b", r"\1 \2@PLT", t)
 t = t.replace("call ___error", "call __errno_location@PLT")
 t = t.replace('call "_fstatat$INODE64"', "call fstatat@PLT")
 t = t.replace('call "_fdopendir$INODE64"', "call fdopendir@PLT")
-# Descriptor-relative recursive removal: Linux constants differ from Darwin.
-t = t.replace("mov rdi, -2", "mov rdi, -100")
+# Scope ABI substitutions to one runtime function.
+def func_transform(text, name, transform):
+    start = text.index("\n" + name + ":") + 1
+    match = re.search(r"\n(_bit_[a-z_0-9]+:|\.section|\.data)", text[start:])
+    end = start + match.start() if match else len(text)
+    return text[:start] + transform(text[start:end]) + text[end:]
+
+# AT_FDCWD belongs only to the top-level removal wrapper.
+t = func_transform(t, "_bit_dir_remove_all",
+                   lambda body: body.replace("mov rdi, -2", "mov rdi, -100"))
 t = t.replace("mov ecx, 32" + chr(10) + '    call fstatat@PLT', "mov ecx, 256" + chr(10) + '    call fstatat@PLT')
 t = t.replace("mov edx, 0x100100", "mov edx, 0x30000")
 t = t.replace("mov edx, 128" + chr(10) + "    call unlinkat@PLT", "mov edx, 512" + chr(10) + "    call unlinkat@PLT")
@@ -38,7 +46,7 @@ t = t.replace("movzx eax, word ptr [rsp + 4]", "mov eax, dword ptr [rsp + 24]")
 t = t.replace("mov rdx, qword ptr [rsp + 96]", "mov rdx, qword ptr [rsp + 48]")
 t = t.replace("mov rdx, qword ptr [rsp + 48]" + chr(10) + "    mov [rax + 16]", "mov rdx, qword ptr [rsp + 88]" + chr(10) + "    mov [rax + 16]")
 # struct stat: st_mtime с 88-го байта
-t = t.replace("mov rax, qword ptr [rsp + 48]       // st_mtime", "mov rax, qword ptr [rsp + 88]       // st_mtime")
+t = t.replace("mov rax, qword ptr [rsp + 48]       // st_mtime", "mov rax, qword ptr [rsp + 88]       # st_mtime")
 
 t = func_replace(t, "_bit_open_update", """
 _bit_open_update:

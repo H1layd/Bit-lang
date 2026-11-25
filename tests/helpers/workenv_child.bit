@@ -6,5 +6,8 @@ host {
         do(marker >> write(value));
     else:
         file local = "local.txt";
-        print("{value} / {local >> read} / {term >> env('BIT_ТЕСТ')}");
+        if (term >> args >> get(0, "")) == "shell":
+            print("{value} / {local >> read}");
+        else:
+            print("{value} / {local >> read} / {term >> env('BIT_ТЕСТ')}");
 }

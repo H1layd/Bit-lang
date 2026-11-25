@@ -27,7 +27,12 @@ for a in $ARCHES; do
         else
             out=$(./bitc run "$f" --arch "$a" < "$inp" 2>&1; echo "$? ")
         fi
-        [ "$out" = "$(cat "$n.out")" ] && pass || fail "$f [$a]"
+        if [ "$out" = "$(cat "$n.out")" ]; then
+            pass
+        else
+            fail "$f [$a]"
+            printf 'Ожидалось:\n%s\nПолучено:\n%s\n' "$(cat "$n.out")" "$out"
+        fi
     done
 done
 
