@@ -13,12 +13,22 @@ for a in $ARCHES; do
     ./bitc build tests/helpers/workenv_child.bit --arch "$a" -o "$helper" >/dev/null || exit 1
     for f in hello demo ext chains; do
         out=$(printf '9\nabc\n2\n' | ./bitc run "examples/$f.bit" --arch "$a" 2>&1)
-        [ "$out" = "$(cat "tests/expected/$f.txt")" ] && pass || fail "$f [$a]"
+        if [ "$out" = "$(cat "tests/expected/$f.txt")" ]; then
+            pass
+        else
+            fail "$f [$a]"
+            printf 'Ожидалось:\n%s\nПолучено:\n%s\n' "$(cat "tests/expected/$f.txt")" "$out"
+        fi
     done
     for f in examples/errors/*.bit; do
         n=$(basename "$f" .bit)
         out=$(./bitc run "$f" --arch "$a" </dev/null 2>&1)
-        [ "$out" = "$(cat "tests/expected/err_$n.txt")" ] && pass || fail "$f [$a]"
+        if [ "$out" = "$(cat "tests/expected/err_$n.txt")" ]; then
+            pass
+        else
+            fail "$f [$a]"
+            printf 'Ожидалось:\n%s\nПолучено:\n%s\n' "$(cat "tests/expected/err_$n.txt")" "$out"
+        fi
     done
     for f in tests/fixes/*.bit; do
         n="${f%.bit}"; inp=/dev/null; [ -f "$n.in" ] && inp="$n.in"

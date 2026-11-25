@@ -61,6 +61,15 @@ fn unwind_runtime_bytes() {
     do(data >> free);
     return result;
 }
+fn unwind_pipe_trim(num n) {
+    return unwind_string(n) >> trim;
+}
+fn unwind_pipe_slice(num n) {
+    return unwind_string(n) >> get(1:3);
+}
+fn unwind_pipe_char(num n) {
+    return unwind_string(n) >> get(1);
+}
 host {
     num caught = 0;
     all target = unwind_target;
@@ -99,4 +108,30 @@ host {
     do(unwind_runtime_empty());
     do(unwind_runtime_name());
     do(unwind_runtime_bytes());
+    for i in 0:100 {
+        if unwind_string(i) >> sz < 1 {
+            print("invalid-length" >> num);
+        }
+        if not (unwind_string(i) >> starts("value")) {
+            print("invalid-prefix" >> num);
+        }
+        do(unwind_pipe_trim(i));
+        do(unwind_pipe_slice(i));
+        do(unwind_pipe_char(i));
+        recover {
+            print(unwind_string(i) >> get(unwind_failure()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(unwind_string(i) >> num);
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(unwind_string(i) >> get(unwind_failure():2));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+    }
 }

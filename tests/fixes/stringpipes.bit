@@ -1,0 +1,24 @@
+fn pipe_make(num n) { return " value-{n} "; }
+fn pipe_fail() { return "bad-number" >> num; }
+host {
+    print(pipe_make(4) >> sz);
+    print(pipe_make(4) >> trim);
+    print(pipe_make(4) >> get(1:5));
+    print(pipe_make(4) >> get(1));
+    print(pipe_make(4) >> starts(" value"));
+    print(pipe_make(4) >> ends("4 "));
+    print(pipe_make(4) >> replace("value", "v"));
+    mas parts = pipe_make(4) >> split("-");
+    print(parts >> get(0, "missing"));
+    print(parts >> get(1, "missing"));
+    recover {
+        print(pipe_make(9) >> get(pipe_fail()));
+    } else {
+        print("caught");
+    }
+    recover {
+        print(pipe_make(9) >> get(pipe_fail():3));
+    } else {
+        print("caught range");
+    }
+}

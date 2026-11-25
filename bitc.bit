@@ -6693,7 +6693,12 @@ fn e_pipe(num n, bool in_do) {
         return;
     }
     if ot == "string" and (mn == "trim" or mn == "starts" or mn == "ends" or mn == "split" or mn == "replace") {
+        mas receiver_refs = (num);
+        if RFRESH {
+            do(hold_call_string(obj, ot, receiver_refs));
+        }
         do(str_method(n, mn, line));
+        do(drop_call_strings(receiver_refs));
         return;
     }
     if is_mas(ot) and mn == "run" {
@@ -6727,6 +6732,10 @@ fn e_pipe(num n, bool in_do) {
         string a = MA;
         string r = MR;
         bool lf = MLF;
+        mas receiver_refs = (num);
+        if is_path(ot) and RFRESH and f != "" and f != "join" {
+            do(hold_call_string(obj, ot, receiver_refs));
+        }
         if f == "" {
             if c1(n) > 0 {
                 do(fail("{mn} пишется без скобок", line));
@@ -6765,6 +6774,7 @@ fn e_pipe(num n, bool in_do) {
             do(op_lstr(pr(1), ""));
             do(op_call("_bit_cat"));
         }
+        do(drop_call_strings(receiver_refs));
         if f == "_bit_basename" or f == "_bit_file_read" or f == "_bit_bytes_text" or
            f == "_bit_mas_text" or f == "_bit_mas_join" or f == "_bit_sock_recv" or
            f == "_bit_resolve" or f == "_bit_run" or f == "_bit_fetch" or
@@ -6779,7 +6789,12 @@ fn e_pipe(num n, bool in_do) {
             do(fail("sz пишется без скобок: a >> sz", line));
         }
         if ot == "string" {
+            mas receiver_refs = (num);
+            if RFRESH {
+                do(hold_call_string(obj, ot, receiver_refs));
+            }
             do(op_rt1("_bit_str_sz"));
+            do(drop_call_strings(receiver_refs));
             do(res("num"));
             do(rng(true, 0, false, 0));
             return;
@@ -6799,8 +6814,13 @@ fn e_pipe(num n, bool in_do) {
             if c1(n) != 1 {
                 do(fail("get(номер) или get(от:до), например get(0) или get(0:4)", line));
             }
+            mas receiver_refs = (num);
+            if RFRESH {
+                do(hold_call_string(obj, ot, receiver_refs));
+            }
             if ot == "string" and isrange {
                 do(range_call("_bit_str_slice", n, false));
+                do(drop_call_strings(receiver_refs));
                 do(res("string"));
                 do(op_rt1("_bit_str_adopt"));
                 do(RFRESH >> ch(true));
@@ -6808,11 +6828,13 @@ fn e_pipe(num n, bool in_do) {
             }
             if ot == "file" and isrange {
                 do(range_call("_bit_file_slice", n, true));
+                do(drop_call_strings(receiver_refs));
                 do(res("mas:string"));
                 return;
             }
             if ot == "file" {
                 do(rt_call("_bit_file_line", true, n, "num", true, ""));
+                do(drop_call_strings(receiver_refs));
                 do(res("string"));
                 do(op_rt1("_bit_str_adopt"));
                 do(RFRESH >> ch(true));
@@ -6825,6 +6847,7 @@ fn e_pipe(num n, bool in_do) {
             do(op_mov(pr(2), acc()));
             do(pop(pr(0)));
             do(op_call("_bit_str_slice"));
+            do(drop_call_strings(receiver_refs));
             do(res("string"));
             do(op_rt1("_bit_str_adopt"));
             do(RFRESH >> ch(true));
