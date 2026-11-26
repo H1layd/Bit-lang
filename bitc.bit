@@ -14817,11 +14817,13 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rbx, rax"));
     do(o >> add("    mov rax, [rbx]"));
     do(o >> add("    mov rax, [rax + 168]"));
     do(o >> add("    mov [rbx], rax"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -14830,11 +14832,13 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rcx, [rax + 8]"));
     do(o >> add("    mov [rbx + 8], rcx"));
     do(o >> add("    mov [rax + 8], rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -14843,12 +14847,14 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rbx, rax"));
     do(o >> add("    mov rax, [rbx + 8]"));
     do(o >> add("    mov rcx, [rax + 8]"));
     do(o >> add("    mov [rbx + 8], rcx"));
     do(o >> add("    mov rdi, [rax]"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_drop_str"));
@@ -14882,9 +14888,11 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov [rax + 32], rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -15148,7 +15156,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
-    do(o >> add("    sub rsp, 128"));
+    do(o >> add("    sub rsp, 136"));
     do(o >> add("    mov ebx, edi"));
     do(o >> add("    xor edi, edi"));
     do(o >> add("    lea rsi, [rsp]"));
@@ -15166,7 +15174,7 @@ fn rt_x86(mas o) {
     do(o >> add("    xor esi, esi"));
     do(o >> add("    lea rdx, [rsp]"));
     do(o >> add("    call _tcsetattr"));
-    do(o >> add("9:  add rsp, 128"));
+    do(o >> add("9:  add rsp, 136"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -15252,6 +15260,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov r12, rdi"));
     do(o >> add("    mov r13, rsi"));
     do(o >> add("    call _bit_tstate"));
@@ -15271,6 +15280,7 @@ fn rt_x86(mas o) {
     do(o >> add("    jmp 1b"));
     do(o >> add("2:  mov rdi, r13"));
     do(o >> add("    mov esi, 1"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -15327,7 +15337,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov [rsp], rdx"));
@@ -15380,7 +15390,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov [rax + rcx*8], rdx"));
     do(o >> add("    inc r15"));
     do(o >> add("    jmp 2b"));
-    do(o >> add("9:  add rsp, 64"));
+    do(o >> add("9:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -15678,13 +15688,15 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_lock"));
     do(o >> add("    mov rdi, rbx"));
     do(o >> add("    call _bit_str_find_raw"));
-    do(o >> add("    push rax"));
+    do(o >> add("    mov [rsp], rax"));
     do(o >> add("    call _bit_unlock"));
-    do(o >> add("    pop rax"));
+    do(o >> add("    mov rax, [rsp]"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -15698,6 +15710,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_str_find"));
     do(o >> add("    test rax, rax"));
@@ -15711,6 +15724,7 @@ fn rt_x86(mas o) {
     do(o >> add("    inc qword ptr [rax + 8]"));
     do(o >> add("4:  call _bit_unlock"));
     do(o >> add("1:  mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("3:  ret"));
@@ -16293,6 +16307,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov r13, rsi"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    test rbx, rbx"));
@@ -16357,6 +16372,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov [r12 + 2], al"));
     do(o >> add("    mov byte ptr [r12 + 3], 0"));
     do(o >> add("8:  mov rax, r12"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -16364,6 +16380,7 @@ fn rt_x86(mas o) {
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_echar_range]"));
     do(o >> add("    mov rsi, r13"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -16386,7 +16403,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov r13, rcx"));
@@ -16504,7 +16521,7 @@ fn rt_x86(mas o) {
     do(o >> add("30: mov rax, [rsp + 24]"));
     do(o >> add("    mov byte ptr [r15 + rax], 0"));
     do(o >> add("    mov rax, r15"));
-    do(o >> add("8:  add rsp, 64"));
+    do(o >> add("8:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -16514,7 +16531,7 @@ fn rt_x86(mas o) {
     do(o >> add("    ret"));
     do(o >> add("99: lea rdi, [rip + Lrt_epad_width]"));
     do(o >> add("    mov rsi, r13"));
-    do(o >> add("    add rsp, 64"));
+    do(o >> add("    add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -16564,9 +16581,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov rdx, r14"));
     do(o >> add("    push r8"));
     do(o >> add("    push r9"));
-    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _memcpy"));
-    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r9"));
     do(o >> add("    pop r8"));
     do(o >> add("    inc r9"));
@@ -20123,7 +20138,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
-    do(o >> add("    sub rsp, 112"));
+    do(o >> add("    sub rsp, 120"));
     do(o >> add("    mov [rsp + 96], rdx"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
@@ -20193,7 +20208,7 @@ fn rt_x86(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jnz 8f"));
     do(o >> add("    mov eax, ebx"));
-    do(o >> add("    add rsp, 112"));
+    do(o >> add("    add rsp, 120"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -20207,7 +20222,7 @@ fn rt_x86(mas o) {
     do(o >> add("    jmp 10f"));
     do(o >> add("9:  xor edi, edi"));
     do(o >> add("    call _bit_set_errcode"));
-    do(o >> add("10: add rsp, 112"));
+    do(o >> add("10: add rsp, 120"));
     do(o >> add("    lea rdi, [rip + Lrt_enet]"));
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    pop r13"));
@@ -20479,17 +20494,20 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rsi"));
     do(o >> add("    xor esi, esi"));
     do(o >> add("    xor edx, edx"));
     do(o >> add("    call _accept"));
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_eaccept]"));
     do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
@@ -21140,6 +21158,7 @@ fn rt_x86(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov edi, 256"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov rbx, rax"));
@@ -21147,6 +21166,7 @@ fn rt_x86(mas o) {
     do(o >> add("    mov esi, 256"));
     do(o >> add("    call _gethostname"));
     do(o >> add("    mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -21781,11 +21801,13 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rbx, rax"));
     do(o >> add("    mov rax, [rbx]"));
     do(o >> add("    mov rax, [rax + 168]"));
     do(o >> add("    mov [rbx], rax"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -21794,11 +21816,13 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rcx, [rax + 8]"));
     do(o >> add("    mov [rbx + 8], rcx"));
     do(o >> add("    mov [rax + 8], rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -21807,12 +21831,14 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov rbx, rax"));
     do(o >> add("    mov rax, [rbx + 8]"));
     do(o >> add("    mov rcx, [rax + 8]"));
     do(o >> add("    mov [rbx + 8], rcx"));
     do(o >> add("    mov rdi, [rax]"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_drop_str"));
@@ -21846,9 +21872,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_tstate"));
     do(o >> add("    mov [rax + 32], rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -22112,7 +22140,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
-    do(o >> add("    sub rsp, 128"));
+    do(o >> add("    sub rsp, 136"));
     do(o >> add("    mov ebx, edi"));
     do(o >> add("    xor edi, edi"));
     do(o >> add("    lea rsi, [rsp]"));
@@ -22130,7 +22158,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    xor esi, esi"));
     do(o >> add("    lea rdx, [rsp]"));
     do(o >> add("    call tcsetattr@PLT"));
-    do(o >> add("9:  add rsp, 128"));
+    do(o >> add("9:  add rsp, 136"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -22216,6 +22244,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov r12, rdi"));
     do(o >> add("    mov r13, rsi"));
     do(o >> add("    call _bit_tstate"));
@@ -22235,6 +22264,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jmp 1b"));
     do(o >> add("2:  mov rdi, r13"));
     do(o >> add("    mov esi, 1"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -22291,7 +22321,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov [rsp], rdx"));
@@ -22344,7 +22374,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov [rax + rcx*8], rdx"));
     do(o >> add("    inc r15"));
     do(o >> add("    jmp 2b"));
-    do(o >> add("9:  add rsp, 64"));
+    do(o >> add("9:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -22642,13 +22672,15 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_lock"));
     do(o >> add("    mov rdi, rbx"));
     do(o >> add("    call _bit_str_find_raw"));
-    do(o >> add("    push rax"));
+    do(o >> add("    mov [rsp], rax"));
     do(o >> add("    call _bit_unlock"));
-    do(o >> add("    pop rax"));
+    do(o >> add("    mov rax, [rsp]"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -22662,6 +22694,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_str_find"));
     do(o >> add("    test rax, rax"));
@@ -22675,6 +22708,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    inc qword ptr [rax + 8]"));
     do(o >> add("4:  call _bit_unlock"));
     do(o >> add("1:  mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("3:  ret"));
@@ -23257,6 +23291,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov r13, rsi"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    test rbx, rbx"));
@@ -23321,6 +23356,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov [r12 + 2], al"));
     do(o >> add("    mov byte ptr [r12 + 3], 0"));
     do(o >> add("8:  mov rax, r12"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -23328,6 +23364,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_echar_range]"));
     do(o >> add("    mov rsi, r13"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -23350,7 +23387,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov r13, rcx"));
@@ -23468,7 +23505,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("30: mov rax, [rsp + 24]"));
     do(o >> add("    mov byte ptr [r15 + rax], 0"));
     do(o >> add("    mov rax, r15"));
-    do(o >> add("8:  add rsp, 64"));
+    do(o >> add("8:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -23478,7 +23515,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    ret"));
     do(o >> add("99: lea rdi, [rip + Lrt_epad_width]"));
     do(o >> add("    mov rsi, r13"));
-    do(o >> add("    add rsp, 64"));
+    do(o >> add("    add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -23528,9 +23565,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r14"));
     do(o >> add("    push r8"));
     do(o >> add("    push r9"));
-    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call memcpy@PLT"));
-    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r9"));
     do(o >> add("    pop r8"));
     do(o >> add("    inc r9"));
@@ -26827,7 +26862,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
-    do(o >> add("    sub rsp, 112"));
+    do(o >> add("    sub rsp, 120"));
     do(o >> add("    mov [rsp + 96], rdx"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
@@ -26897,7 +26932,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jnz 8f"));
     do(o >> add("    mov eax, ebx"));
-    do(o >> add("    add rsp, 112"));
+    do(o >> add("    add rsp, 120"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -26911,7 +26946,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jmp 10f"));
     do(o >> add("9:  xor edi, edi"));
     do(o >> add("    call _bit_set_errcode"));
-    do(o >> add("10: add rsp, 112"));
+    do(o >> add("10: add rsp, 120"));
     do(o >> add("    lea rdi, [rip + Lrt_enet]"));
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    pop r13"));
@@ -27183,17 +27218,20 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rsi"));
     do(o >> add("    xor esi, esi"));
     do(o >> add("    xor edx, edx"));
     do(o >> add("    call accept@PLT"));
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_eaccept]"));
     do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
@@ -27844,6 +27882,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov edi, 256"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov rbx, rax"));
@@ -27851,6 +27890,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov esi, 256"));
     do(o >> add("    call gethostname@PLT"));
     do(o >> add("    mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -29089,7 +29129,8 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add("_bit_oom:"));
-    do(o >> add("    sub rsp, 40"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
     do(o >> add("    lea rcx, [rip + Lrt_oom]"));
     do(o >> add("    call puts"));
     do(o >> add("    mov ecx, 1"));
@@ -32385,13 +32426,15 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_lock"));
     do(o >> add("    mov rdi, rbx"));
     do(o >> add("    call _bit_str_find_raw"));
-    do(o >> add("    push rax"));
+    do(o >> add("    mov [rsp], rax"));
     do(o >> add("    call _bit_unlock"));
-    do(o >> add("    pop rax"));
+    do(o >> add("    mov rax, [rsp]"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
@@ -32405,6 +32448,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    call _bit_str_find"));
     do(o >> add("    test rax, rax"));
@@ -32418,6 +32462,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    inc qword ptr [rax + 8]"));
     do(o >> add("4:  call _bit_unlock"));
     do(o >> add("1:  mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("3:  ret"));
@@ -34046,7 +34091,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov [rsp], rdx"));
@@ -34099,7 +34144,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov [rax + rcx*8], rdx"));
     do(o >> add("    inc r15"));
     do(o >> add("    jmp 2b"));
-    do(o >> add("9:  add rsp, 64"));
+    do(o >> add("9:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -34305,6 +34350,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov r13, rsi"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    test rbx, rbx"));
@@ -34369,6 +34415,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov [r12 + 2], al"));
     do(o >> add("    mov byte ptr [r12 + 3], 0"));
     do(o >> add("8:  mov rax, r12"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -34376,6 +34423,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_echar_range]"));
     do(o >> add("    mov rsi, r13"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -34398,7 +34446,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    push r15"));
-    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    sub rsp, 72"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
     do(o >> add("    mov r13, rcx"));
@@ -34516,7 +34564,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("30: mov rax, [rsp + 24]"));
     do(o >> add("    mov byte ptr [r15 + rax], 0"));
     do(o >> add("    mov rax, r15"));
-    do(o >> add("8:  add rsp, 64"));
+    do(o >> add("8:  add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -34526,7 +34574,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    ret"));
     do(o >> add("99: lea rdi, [rip + Lrt_epad_width]"));
     do(o >> add("    mov rsi, r13"));
-    do(o >> add("    add rsp, 64"));
+    do(o >> add("    add rsp, 72"));
     do(o >> add("    pop r15"));
     do(o >> add("    pop r14"));
     do(o >> add("    pop r13"));
@@ -34576,9 +34624,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov rdx, r14"));
     do(o >> add("    push r8"));
     do(o >> add("    push r9"));
-    do(o >> add("    sub rsp, 8"));
     do(o >> add("    call _w_memcpy"));
-    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop r9"));
     do(o >> add("    pop r8"));
     do(o >> add("    inc r9"));
@@ -34685,7 +34731,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    push r13"));
-    do(o >> add("    sub rsp, 112"));
+    do(o >> add("    sub rsp, 120"));
     do(o >> add("    mov [rsp + 96], rdx"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
@@ -34755,7 +34801,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jnz 8f"));
     do(o >> add("    mov eax, ebx"));
-    do(o >> add("    add rsp, 112"));
+    do(o >> add("    add rsp, 120"));
     do(o >> add("    pop r13"));
     do(o >> add("    pop r12"));
     do(o >> add("    pop rbx"));
@@ -34769,7 +34815,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    jmp 10f"));
     do(o >> add("9:  xor edi, edi"));
     do(o >> add("    call _bit_set_errcode"));
-    do(o >> add("10: add rsp, 112"));
+    do(o >> add("10: add rsp, 120"));
     do(o >> add("    lea rdi, [rip + Lrt_enet]"));
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    pop r13"));
@@ -34863,17 +34909,20 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rsi"));
     do(o >> add("    xor esi, esi"));
     do(o >> add("    xor edx, edx"));
     do(o >> add("    call _w_accept"));
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add("9:  lea rdi, [rip + Lrt_eaccept]"));
     do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
@@ -36258,6 +36307,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov edi, 256"));
     do(o >> add("    call _bit_alloc"));
     do(o >> add("    mov rbx, rax"));
@@ -36265,6 +36315,7 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    mov esi, 256"));
     do(o >> add("    call _w_gethostname"));
     do(o >> add("    mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));

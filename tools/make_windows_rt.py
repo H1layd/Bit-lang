@@ -289,7 +289,8 @@ _bit_alloc:
     ret
 
 _bit_oom:
-    sub rsp, 40
+    and rsp, -16
+    sub rsp, 32
     lea rcx, [rip + Lrt_oom]
     call puts
     mov ecx, 1

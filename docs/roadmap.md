@@ -113,7 +113,10 @@ wait.
   After the thread lifecycle changes, two full QEMU runs passed 125/126 and 124/126;
   QEMU crashed during different tests. In 500 repetitions of one example it crashed
   once with the earlier version and four times with the new one; both core files were
-  ARM64 QEMU processes. The cause of the difference is unresolved without native Linux.
+  ARM64 QEMU processes. In a new paired run of 500 repetitions after stack alignment
+  work, QEMU crashed eight times before and seven times after; those cores were also
+  from QEMU. The final full run after the alignment fixes passed 128/128 and
+  self-hosting. These measurements do not establish reliability on native Linux.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
 - [x] **`connect(ms)`** — a TCP connect with a bound wait: a nonblocking socket,
@@ -130,8 +133,14 @@ wait.
   Fixed Linux `SO_ERROR` in `connect(ms)`, macOS `O_NONBLOCK`, its `fcntl` argument,
   and the error line. Address and port parsing is bounded. An end-to-end timeout test
   against a guaranteed nonresponding host remains outstanding.
-- [ ] After the network milestone, audit stack alignment of the remaining handwritten
-  Windows wrappers, as agreed with the author.
+- [x] **x86-64 stack alignment**: a static traversal of 203 macOS, 211 Linux, and
+  265 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
+  no issues remain in that check. On Windows,
+  68 test programs passed with a trap before every call; 11 selected programs were
+  checked on macOS and Linux. `python3 tools/test_x86_stack_audit.py` is part of the
+  regular suite; Windows also supports
+  `./tests_win.sh --stack-check host`. The check analyzes RSP alignment, not shadow-space
+  size, register preservation, or the correctness of external libraries.
 - [ ] Signals through `term >> signalled`: test with a separate child bit program
   receiving a signal or console event from an external process.
 
@@ -162,8 +171,8 @@ Status of the milestones already started. Each change ends with checks and docum
 Before implementing the package manager, stop, report progress, and wait for the author.
 Do not start the package manager or subsequent milestones until instructed.
 
-**Current work:** after the service-network milestone, complete the agreed Windows-wrapper
-audit and signals. Continue the unfinished memory work:
+**Current work:** the agreed Windows-wrapper stack-alignment audit is complete; signals
+are next. Continue the unfinished memory work:
 strings first, followed by `mas`, `map`, and records. The items below are directions,
 not a commitment to a strictly sequential order; the package-manager checkpoint still
 applies. The author chooses the license and new language decisions.

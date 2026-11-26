@@ -55,8 +55,9 @@ T="${TMPDIR:-/tmp}"
 if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_string_refs.py; then pass; else fail "подсчёт ссылок строк"; fi
     if python3 tools/test_thread_lifecycle.py; then pass; else fail "ожидание потоков"; fi
+    if python3 tools/test_x86_stack_audit.py; then pass; else fail "выравнивание стека x86"; fi
 else
-    echo "проверки ссылок и потоков пропущены: нужен python3"
+    echo "проверки ссылок, потоков и стека x86 пропущены: нужен python3"
 fi
 echo "прошло: $ok, упало: $bad"
 [ "$bad" = 0 ]

@@ -166,3 +166,8 @@ emulated thread. A native Linux memory run remains outstanding.
 
 `python3 tools/test_thread_lifecycle.py` checks repeated and concurrent joins with a child-process
 timeout; `tests.sh` runs it when Python 3 is available.
+
+After the stack-alignment fixes, three self-builds per version on macOS ARM64 gave
+medians of 5.123 s and 668.30 MiB before, and 5.153 s and 669.20 MiB after. Compiler
+sources differ slightly and the machine was not isolated; the difference below 1% is
+not evidence of a slowdown.

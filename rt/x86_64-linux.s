@@ -88,11 +88,13 @@ _bit_recover_leave:
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     call _bit_tstate
     mov rbx, rax
     mov rax, [rbx]
     mov rax, [rax + 168]
     mov [rbx], rax
+    add rsp, 8
     pop rbx
     pop rbp
     ret
@@ -101,11 +103,13 @@ _bit_own_str:                       // rdi = stack record with string and previo
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov rbx, rdi
     call _bit_tstate
     mov rcx, [rax + 8]
     mov [rbx + 8], rcx
     mov [rax + 8], rbx
+    add rsp, 8
     pop rbx
     pop rbp
     ret
@@ -114,12 +118,14 @@ _bit_drop_owned:
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     call _bit_tstate
     mov rbx, rax
     mov rax, [rbx + 8]
     mov rcx, [rax + 8]
     mov [rbx + 8], rcx
     mov rdi, [rax]
+    add rsp, 8
     pop rbx
     pop rbp
     jmp _bit_drop_str
@@ -153,9 +159,11 @@ _bit_set_errcode:                   // rdi = код → запомнить дл�
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov rbx, rdi
     call _bit_tstate
     mov [rax + 32], rbx
+    add rsp, 8
     pop rbx
     pop rbp
     ret
@@ -419,7 +427,7 @@ _bit_term_raw:                      // rdi = 1 сырой режим, 0 обыч
     push rbp
     mov rbp, rsp
     push rbx
-    sub rsp, 128
+    sub rsp, 136
     mov ebx, edi
     xor edi, edi
     lea rsi, [rsp]
@@ -437,7 +445,7 @@ _bit_term_raw:                      // rdi = 1 сырой режим, 0 обыч
     xor esi, esi
     lea rdx, [rsp]
     call tcsetattr@PLT
-9:  add rsp, 128
+9:  add rsp, 136
     pop rbx
     pop rbp
     ret
@@ -523,6 +531,7 @@ _bit_die:                           // rdi = сообщение, rsi = стро�
     push rbx
     push r12
     push r13
+    sub rsp, 8
     mov r12, rdi
     mov r13, rsi
     call _bit_tstate
@@ -542,6 +551,7 @@ _bit_die:                           // rdi = сообщение, rsi = стро�
     jmp 1b
 2:  mov rdi, r13
     mov esi, 1
+    add rsp, 8
     pop r13
     pop r12
     pop rbx
@@ -598,7 +608,7 @@ _bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx
     push r13
     push r14
     push r15
-    sub rsp, 64
+    sub rsp, 72
     mov rbx, rdi
     mov r12, rsi
     mov [rsp], rdx
@@ -651,7 +661,7 @@ _bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx
     mov [rax + rcx*8], rdx
     inc r15
     jmp 2b
-9:  add rsp, 64
+9:  add rsp, 72
     pop r15
     pop r14
     pop r13
@@ -949,13 +959,15 @@ _bit_str_find:                      // rdi = указатель → запись
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov rbx, rdi
     call _bit_lock
     mov rdi, rbx
     call _bit_str_find_raw
-    push rax
+    mov [rsp], rax
     call _bit_unlock
-    pop rax
+    mov rax, [rsp]
+    add rsp, 8
     pop rbx
     pop rbp
     ret
@@ -969,6 +981,7 @@ _bit_str_retain:
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov rbx, rdi
     call _bit_str_find
     test rax, rax
@@ -982,6 +995,7 @@ _bit_str_retain:
     inc qword ptr [rax + 8]
 4:  call _bit_unlock
 1:  mov rax, rbx
+    add rsp, 8
     pop rbx
     pop rbp
 3:  ret
@@ -1564,6 +1578,7 @@ _bit_num_char:                      // rdi=код, rsi=строка програ
     push rbx
     push r12
     push r13
+    sub rsp, 8
     mov r13, rsi
     mov rbx, rdi
     test rbx, rbx
@@ -1628,6 +1643,7 @@ _bit_num_char:                      // rdi=код, rsi=строка програ
     mov [r12 + 2], al
     mov byte ptr [r12 + 3], 0
 8:  mov rax, r12
+    add rsp, 8
     pop r13
     pop r12
     pop rbx
@@ -1635,6 +1651,7 @@ _bit_num_char:                      // rdi=код, rsi=строка програ
     ret
 9:  lea rdi, [rip + Lrt_echar_range]
     mov rsi, r13
+    add rsp, 8
     pop r13
     pop r12
     pop rbx
@@ -1657,7 +1674,7 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина в с�
     push r13
     push r14
     push r15
-    sub rsp, 64
+    sub rsp, 72
     mov rbx, rdi
     mov r12, rsi
     mov r13, rcx
@@ -1775,7 +1792,7 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина в с�
 30: mov rax, [rsp + 24]
     mov byte ptr [r15 + rax], 0
     mov rax, r15
-8:  add rsp, 64
+8:  add rsp, 72
     pop r15
     pop r14
     pop r13
@@ -1785,7 +1802,7 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина в с�
     ret
 99: lea rdi, [rip + Lrt_epad_width]
     mov rsi, r13
-    add rsp, 64
+    add rsp, 72
     pop r15
     pop r14
     pop r13
@@ -1835,9 +1852,7 @@ _bit_str_repeat:                    // rdi=строка, rsi=раз, rdx=стр�
     mov rdx, r14
     push r8
     push r9
-    sub rsp, 8
     call memcpy@PLT
-    add rsp, 8
     pop r9
     pop r8
     inc r9
@@ -5134,7 +5149,7 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     push rbx
     push r12
     push r13
-    sub rsp, 112
+    sub rsp, 120
     mov [rsp + 96], rdx
     mov rbx, rdi
     mov r12, rsi
@@ -5204,7 +5219,7 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     test eax, eax
     jnz 8f
     mov eax, ebx
-    add rsp, 112
+    add rsp, 120
     pop r13
     pop r12
     pop rbx
@@ -5218,7 +5233,7 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     jmp 10f
 9:  xor edi, edi
     call _bit_set_errcode
-10: add rsp, 112
+10: add rsp, 120
     lea rdi, [rip + Lrt_enet]
     mov rsi, r12
     pop r13
@@ -5490,17 +5505,20 @@ _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov rbx, rsi
     xor esi, esi
     xor edx, edx
     call accept@PLT
     test eax, eax
     js 9f
+    add rsp, 8
     pop rbx
     pop rbp
     ret
 9:  lea rdi, [rip + Lrt_eaccept]
     mov rsi, rbx
+    add rsp, 8
     pop rbx
     pop rbp
     jmp _bit_die
@@ -6151,6 +6169,7 @@ _bit_os_host:                       // -> имя компьютера
     push rbp
     mov rbp, rsp
     push rbx
+    sub rsp, 8
     mov edi, 256
     call _bit_alloc
     mov rbx, rax
@@ -6158,6 +6177,7 @@ _bit_os_host:                       // -> имя компьютера
     mov esi, 256
     call gethostname@PLT
     mov rax, rbx
+    add rsp, 8
     pop rbx
     pop rbp
     ret

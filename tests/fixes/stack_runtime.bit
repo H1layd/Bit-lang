@@ -1,0 +1,10 @@
+host {
+    print((os >> host) >> sz > 0);
+    recover {
+        string value = "stack-" + "check";
+        print("bad" >> num);
+        print(value);
+    } else {
+        print("caught");
+    }
+}

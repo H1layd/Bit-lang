@@ -2,7 +2,10 @@
 # Тесты bit на настоящей Windows: собирает примеры и тесты под Windows, запускает их по SSH
 # и сравнивает вывод с ожидаемым. Запуск: ./tests_win.sh хост   (хост из ~/.ssh/config)
 # Без запуска на Windows: ./tests_win.sh --build-only
+# --stack-check перед именем хоста добавляет проверку RSP перед каждым вызовом.
 cd "$(dirname "$0")"
+stack_check=0
+if [ "${1:-}" = --stack-check ]; then stack_check=1; shift; fi
 H="${1:?укажи хост: ./tests_win.sh хост (или --build-only)}"
 build_only=0
 [ "$H" != --build-only ] || build_only=1
@@ -15,7 +18,11 @@ SKIP=" err_bad_dir "
 compile_only=0
 add() {  # id файл вход ожидаемое с_кодом
     case "$SKIP" in *" $1 "*) return 0;; esac
-    ./bitc build "$2" -o "$W/$1.exe" --os windows >"$W/$1.build" 2>&1
+    if [ "$stack_check" = 1 ]; then
+        python3 tools/build_windows_stack_checked.py "$2" "$W/$1.exe" >"$W/$1.build" 2>&1
+    else
+        ./bitc build "$2" -o "$W/$1.exe" --os windows >"$W/$1.build" 2>&1
+    fi
     code=$?
     if [ "$code" != 0 ]; then
         if [ "$5" = 1 ]; then printf '%s \n' "$code" >> "$W/$1.build"; fi
