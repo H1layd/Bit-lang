@@ -48,6 +48,13 @@ t = t.replace("mov edx, 128" + chr(10) + "    call unlinkat@PLT", "mov edx, 512"
 # POSIX pipe flags and errno values differ from Darwin.
 t = t.replace("    // O_NONBLOCK on Darwin\n    or edx, 4", "    // O_NONBLOCK\n    or edx, 2048")
 t = t.replace("    // EAGAIN on Darwin\n    cmp eax, 35", "    // EAGAIN\n    cmp eax, 11")
+# termios: раскладка и флаги Linux вместо Darwin
+t = func_transform(t, "_bit_term_raw", lambda body: body
+                   .replace("mov eax, [rsp + 24]", "mov eax, [rsp + 12]")
+                   .replace("mov [rsp + 24], eax", "mov [rsp + 12], eax")
+                   .replace("and eax, -265", "and eax, -11")
+                   .replace("or eax, 264", "or eax, 10")
+                   .replace("(Darwin)", "(Linux)"))
 # errno -> код ошибки: значения Linux вместо Darwin
 t = func_transform(t, "_bit_errno_map", lambda body: body
                    .replace("cmp edi, 61", "cmp edi, 111")   # ECONNREFUSED

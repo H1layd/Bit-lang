@@ -1,0 +1,37 @@
+fn size_name(num n) {
+    pick n {
+        0 { return "пусто"; }
+        1, 2, 3 { return "мало"; }
+        else { return "много"; }
+    }
+}
+fn code(string s) {
+    pick s {
+        "ok" { return 0; }
+        "warn" { return 1; }
+        else { return 2; }
+    }
+}
+host {
+    print(size_name(0));
+    print(size_name(2));
+    print(size_name(10));
+    print(code("ok"));
+    print(code("warn"));
+    print(code("bad"));
+    num x = 4;
+    pick x {
+        1 { print("один"); }
+        4 { print("четыре"); }
+    }
+    pick x {
+        1 { print("не должно"); }
+    }
+    for i in 0:3 {
+        pick i {
+            0 { print("ноль"); }
+            2 { print("два"); }
+            else { print("один"); }
+        }
+    }
+}

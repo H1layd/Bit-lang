@@ -310,7 +310,8 @@ fn is_kw(string w) {
     return w == "fn" or w == "num" or w == "dec" or w == "string" or w == "bool" or w == "mas" or w == "map"
         or w == "all" or w == "file" or w == "dir" or w == "bytes" or w == "proc" or w == "conn" or w == "server" or w == "do" or w == "print" or w == "if"
         or w == "else" or w == "while" or w == "for" or w == "in" or w == "return" or w == "true"
-        or w == "false" or w == "and" or w == "or" or w == "not" or w == "break" or w == "next" or w == "recover";
+        or w == "false" or w == "and" or w == "or" or w == "not" or w == "break" or w == "next" or w == "recover"
+        or w == "pick";
 }
 
 fn is_type(string w) {
@@ -1047,6 +1048,9 @@ fn statement(bool layout) {
         if v == "if" {
             return if_stmt(layout);
         }
+        if v == "pick" {
+            return pick_stmt(layout);
+        }
         if v == "while" {
             do(take());
             num cond = expr_p();
@@ -1120,6 +1124,48 @@ fn statement(bool layout) {
     do(expr_p());
     do(fail("действие нужно обернуть в do(...), например do(x >> ch(5));", line));
     return -1;
+}
+
+fn pick_stmt(bool layout) {
+    num line = pl(0);
+    do(take());
+    num subj = expr_p();
+    if at(":") {
+        do(fail("pick пишется с фигурными скобками: pick x {{ 1 {{ ... }} else {{ ... }} }}", pl(0)));
+    }
+    do(expect("{{", "после pick нужен блок со значениями"));
+    mas cases = (num);
+    bool has_else = false;
+    mas else_body = (num);
+    while not at("}}") and pk(0) != "eof" {
+        num cl = pl(0);
+        if at("else") {
+            do(take());
+            do(else_body >> ch(pblock(cl)));
+            do(has_else >> ch(true));
+            break;
+        }
+        mas vals = (num);
+        do(vals >> add(expr_p()));
+        while at(",") {
+            do(take());
+            do(vals >> add(expr_p()));
+        }
+        mas body = pblock(cl);
+        num c = node("pickcase", cl);
+        do(setl1(c, vals));
+        do(setl2(c, body));
+        do(cases >> add(c));
+    }
+    do(expect("}}", "pick не закрыт — нужна закрывающая скобка"));
+    num n = node("pick", line);
+    do(mset(NA, n, subj));
+    do(setl1(n, cases));
+    if has_else {
+        do(mset(NM, n, "else"));
+        do(setl2(n, else_body));
+    }
+    return n;
 }
 
 fn if_stmt(bool layout) {
@@ -2723,6 +2769,9 @@ fn stmt(num s, num rest, num count) {
     if k == "if" {
         return s_if(s);
     }
+    if k == "pick" {
+        return s_pick(s);
+    }
     if k == "while" {
         return s_while(s);
     }
@@ -3377,6 +3426,86 @@ fn cond_jump(num e, string label) {
         do(fail("условие должно быть bool (true/false), а тут {tn(RT)} — например x > 0", ln(e)));
     }
     do(op_jz(label));
+}
+
+fn s_pick(num s) {
+    num line = ln(s);
+    do(expr(fa(s)));
+    string ty = RT;
+    if ty != "num" and ty != "string" {
+        do(fail("pick работает с num и string, а тут {tn(ty)}", line));
+    }
+    num sv = slot();
+    do(op_st(acc(), sv));
+    string lend = newlab("swend");
+    bool has_else = fm(s) == "else";
+    string lelse = lend;
+    if has_else {
+        do(lelse >> ch(newlab("swelse")));
+    }
+    mas labels = (string);
+    num ncases = c1(s);
+    if ncases > 0 {
+        for j in 0:ncases - 1 {
+            num c = item(l1(s), j);
+            string lj = newlab("case");
+            do(labels >> add(lj));
+            num nv = c1(c);
+            if nv > 0 {
+                for vi in 0:nv - 1 {
+                    num v = item(l1(c), vi);
+                    do(op_ld(acc(), sv));
+                    do(push());
+                    do(expr(v));
+                    if RT != ty {
+                        do(fail("значение pick типа {tn(RT)}, а выбираем по {tn(ty)}", ln(c)));
+                    }
+                    if ty == "string" {
+                        do(op_mov(pr(1), acc()));
+                        do(pop(pr(0)));
+                        do(op_call("_bit_str_eq"));
+                        if IS_ARM {
+                            do(em("cbnz x0, {lj}"));
+                        } else {
+                            do(em("test rax, rax"));
+                            do(em("jnz {lj}"));
+                        }
+                    } else {
+                        do(op_mov(pr(1), acc()));
+                        do(pop(pr(0)));
+                        do(op_cmpj(pr(0), pr(1), "eq", lj));
+                    }
+                }
+            }
+        }
+    }
+    do(op_jmp(lelse));
+    all base = ST;
+    bool all_end = has_else;
+    if ncases > 0 {
+        for j in 0:ncases - 1 {
+            num c = item(l1(s), j);
+            do(ST >> ch(scopy(base)));
+            do(emlab(labels >> get(j, "")));
+            bool t = block(l2(c), c2(c), true);
+            if not t {
+                do(op_jmp(lend));
+                do(all_end >> ch(false));
+            }
+        }
+    }
+    if has_else {
+        do(ST >> ch(scopy(base)));
+        do(emlab(lelse));
+        bool t2 = block(l2(s), c2(s), true);
+        if not t2 {
+            do(op_jmp(lend));
+            do(all_end >> ch(false));
+        }
+    }
+    do(emlab(lend));
+    do(ST >> ch(base));
+    return all_end;
 }
 
 fn s_if(num s) {
@@ -5509,11 +5638,22 @@ fn term_action(num e) {
             do(rt_call("_bit_wait", false, e, "num", false, ""));
             return;
         }
+        if mn == "raw" {
+            if c1(e) != 1 or kind(arg(e, 0)) == "range" {
+                do(fail("raw ждёт режим: do(term >> raw(true));", line));
+            }
+            do(expr(arg(e, 0)));
+            do(coerce(RT, "bool", line, "режим raw"));
+            do(op_acc_to(0));
+            do(op_imm(pr(1), 0));
+            do(op_call("_bit_term_raw"));
+            return;
+        }
         if mn == "exit" {
             do(rt_call("_bit_exit", false, e, "num", false, ""));
             return;
         }
-        do(fail("у term нет действия {mn}. Есть: clear, wait, exit, go, env", line));
+        do(fail("у term нет действия {mn}. Есть: clear, wait, exit, go, env, raw", line));
     }
     do(fail("у mem нет действий — только значения: mem >> used, mem >> total", line));
 }
@@ -6199,6 +6339,16 @@ fn builtin_value(num e) {
             do(RFRESH >> ch(true));
             return;
         }
+        if mn == "key" {
+            if c1(e) > 0 {
+                do(fail("key пишется без скобок: term >> key", line));
+            }
+            do(rt_call("_bit_term_key", false, e, "", false, ""));
+            do(res("string"));
+            do(op_rt1("_bit_str_adopt"));
+            do(RFRESH >> ch(true));
+            return;
+        }
         if mn == "pid" {
             do(rt_call("_bit_self_pid", false, e, "", false, ""));
             do(res("num"));
@@ -6213,7 +6363,7 @@ fn builtin_value(num e) {
         if mn == "clear" or mn == "wait" or mn == "exit" or mn == "go" {
             do(fail("{mn} — это действие: do(term >> {mn}...);", line));
         }
-        do(fail("у term нет {mn}. Есть: args, env, folder, status, error, error_code, stderr, end, pid", line));
+        do(fail("у term нет {mn}. Есть: args, env, folder, status, error, error_code, stderr, end, pid, key", line));
     }
     if mn == "take" {
         num a0 = arg(e, 0);
@@ -8107,6 +8257,81 @@ fn rt_arm(mas o) {
     do(o >> add("    bl ___error"));
     do(o >> add("    ldr w0, [x0]"));
     do(o >> add("    bl _bit_errno_map"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_raw:                      // x0 = 1 сырой режим, 0 обычный"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    sub sp, sp, #128"));
+    do(o >> add("    mov w19, w0"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    mov x1, sp"));
+    do(o >> add("    bl _tcgetattr"));
+    do(o >> add("    tbnz w0, #31, 9f"));
+    do(o >> add("    ldr w1, [sp, #24]"));
+    do(o >> add("    cbz w19, 1f"));
+    do(o >> add("    movn w2, #0x108                  // снять ICANON|ECHO (Darwin)"));
+    do(o >> add("    and w1, w1, w2"));
+    do(o >> add("    b 2f"));
+    do(o >> add("1:  mov w2, #0x108                   // вернуть ICANON|ECHO (Darwin)"));
+    do(o >> add("    orr w1, w1, w2"));
+    do(o >> add("2:  str w1, [sp, #24]"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    mov x2, sp"));
+    do(o >> add("    bl _tcsetattr"));
+    do(o >> add("9:  add sp, sp, #128"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_key:                      // → строка из одного символа"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    stp x21, x22, [sp, #-16]!"));
+    do(o >> add("    mov x0, #8"));
+    do(o >> add("    bl _bit_alloc"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    mov x2, #1"));
+    do(o >> add("    bl _read"));
+    do(o >> add("    cmp x0, #1"));
+    do(o >> add("    b.lt 9f"));
+    do(o >> add("    ldrb w1, [x19]"));
+    do(o >> add("    mov x20, #1"));
+    do(o >> add("    cmp w1, #0xF0"));
+    do(o >> add("    b.lo 1f"));
+    do(o >> add("    mov x20, #4"));
+    do(o >> add("    b 3f"));
+    do(o >> add("1:  cmp w1, #0xE0"));
+    do(o >> add("    b.lo 2f"));
+    do(o >> add("    mov x20, #3"));
+    do(o >> add("    b 3f"));
+    do(o >> add("2:  cmp w1, #0xC0"));
+    do(o >> add("    b.lo 3f"));
+    do(o >> add("    mov x20, #2"));
+    do(o >> add("3:  mov x21, #1"));
+    do(o >> add("4:  cmp x21, x20"));
+    do(o >> add("    b.hs 8f"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    add x1, x19, x21"));
+    do(o >> add("    mov x2, #1"));
+    do(o >> add("    bl _read"));
+    do(o >> add("    cmp x0, #1"));
+    do(o >> add("    b.lt 8f"));
+    do(o >> add("    add x21, x21, #1"));
+    do(o >> add("    b 4b"));
+    do(o >> add("8:  strb wzr, [x19, x21]"));
+    do(o >> add("    mov x0, x19"));
+    do(o >> add("    b 10f"));
+    do(o >> add("9:  strb wzr, [x19]"));
+    do(o >> add("    mov x0, x19"));
+    do(o >> add("10: ldp x21, x22, [sp], #16"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
     do(o >> add("    ldp x29, x30, [sp], #16"));
     do(o >> add("    ret"));
     do(o >> add(""));
@@ -14185,6 +14410,85 @@ fn rt_x86(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 128"));
+    do(o >> add("    mov ebx, edi"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    lea rsi, [rsp]"));
+    do(o >> add("    call _tcgetattr"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    js 9f"));
+    do(o >> add("    mov eax, [rsp + 24]              # c_lflag (Darwin)"));
+    do(o >> add("    test ebx, ebx"));
+    do(o >> add("    jz 1f"));
+    do(o >> add("    and eax, -265                    # снять ICANON|ECHO (Darwin)"));
+    do(o >> add("    jmp 2f"));
+    do(o >> add("1:  or eax, 264                      # вернуть ICANON|ECHO (Darwin)"));
+    do(o >> add("2:  mov [rsp + 24], eax"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    lea rdx, [rsp]"));
+    do(o >> add("    call _tcsetattr"));
+    do(o >> add("9:  add rsp, 128"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_key:                      // → строка из одного символа"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov edi, 8"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    mov edx, 1"));
+    do(o >> add("    call _read"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 9f"));
+    do(o >> add("    movzx ecx, byte ptr [rbx]"));
+    do(o >> add("    mov r13d, 1"));
+    do(o >> add("    cmp ecx, 0xF0"));
+    do(o >> add("    jb 1f"));
+    do(o >> add("    mov r13d, 4"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("1:  cmp ecx, 0xE0"));
+    do(o >> add("    jb 2f"));
+    do(o >> add("    mov r13d, 3"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("2:  cmp ecx, 0xC0"));
+    do(o >> add("    jb 3f"));
+    do(o >> add("    mov r13d, 2"));
+    do(o >> add("3:  mov r12d, 1"));
+    do(o >> add("4:  cmp r12d, r13d"));
+    do(o >> add("    jge 8f"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    lea rsi, [rbx + r12]"));
+    do(o >> add("    mov edx, 1"));
+    do(o >> add("    call _read"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 8f"));
+    do(o >> add("    inc r12d"));
+    do(o >> add("    jmp 4b"));
+    do(o >> add("8:  mov byte ptr [rbx + r12], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    jmp 10f"));
+    do(o >> add("9:  mov byte ptr [rbx], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("10: add rsp, 8"));
+    do(o >> add("    pop r13"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add("_bit_term_error:                    // → копия текста последней пойманной ошибки (\"\" если не было)"));
     do(o >> add("    push rbp"));
@@ -20688,6 +20992,85 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 128"));
+    do(o >> add("    mov ebx, edi"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    lea rsi, [rsp]"));
+    do(o >> add("    call tcgetattr@PLT"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    js 9f"));
+    do(o >> add("    mov eax, [rsp + 12]              # c_lflag (Linux)"));
+    do(o >> add("    test ebx, ebx"));
+    do(o >> add("    jz 1f"));
+    do(o >> add("    and eax, -11                    # снять ICANON|ECHO (Linux)"));
+    do(o >> add("    jmp 2f"));
+    do(o >> add("1:  or eax, 10                      # вернуть ICANON|ECHO (Linux)"));
+    do(o >> add("2:  mov [rsp + 12], eax"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    lea rdx, [rsp]"));
+    do(o >> add("    call tcsetattr@PLT"));
+    do(o >> add("9:  add rsp, 128"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_key:                      // → строка из одного символа"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    push r13"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov edi, 8"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    mov edx, 1"));
+    do(o >> add("    call read@PLT"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 9f"));
+    do(o >> add("    movzx ecx, byte ptr [rbx]"));
+    do(o >> add("    mov r13d, 1"));
+    do(o >> add("    cmp ecx, 0xF0"));
+    do(o >> add("    jb 1f"));
+    do(o >> add("    mov r13d, 4"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("1:  cmp ecx, 0xE0"));
+    do(o >> add("    jb 2f"));
+    do(o >> add("    mov r13d, 3"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("2:  cmp ecx, 0xC0"));
+    do(o >> add("    jb 3f"));
+    do(o >> add("    mov r13d, 2"));
+    do(o >> add("3:  mov r12d, 1"));
+    do(o >> add("4:  cmp r12d, r13d"));
+    do(o >> add("    jge 8f"));
+    do(o >> add("    xor edi, edi"));
+    do(o >> add("    lea rsi, [rbx + r12]"));
+    do(o >> add("    mov edx, 1"));
+    do(o >> add("    call read@PLT"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 8f"));
+    do(o >> add("    inc r12d"));
+    do(o >> add("    jmp 4b"));
+    do(o >> add("8:  mov byte ptr [rbx + r12], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    jmp 10f"));
+    do(o >> add("9:  mov byte ptr [rbx], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("10: add rsp, 8"));
+    do(o >> add("    pop r13"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add("_bit_term_error:                    // → копия текста последней пойманной ошибки (\"\" если не было)"));
     do(o >> add("    push rbp"));
@@ -30312,6 +30695,90 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
+    do(o >> add("_bit_term_raw:                       # rdi = 1 сырой режим, 0 обычный"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov [rsp + 16], rdi"));
+    do(o >> add("    mov rcx, -10"));
+    do(o >> add("    call GetStdHandle"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    mov rcx, rbx"));
+    do(o >> add("    lea rdx, [rsp]"));
+    do(o >> add("    call GetConsoleMode"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jz 9f"));
+    do(o >> add("    mov eax, [rsp]"));
+    do(o >> add("    mov rcx, [rsp + 16]"));
+    do(o >> add("    test ecx, ecx"));
+    do(o >> add("    jz 1f"));
+    do(o >> add("    and eax, -7"));
+    do(o >> add("    jmp 2f"));
+    do(o >> add("1:  or eax, 6"));
+    do(o >> add("2:  mov rcx, rbx"));
+    do(o >> add("    mov edx, eax"));
+    do(o >> add("    call SetConsoleMode"));
+    do(o >> add("9:  lea rsp, [rbp - 8]"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_term_key:                       # → строка из одного символа"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    push r13"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov edi, 8"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    xor ecx, ecx"));
+    do(o >> add("    mov rdx, rbx"));
+    do(o >> add("    mov r8d, 1"));
+    do(o >> add("    call _read"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 9f"));
+    do(o >> add("    movzx ecx, byte ptr [rbx]"));
+    do(o >> add("    mov r13d, 1"));
+    do(o >> add("    cmp ecx, 0xF0"));
+    do(o >> add("    jb 1f"));
+    do(o >> add("    mov r13d, 4"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("1:  cmp ecx, 0xE0"));
+    do(o >> add("    jb 2f"));
+    do(o >> add("    mov r13d, 3"));
+    do(o >> add("    jmp 3f"));
+    do(o >> add("2:  cmp ecx, 0xC0"));
+    do(o >> add("    jb 3f"));
+    do(o >> add("    mov r13d, 2"));
+    do(o >> add("3:  mov r12d, 1"));
+    do(o >> add("4:  cmp r12d, r13d"));
+    do(o >> add("    jge 8f"));
+    do(o >> add("    xor ecx, ecx"));
+    do(o >> add("    lea rdx, [rbx + r12]"));
+    do(o >> add("    mov r8d, 1"));
+    do(o >> add("    call _read"));
+    do(o >> add("    cmp eax, 1"));
+    do(o >> add("    jl 8f"));
+    do(o >> add("    inc r12d"));
+    do(o >> add("    jmp 4b"));
+    do(o >> add("8:  mov byte ptr [rbx + r12], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    jmp 10f"));
+    do(o >> add("9:  mov byte ptr [rbx], 0"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("10: lea rsp, [rbp - 24]"));
+    do(o >> add("    pop r13"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
     do(o >> add("_bit_open_update:"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));

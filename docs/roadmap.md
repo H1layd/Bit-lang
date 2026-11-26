@@ -71,6 +71,9 @@ already exist; the agreed rules will apply to them as well.
   were added.
 - [x] **No limit on parameters**: arguments beyond the register count travel on the stack,
   so functions take as many parameters as they need.
+- [x] **`pick`**: a choice by value without fall-through — `pick x { 1 { } 2, 4 { } else { } }`.
+- [x] **Immediate keyboard**: `do(term >> raw(true))` stops waiting for Enter and echoing, and
+  `term >> key` returns one UTF-8 character, so interactive programs are possible.
 
 ## Control over the system
 

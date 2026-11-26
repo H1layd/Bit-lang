@@ -99,6 +99,81 @@ _bit_errno_code:                    // → код ошибки системы и
     ldp x29, x30, [sp], #16
     ret
 
+_bit_term_raw:                      // x0 = 1 сырой режим, 0 обычный
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #128
+    mov w19, w0
+    mov x0, #0
+    mov x1, sp
+    bl _tcgetattr
+    tbnz w0, #31, 9f
+    ldr w1, [sp, #24]
+    cbz w19, 1f
+    movn w2, #0x108                  // снять ICANON|ECHO (Darwin)
+    and w1, w1, w2
+    b 2f
+1:  mov w2, #0x108                   // вернуть ICANON|ECHO (Darwin)
+    orr w1, w1, w2
+2:  str w1, [sp, #24]
+    mov x0, #0
+    mov x1, #0
+    mov x2, sp
+    bl _tcsetattr
+9:  add sp, sp, #128
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_term_key:                      // → строка из одного символа
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x0, #8
+    bl _bit_alloc
+    mov x19, x0
+    mov x0, #0
+    mov x1, x19
+    mov x2, #1
+    bl _read
+    cmp x0, #1
+    b.lt 9f
+    ldrb w1, [x19]
+    mov x20, #1
+    cmp w1, #0xF0
+    b.lo 1f
+    mov x20, #4
+    b 3f
+1:  cmp w1, #0xE0
+    b.lo 2f
+    mov x20, #3
+    b 3f
+2:  cmp w1, #0xC0
+    b.lo 3f
+    mov x20, #2
+3:  mov x21, #1
+4:  cmp x21, x20
+    b.hs 8f
+    mov x0, #0
+    add x1, x19, x21
+    mov x2, #1
+    bl _read
+    cmp x0, #1
+    b.lt 8f
+    add x21, x21, #1
+    b 4b
+8:  strb wzr, [x19, x21]
+    mov x0, x19
+    b 10f
+9:  strb wzr, [x19]
+    mov x0, x19
+10: ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_term_error:                    // → копия текста последней пойманной ошибки ("" если не было)
     stp x29, x30, [sp, #-16]!
     mov x29, sp

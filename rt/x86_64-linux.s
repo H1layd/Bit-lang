@@ -88,6 +88,85 @@ _bit_errno_code:                    // → код ошибки системы и
     pop rbp
     jmp _bit_errno_map
 
+_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 128
+    mov ebx, edi
+    xor edi, edi
+    lea rsi, [rsp]
+    call tcgetattr@PLT
+    test eax, eax
+    js 9f
+    mov eax, [rsp + 12]              # c_lflag (Linux)
+    test ebx, ebx
+    jz 1f
+    and eax, -11                    # снять ICANON|ECHO (Linux)
+    jmp 2f
+1:  or eax, 10                      # вернуть ICANON|ECHO (Linux)
+2:  mov [rsp + 12], eax
+    xor edi, edi
+    xor esi, esi
+    lea rdx, [rsp]
+    call tcsetattr@PLT
+9:  add rsp, 128
+    pop rbx
+    pop rbp
+    ret
+
+_bit_term_key:                      // → строка из одного символа
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov edi, 8
+    call _bit_alloc
+    mov rbx, rax
+    xor edi, edi
+    mov rsi, rbx
+    mov edx, 1
+    call read@PLT
+    cmp eax, 1
+    jl 9f
+    movzx ecx, byte ptr [rbx]
+    mov r13d, 1
+    cmp ecx, 0xF0
+    jb 1f
+    mov r13d, 4
+    jmp 3f
+1:  cmp ecx, 0xE0
+    jb 2f
+    mov r13d, 3
+    jmp 3f
+2:  cmp ecx, 0xC0
+    jb 3f
+    mov r13d, 2
+3:  mov r12d, 1
+4:  cmp r12d, r13d
+    jge 8f
+    xor edi, edi
+    lea rsi, [rbx + r12]
+    mov edx, 1
+    call read@PLT
+    cmp eax, 1
+    jl 8f
+    inc r12d
+    jmp 4b
+8:  mov byte ptr [rbx + r12], 0
+    mov rax, rbx
+    jmp 10f
+9:  mov byte ptr [rbx], 0
+    mov rax, rbx
+10: add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_term_error:                    // → копия текста последней пойманной ошибки ("" если не было)
     push rbp
     mov rbp, rsp

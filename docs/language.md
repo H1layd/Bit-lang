@@ -212,6 +212,21 @@ while k < 3 {
 }
 ```
 
+`pick` chooses a branch by the value of an expression. Values are written plainly, one branch
+may list several of them separated by commas, and `else` runs when nothing matched. There is no
+fall-through, so no `break` is needed, and the value is computed once:
+
+```
+pick status {
+    200 { print("ok"); }
+    301, 302 { print("moved"); }
+    else { print("other: {status}"); }
+}
+```
+
+`pick` works with `num` and `string`. Each branch opens its own scope, like any block.
+`break` inside `pick` belongs to the enclosing loop, not to the choice.
+
 `break` leaves the nearest loop; `next` skips to its next iteration:
 
 ```
@@ -712,6 +727,7 @@ produce the same sequence across architectures.
 | `term >> error` | text of the last error caught by `recover` |
 | `term >> error_code` | numeric code of the last caught failure |
 | `term >> stderr` | stderr of the last `mas >> run` |
+| `term >> key` | one character from the keyboard, without waiting for Enter |
 
 | Action | What it does |
 |---|---|
@@ -719,6 +735,7 @@ produce the same sequence across architectures.
 | `term >> wait(ms)` | pause for milliseconds |
 | `term >> exit(code)` | exit with a code |
 | `term >> go(path)` | change the current directory; accepts `string` or `dir` |
+| `term >> raw(true)` / `raw(false)` | turn the immediate keyboard mode on or off |
 | `term >> env("NAME", "value")` | set an environment variable in the current program |
 
 `go` changes the base for all subsequent relative paths. Future `string >> run`,
@@ -738,6 +755,19 @@ do(term >> go(work));
 do(term >> env("BIT_MODE", "test"));
 string mode = term >> env("BIT_MODE");
 do(term >> go(previous));
+```
+
+For interactive programs the keyboard can be read one character at a time. In `raw(true)` mode
+the terminal stops waiting for Enter and stops echoing keys back, so `term >> key` returns as soon
+as a key is pressed; a whole UTF-8 character is returned, not a byte. Arrow keys and other special
+keys arrive as their escape sequences. When the input is not a terminal (a pipe or a file), `raw`
+does nothing and `key` simply reads the next character:
+
+```
+do(term >> raw(true));
+string k = term >> key;
+do(term >> raw(false));
+print("нажато: {k}");
 ```
 
 Console input is a declaration with `input`:

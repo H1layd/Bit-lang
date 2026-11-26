@@ -2900,6 +2900,90 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbx
     pop rbp
     jmp _bit_die
+_bit_term_raw:                       # rdi = 1 сырой режим, 0 обычный
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 64
+    and rsp, -16
+    sub rsp, 32
+    mov [rsp + 16], rdi
+    mov rcx, -10
+    call GetStdHandle
+    mov rbx, rax
+    mov rcx, rbx
+    lea rdx, [rsp]
+    call GetConsoleMode
+    test eax, eax
+    jz 9f
+    mov eax, [rsp]
+    mov rcx, [rsp + 16]
+    test ecx, ecx
+    jz 1f
+    and eax, -7
+    jmp 2f
+1:  or eax, 6
+2:  mov rcx, rbx
+    mov edx, eax
+    call SetConsoleMode
+9:  lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_term_key:                       # → строка из одного символа
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    and rsp, -16
+    sub rsp, 32
+    mov edi, 8
+    call _bit_alloc
+    mov rbx, rax
+    xor ecx, ecx
+    mov rdx, rbx
+    mov r8d, 1
+    call _read
+    cmp eax, 1
+    jl 9f
+    movzx ecx, byte ptr [rbx]
+    mov r13d, 1
+    cmp ecx, 0xF0
+    jb 1f
+    mov r13d, 4
+    jmp 3f
+1:  cmp ecx, 0xE0
+    jb 2f
+    mov r13d, 3
+    jmp 3f
+2:  cmp ecx, 0xC0
+    jb 3f
+    mov r13d, 2
+3:  mov r12d, 1
+4:  cmp r12d, r13d
+    jge 8f
+    xor ecx, ecx
+    lea rdx, [rbx + r12]
+    mov r8d, 1
+    call _read
+    cmp eax, 1
+    jl 8f
+    inc r12d
+    jmp 4b
+8:  mov byte ptr [rbx + r12], 0
+    mov rax, rbx
+    jmp 10f
+9:  mov byte ptr [rbx], 0
+    mov rax, rbx
+10: lea rsp, [rbp - 24]
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_open_update:
     push rbp
     mov rbp, rsp

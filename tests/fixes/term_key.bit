@@ -1,0 +1,10 @@
+host {
+    do(term >> raw(true));
+    string a = term >> key;
+    string b = term >> key;
+    string c = term >> key;
+    do(term >> raw(false));
+    print("[{a}][{b}][{c}]");
+    print("{a >> sz} {b >> sz} {c >> sz}");
+    print(b >> code);
+}
