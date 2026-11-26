@@ -1,0 +1,32 @@
+host {
+    server s = net >> listen(9480);
+    recover {
+        conn c = "127.0.0.1:9480" >> connect(1000);
+        print("подключился");
+        do(c >> close);
+    } else {
+        print("не подключился: код {term >> error_code}");
+    }
+    recover {
+        conn c = "127.0.0.1:9101" >> connect(200);
+        print("не должен был подключиться");
+        do(c >> close);
+    } else {
+        print("отказ: код {term >> error_code}");
+    }
+    recover {
+        conn c = "127.0.0.1:9101" >> connect;
+        print("не должен был подключиться");
+        do(c >> close);
+    } else {
+        print("без таймаута: код {term >> error_code}");
+    }
+    recover {
+        conn c = "127.0.0.1:9101" >> connect(-5);
+        print("не должен был подключиться");
+    } else {
+        print("таймаут: {term >> error}");
+    }
+    do(s >> close);
+    print("готово");
+}

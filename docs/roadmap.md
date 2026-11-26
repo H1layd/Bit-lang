@@ -95,6 +95,11 @@ wait.
 - [ ] Repeat the Windows HOME/USERPROFILE ancestor-protection run when SSH is available.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
+- [x] **`connect(ms)`** — a TCP connect with a bound wait: the socket opens without blocking,
+  the wait is a `poll`, and the result is checked through `SO_ERROR`.
+  **`term >> error_code`** — a stable numeric code of the last caught failure
+  (1 refused, 2 wait ended, 3 no route, 0 no code) on macOS, Linux and Windows;
+  a plain `connect` and a timed-out `recv` also fill it.
 
 ## System capability milestones
 

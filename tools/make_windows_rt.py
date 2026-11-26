@@ -24,7 +24,7 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
         "_bit_substr", "_bit_str_split", "_bit_str_replace",
         "_bit_mas_join", "_bit_mas_text", "_bit_str_bytes", "_bit_hexval_ptr",
         "_bit_ipow", "_bit_recover_enter", "_bit_recover_leave",
-        "_bit_setjmp", "_bit_longjmp", "_bit_own_str", "_bit_drop_owned", "_bit_term_error", "_bit_mas_argv",
+        "_bit_setjmp", "_bit_longjmp", "_bit_own_str", "_bit_drop_owned", "_bit_term_error", "_bit_term_errcode", "_bit_mas_argv",
         "_bit_term_stderr", "_bit_args",
         "_bit_random_seed", "_bit_random_next", "_bit_random_range",
         "_bit_map_find", "_bit_map_set", "_bit_map_remove"]
@@ -2493,14 +2493,13 @@ _bit_wsa_init:
     jnz 1f
     push rbp
     mov rbp, rsp
-    sub rsp, 416
+    and rsp, -16
+    sub rsp, 448
     mov ecx, 0x0202
-    lea rdx, [rsp]
-    sub rsp, 32
+    lea rdx, [rsp + 32]
     call WSAStartup
-    add rsp, 32
     mov qword ptr [rip + Lrt_wsa], 1
-    add rsp, 416
+    mov rsp, rbp
     pop rbp
 1:  ret
 
@@ -2510,18 +2509,17 @@ _w_socket:
     push rbx
     push r12
     push r13
-    sub rsp, 8
+    and rsp, -16
+    sub rsp, 32
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
     call _bit_wsa_init
-    mov r8, r13
-    mov rdx, r12
     mov rcx, rbx
-    sub rsp, 32
+    mov rdx, r12
+    mov r8, r13
     call socket
-    add rsp, 32
-    add rsp, 8
+    lea rsp, [rbp - 24]
     pop r13
     pop r12
     pop rbx
@@ -2532,69 +2530,95 @@ _w_gethostbyname:
     push rbp
     mov rbp, rsp
     push rbx
-    sub rsp, 8
+    and rsp, -16
+    sub rsp, 32
     mov rbx, rdi
     call _bit_wsa_init
     mov rcx, rbx
-    sub rsp, 32
     call gethostbyname
-    add rsp, 32
-    add rsp, 8
+    lea rsp, [rbp - 8]
     pop rbx
     pop rbp
     ret
 
 _w_connect:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call connect
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_bind:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call bind
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_listen:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call listen
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_accept:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call accept
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_send:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r9, rcx
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call send
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_recv:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r9, rcx
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call recv
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _bit_socket_wait:                   // WSAPOLLFD: SOCKET, events, revents
-    sub rsp, 56
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 48
     mov [rsp + 32], rdi
     // POLLRDNORM
     mov dword ptr [rsp + 40], 256
@@ -2602,39 +2626,206 @@ _bit_socket_wait:                   // WSAPOLLFD: SOCKET, events, revents
     mov edx, 1
     mov r8d, esi
     call WSAPoll
-    add rsp, 56
+    mov rsp, rbp
+    pop rbp
     ret
+
+_bit_errno_map:                     // edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
+    cmp edi, 10061                  # WSAECONNREFUSED
+    je 1f
+    cmp edi, 10060                  # WSAETIMEDOUT
+    je 2f
+    cmp edi, 10051                  # WSAENETUNREACH
+    je 3f
+    cmp edi, 10065                  # WSAEHOSTUNREACH
+    je 3f
+    xor eax, eax
+    ret
+1:  mov eax, 1
+    ret
+2:  mov eax, 2
+    ret
+3:  mov eax, 3
+    ret
+
+_bit_errno_code:                    // → код ошибки системы из WSAGetLastError
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call WSAGetLastError
+    mov edi, eax
+    call _bit_errno_map
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут мс, rdx = строка -> TCP conn
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    and rsp, -16
+    sub rsp, 128
+    mov r13, rdx                      # строка исходника
+    mov r14, rdi                      # адрес
+    mov r12d, esi                     # таймаут мс
+    test rsi, rsi
+    js 10f
+    cmp rsi, 2147483647
+    jg 10f
+    call _bit_wsa_init
+    mov rbx, r14                      # обходчик адреса
+    lea r14, [rsp + 40]               # буфер адреса
+1:  movzx eax, byte ptr [rbx]
+    test eax, eax
+    jz 9f                             # пустой адрес
+    cmp eax, 58
+    je 2f
+    mov [r14], al
+    inc rbx
+    inc r14
+    jmp 1b
+2:  mov byte ptr [r14], 0
+    inc rbx
+    xor r8d, r8d
+3:  movzx eax, byte ptr [rbx]
+    sub eax, 48
+    cmp eax, 9
+    ja 4f
+    imul r8d, r8d, 10
+    add r8d, eax
+    inc rbx
+    jmp 3b
+4:  lea rdx, [rsp + 88]
+    xor eax, eax
+    mov [rdx], rax
+    mov [rdx + 8], rax
+    mov word ptr [rdx], 2
+    mov eax, r8d
+    mov ecx, eax
+    shl eax, 8
+    shr ecx, 8
+    or eax, ecx
+    mov [rdx + 2], ax
+    mov rcx, 2
+    lea rdx, [rsp + 40]
+    lea r8, [rsp + 92]
+    call inet_pton
+    cmp eax, 1
+    jne 9f
+    mov rcx, 2
+    mov edx, 1
+    xor r8d, r8d
+    call socket
+    test eax, eax
+    js 9f
+    mov ebx, eax                      # сокет
+    mov eax, r12d
+    test eax, eax
+    jnz 5f
+    mov eax, 1                        # 0 мс значит системный лимит; для мгновенной проверки — 1 мс
+5:  mov [rsp + 112], eax
+    mov qword ptr [rsp + 32], 4       # optlen = 4 (пятый аргумент setsockopt)
+    mov rcx, rbx
+    mov edx, 0xFFFF                   # SOL_SOCKET
+    mov r8d, 0x3006                   # SO_CONNECT_TIMEOUT
+    lea r9, [rsp + 112]
+    call setsockopt
+    test eax, eax
+    jnz 8f
+    mov rcx, rbx
+    lea rdx, [rsp + 88]
+    mov r8d, 16
+    call connect
+    test eax, eax
+    jz 12f                            # подключился
+7:  call WSAGetLastError
+    mov edi, eax
+    mov r14d, eax                     # запомнить код для выбора текста
+    call _bit_errno_map
+    mov [rip + Lrt_errcode], rax
+    mov rcx, rbx
+    call closesocket
+    cmp r14d, 10060                   # WSAETIMEDOUT
+    jne 72f
+    lea rdi, [rip + Lrt_econn_timeout]
+    jmp 71f
+8:  mov qword ptr [rip + Lrt_errcode], 0
+    mov rcx, rbx
+    call closesocket
+72: lea rdi, [rip + Lrt_enet]
+    jmp 71f
+12: mov rax, rbx
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  mov qword ptr [rip + Lrt_errcode], 0
+    lea rdi, [rip + Lrt_enet]
+    jmp 71f
+10: mov qword ptr [rip + Lrt_errcode], 0
+    lea rdi, [rip + Lrt_econn_args]
+71: mov rsi, r13
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 _bit_open_update:
-    sub rsp, 40
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov rcx, rdi
     // _O_BINARY | _O_CREAT | _O_WRONLY, _S_IREAD | _S_IWRITE
     mov edx, 33025
     mov r8d, 384
     call _open
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_closesocket:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov rcx, rdi
-    sub rsp, 40
     call closesocket
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_inet_pton:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call inet_pton
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 _w_inet_ntop:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
     mov r9, rcx
     mov r8, rdx
     mov rdx, rsi
     mov rcx, rdi
-    sub rsp, 40
     call inet_ntop
-    add rsp, 40
+    mov rsp, rbp
+    pop rbp
     ret
 
 """
@@ -3437,6 +3628,7 @@ Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
+Lrt_errcode: .quad 0
 Lrt_stderr: .quad 0
 Lrt_wsa: .quad 0
 Lrt_oldocp: .quad 0
@@ -3495,6 +3687,8 @@ NEWSTR = {
     "Lrt_echunk": "smeshenie i razmer dolzhny byt neotricatelnymi",
     "Lrt_erecv_timeout": "isteklo vremya ozhidaniya recv",
     "Lrt_erecv_args": "recv: razmer 1..2147483647, ozhidanie 0..2147483647 ms",
+    "Lrt_econn_timeout": "isteklo vremya ozhidaniya podklyucheniya",
+    "Lrt_econn_args": "connect: tajmaut ot 0 do 2147483647 ms",
     "Lrt_enotdir": "eto ne papka: ", "Lrt_erm": "ne mogu udalit: ",
     "Lrt_emv": "ne mogu peremestit: ", "Lrt_emk": "ne mogu sozdat papku: ",
     "Lrt_edir": "ne mogu prochitat papku: ", "Lrt_slash": "/",

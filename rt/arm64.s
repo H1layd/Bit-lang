@@ -9,6 +9,8 @@ _bit_recover_enter:                 // x0 = frame allocated by the compiler
     adrp x1, Lrt_owned@PAGE
     ldr x2, [x1, Lrt_owned@PAGEOFF]
     str x2, [x0, #176]
+    adrp x1, Lrt_errcode@PAGE
+    str xzr, [x1, Lrt_errcode@PAGEOFF]
     ret
 
 _bit_recover_leave:
@@ -63,6 +65,38 @@ _bit_longjmp:                       // x0 = буфер, x1 = значение �
     ldp d12, d13, [x0, #136]
     ldp d14, d15, [x0, #152]
     mov x0, x1
+    ret
+
+_bit_term_errcode:                  // → код последней пойманной ошибки (0 = без кода)
+    adrp x1, Lrt_errcode@PAGE
+    ldr x0, [x1, Lrt_errcode@PAGEOFF]
+    ret
+
+_bit_errno_map:                     // w0 = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
+    cmp w0, #61                        // ECONNREFUSED (Darwin)
+    b.eq 1f
+    cmp w0, #60                        // ETIMEDOUT (Darwin)
+    b.eq 2f
+    cmp w0, #51                        // ENETUNREACH (Darwin)
+    b.eq 3f
+    cmp w0, #65                        // EHOSTUNREACH (Darwin)
+    b.eq 3f
+    mov w0, #0
+    ret
+1:  mov w0, #1
+    ret
+2:  mov w0, #2
+    ret
+3:  mov w0, #3
+    ret
+
+_bit_errno_code:                    // → код ошибки системы из errno
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl ___error
+    ldr w0, [x0]
+    bl _bit_errno_map
+    ldp x29, x30, [sp], #16
     ret
 
 _bit_term_error:                    // → копия текста последней пойманной ошибки ("" если не было)
@@ -3900,15 +3934,177 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-8:  mov w0, w19
+8:  bl _bit_errno_code
+    adrp x1, Lrt_errcode@PAGE
+    str x0, [x1, Lrt_errcode@PAGEOFF]
+    mov w0, w19
     bl _close
-9:  add sp, sp, #112
+    b 10f
+9:  adrp x1, Lrt_errcode@PAGE
+    str xzr, [x1, Lrt_errcode@PAGEOFF]
+10: add sp, sp, #112
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     mov x1, x20
     bl _bit_die
+
+_bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут мс, x2 = строка -> TCP conn
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #112
+    mov x20, x2                       // строка исходника
+    mov w21, w1                       // таймаут мс
+    tbnz x1, #63, 10f
+    mov x4, #2147483647
+    cmp x1, x4
+    b.gt 10f
+    add x22, sp, #0                   // буфер адреса
+1:  ldrb w3, [x0]
+    cbz w3, 9f                        // пустой адрес
+    cmp w3, #58
+    b.eq 2f
+    strb w3, [x22]
+    add x0, x0, #1
+    add x22, x22, #1
+    b 1b
+2:  strb wzr, [x22]
+    add x0, x0, #1
+    mov w3, #0
+3:  ldrb w4, [x0]
+    sub w5, w4, #48
+    cmp w5, #9
+    b.hi 4f
+    mov w6, #10
+    mul w3, w3, w6
+    add w3, w3, w5
+    add x0, x0, #1
+    b 3b
+4:  str xzr, [sp, #80]
+    str xzr, [sp, #88]
+    mov w4, #2
+    strh w4, [sp, #80]
+    lsl w5, w3, #8
+    lsr w6, w3, #8
+    orr w5, w5, w6
+    strh w5, [sp, #82]
+    mov w0, #2
+    add x1, sp, #0
+    add x2, sp, #84
+    bl _inet_pton
+    cmp w0, #1
+    b.ne 9f
+    mov w0, #2
+    mov w1, #1
+    mov w2, #0
+    bl _socket
+    tbnz w0, #31, 9f
+    mov w19, w0                       // сокет
+    mov w0, w19
+    mov w1, #3                        // F_GETFL
+    bl _fcntl
+    tbnz w0, #31, 8f
+    orr w0, w0, #0x4000               // O_NONBLOCK (Darwin)
+    mov w22, w0
+    mov w0, w19
+    mov w1, #4                        // F_SETFL
+    mov w2, w22
+    bl _fcntl
+    tbnz w0, #31, 8f
+    mov w0, w19
+    add x1, sp, #80
+    mov w2, #16
+    bl _connect
+    cbz w0, 11f                       // подключился сразу
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #36                       // EINPROGRESS (Darwin)
+    b.ne 7f
+    str w19, [sp, #32]
+    mov w4, #4                        // POLLOUT; revents = 0
+    str w4, [sp, #36]
+    add x0, sp, #32
+    mov w1, #1
+    mov w2, w21
+    bl _poll
+    cbz w0, 6f                        // истёк таймаут
+    tbnz w0, #31, 7f                  // ошибка poll
+11: mov w0, w19
+    mov w1, #65535                    // SOL_SOCKET (Darwin)
+    mov w2, #4103                     // SO_ERROR
+    add x3, sp, #96
+    mov w4, #4
+    str w4, [sp, #100]
+    add x4, sp, #100
+    bl _getsockopt
+    tbnz w0, #31, 7f
+    ldr w0, [sp, #96]
+    cbz w0, 12f                       // ошибки нет — подключён
+    bl _bit_errno_map
+    adrp x1, Lrt_errcode@PAGE
+    str x0, [x1, Lrt_errcode@PAGEOFF]
+    mov w0, w19
+    bl _close
+    adrp x0, Lrt_enet@PAGE
+    add x0, x0, Lrt_enet@PAGEOFF
+    b 71f
+12: mov w0, w19
+    mov w1, #3                        // F_GETFL
+    bl _fcntl
+    mov w4, #0x4000
+    bic w0, w0, w4                    // снять O_NONBLOCK (Darwin)
+    mov w22, w0
+    mov w0, w19
+    mov w1, #4                        // F_SETFL
+    mov w2, w22
+    bl _fcntl
+    mov w0, w19
+    add sp, sp, #112
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+6:  adrp x1, Lrt_errcode@PAGE
+    mov x2, #2
+    str x2, [x1, Lrt_errcode@PAGEOFF]
+    mov w0, w19
+    bl _close
+    adrp x0, Lrt_econn_timeout@PAGE
+    add x0, x0, Lrt_econn_timeout@PAGEOFF
+    b 71f
+7:  bl _bit_errno_code
+    adrp x1, Lrt_errcode@PAGE
+    str x0, [x1, Lrt_errcode@PAGEOFF]
+    mov w0, w19
+    bl _close
+    adrp x0, Lrt_enet@PAGE
+    add x0, x0, Lrt_enet@PAGEOFF
+    b 71f
+8:  adrp x1, Lrt_errcode@PAGE
+    str xzr, [x1, Lrt_errcode@PAGEOFF]
+    mov w0, w19
+    bl _close
+    adrp x0, Lrt_enet@PAGE
+    add x0, x0, Lrt_enet@PAGEOFF
+    b 71f
+9:  adrp x1, Lrt_errcode@PAGE
+    str xzr, [x1, Lrt_errcode@PAGEOFF]
+    adrp x0, Lrt_enet@PAGE
+    add x0, x0, Lrt_enet@PAGEOFF
+    b 71f
+10: adrp x1, Lrt_errcode@PAGE
+    str xzr, [x1, Lrt_errcode@PAGEOFF]
+    adrp x0, Lrt_econn_args@PAGE
+    add x0, x0, Lrt_econn_args@PAGEOFF
+71: mov x1, x20
+    add sp, sp, #112
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
 
 _bit_tcp_listen:                    // x0 = порт, x1 = строка -> server (сокет)
     stp x29, x30, [sp, #-16]!
@@ -4079,7 +4275,10 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
 7:  adrp x0, Lrt_erecv@PAGE
     add x0, x0, Lrt_erecv@PAGEOFF
     b 5f
-8:  adrp x0, Lrt_erecv_timeout@PAGE
+8:  adrp x1, Lrt_errcode@PAGE
+    mov x2, #2
+    str x2, [x1, Lrt_errcode@PAGEOFF]
+    adrp x0, Lrt_erecv_timeout@PAGE
     add x0, x0, Lrt_erecv_timeout@PAGEOFF
     b 5f
 9:  adrp x0, Lrt_erecv_args@PAGE
@@ -4930,6 +5129,7 @@ Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
+Lrt_errcode: .quad 0
 Lrt_stderr: .quad 0
 .p2align 4
 .section __TEXT,__text,regular,pure_instructions
@@ -4956,6 +5156,8 @@ Lrt_curlpost: .asciz "curl -sS -L -d "
 Lrt_curlout: .asciz "curl -sS -L -o "
 Lrt_dashdash: .asciz " -- "
 Lrt_enet: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\270\321\202\321\214\321\201\321\217"
+Lrt_econn_timeout: .asciz "\320\270\321\201\321\202\320\265\320\272\320\273\320\276 \320\262\321\200\320\265\320\274\321\217 \320\276\320\266\320\270\320\264\320\260\320\275\320\270\321\217 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\265\320\275\320\270\321\217"
+Lrt_econn_args: .asciz "connect: \321\202\320\260\320\271\320\274\320\260\321\203\321\202 \320\276\321\202 0 \320\264\320\276 2147483647 \320\274\321\201"
 Lrt_elisten: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \320\277\320\276\321\200\321\202"
 Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\265\320\275\320\270\321\217"
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"

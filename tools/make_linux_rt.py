@@ -37,6 +37,20 @@ t = t.replace("mov edx, 128" + chr(10) + "    call unlinkat@PLT", "mov edx, 512"
 # POSIX pipe flags and errno values differ from Darwin.
 t = t.replace("    // O_NONBLOCK on Darwin\n    or edx, 4", "    // O_NONBLOCK\n    or edx, 2048")
 t = t.replace("    // EAGAIN on Darwin\n    cmp eax, 35", "    // EAGAIN\n    cmp eax, 11")
+# errno -> код ошибки: значения Linux вместо Darwin
+t = func_transform(t, "_bit_errno_map", lambda body: body
+                   .replace("cmp edi, 61", "cmp edi, 111")   # ECONNREFUSED
+                   .replace("cmp edi, 60", "cmp edi, 110")   # ETIMEDOUT
+                   .replace("cmp edi, 51", "cmp edi, 101")   # ENETUNREACH
+                   .replace("cmp edi, 65", "cmp edi, 113")   # EHOSTUNREACH
+                   .replace("(Darwin)", "(Linux)"))
+# connect(ms): O_NONBLOCK и EINPROGRESS различаются, SOL_SOCKET = 1
+t = func_transform(t, "_bit_tcp_connect_timed", lambda body: body
+                   .replace("or eax, 0x4000", "or eax, 2048")
+                   .replace("cmp eax, 36", "cmp eax, 115")       # EINPROGRESS
+                   .replace("mov esi, 65535", "mov esi, 1")      # SOL_SOCKET
+                   .replace("and eax, -16385", "and eax, -2049") # снять O_NONBLOCK
+                   .replace("(Darwin)", "(Linux)"))
 # struct dirent: имя с 19-го байта, struct stat: st_mode с 24-го
 t = t.replace("lea rdi, [rax + 21]", "lea rdi, [rax + 19]")
 t = t.replace("lea rsi, [rax + 21]", "lea rsi, [rax + 19]")

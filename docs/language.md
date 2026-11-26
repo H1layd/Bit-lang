@@ -656,6 +656,7 @@ produce the same sequence across architectures.
 | `term >> pid` | the current process id |
 | `term >> status` | exit code of the last command or program |
 | `term >> error` | text of the last error caught by `recover` |
+| `term >> error_code` | numeric code of the last caught failure |
 | `term >> stderr` | stderr of the last `mas >> run` |
 
 | Action | What it does |
@@ -747,6 +748,7 @@ shell**: arguments are passed as an array, so a URL may safely contain any chara
 | `net >> listen(port)` | open a listening `server` |
 | `s >> accept` | accept a connection → `conn` |
 | `"ip:port" >> connect` | connect over TCP → `conn` |
+| `"ip:port" >> connect(ms)` | connect over TCP, waiting no longer than `ms` milliseconds |
 | `"ip:port" >> udp` | open UDP → `conn` |
 | `c >> send("...")` | send |
 | `c >> recv` | receive a string |
@@ -774,6 +776,12 @@ In `recv(count, timeout_ms)`, the count is in bytes (1–2147483647) and the tim
 milliseconds (0–2147483647). A zero timeout checks for data without waiting. A timeout
 is an error that `recover` can handle, while a clean TCP close returns an empty string.
 Join the chunks before processing text when a UTF-8 character can span two reads.
+
+`connect(ms)` opens the socket without blocking and waits no longer than the given time.
+What happened is told by `term >> error_code`: `1` the target refused, `2` the wait ended,
+`3` no route to the target, `0` the failure has no code. The codes are the same on macOS,
+Linux and Windows. A plain `connect` also fills `error_code` for refused and unreachable
+targets, and a timed-out `recv` gives `2`.
 
 ### proc: other processes
 

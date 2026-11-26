@@ -10,6 +10,7 @@ _bit_recover_enter:                 // rdi = frame allocated by the compiler
     mov [rip + Lrt_recover], rdi
     mov rax, [rip + Lrt_owned]
     mov [rdi + 176], rax
+    mov qword ptr [rip + Lrt_errcode], 0
     mov rax, rdi
     ret
 
@@ -56,6 +57,36 @@ _bit_longjmp:                       // rdi = буфер, rsi = значение 
     mov rsp, [rdi + 48]
     mov rax, rsi
     jmp qword ptr [rdi + 56]
+
+_bit_term_errcode:                  // → код последней пойманной ошибки (0 = без кода)
+    mov rax, [rip + Lrt_errcode]
+    ret
+
+_bit_errno_map:                     // edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
+    cmp edi, 61                     # ECONNREFUSED (Darwin)
+    je 1f
+    cmp edi, 60                     # ETIMEDOUT (Darwin)
+    je 2f
+    cmp edi, 51                     # ENETUNREACH (Darwin)
+    je 3f
+    cmp edi, 65                     # EHOSTUNREACH (Darwin)
+    je 3f
+    xor eax, eax
+    ret
+1:  mov eax, 1
+    ret
+2:  mov eax, 2
+    ret
+3:  mov eax, 3
+    ret
+
+_bit_errno_code:                    // → код ошибки системы из errno
+    push rbp
+    mov rbp, rsp
+    call ___error
+    mov edi, dword ptr [rax]
+    pop rbp
+    jmp _bit_errno_map
 
 _bit_term_error:                    // → копия текста последней пойманной ошибки ("" если не было)
     push rbp
@@ -4203,11 +4234,171 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     pop rbx
     pop rbp
     ret
-8:  mov edi, ebx
+8:  call _bit_errno_code
+    mov [rip + Lrt_errcode], rax
+    mov edi, ebx
     call _close
-9:  add rsp, 112
+    jmp 10f
+9:  mov qword ptr [rip + Lrt_errcode], 0
+10: add rsp, 112
     lea rdi, [rip + Lrt_enet]
     mov rsi, r12
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут мс, rdx = строка -> TCP conn
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 112
+    mov r13, rdx                      # строка исходника
+    mov r12d, esi                     # таймаут мс
+    test rsi, rsi
+    js 10f
+    cmp rsi, 2147483647
+    jg 10f
+    mov rcx, rdi
+    lea rdx, [rsp]
+1:  movzx eax, byte ptr [rcx]
+    test eax, eax
+    jz 9f                             # пустой адрес
+    cmp eax, 58
+    je 2f
+    mov [rdx], al
+    inc rcx
+    inc rdx
+    jmp 1b
+2:  mov byte ptr [rdx], 0
+    inc rcx
+    xor r8d, r8d
+3:  movzx eax, byte ptr [rcx]
+    sub eax, 48
+    cmp eax, 9
+    ja 4f
+    imul r8d, r8d, 10
+    add r8d, eax
+    inc rcx
+    jmp 3b
+4:  lea rdx, [rsp + 80]
+    xor eax, eax
+    mov [rdx], rax
+    mov [rdx + 8], rax
+    mov word ptr [rdx], 2
+    mov eax, r8d
+    mov ecx, eax
+    shl eax, 8
+    shr ecx, 8
+    or eax, ecx
+    mov [rdx + 2], ax
+    mov edi, 2
+    lea rsi, [rsp]
+    lea rdx, [rsp + 84]
+    call _inet_pton
+    cmp eax, 1
+    jne 9f
+    mov edi, 2
+    mov esi, 1
+    xor edx, edx
+    call _socket
+    test eax, eax
+    js 9f
+    mov ebx, eax
+    mov edi, ebx
+    mov esi, 3                       # F_GETFL
+    call _fcntl
+    test eax, eax
+    js 8f
+    or eax, 0x4000                   # O_NONBLOCK (Darwin)
+    mov r14d, eax
+    mov edi, ebx
+    mov esi, 4                       # F_SETFL
+    mov edx, r14d
+    call _fcntl
+    test eax, eax
+    js 8f
+    mov edi, ebx
+    lea rsi, [rsp + 80]
+    mov edx, 16
+    call _connect
+    test eax, eax
+    jz 11f                            # подключился сразу
+    call ___error
+    mov eax, dword ptr [rax]
+    cmp eax, 36                       # EINPROGRESS (Darwin)
+    jne 7f
+    mov [rsp + 32], ebx
+    mov dword ptr [rsp + 36], 4       # POLLOUT; revents = 0
+    lea rdi, [rsp + 32]
+    mov esi, 1
+    mov edx, r12d
+    call _poll
+    test eax, eax
+    jz 6f                             # истёк таймаут
+    js 7f                             # ошибка poll
+11: mov edi, ebx
+    mov esi, 65535                    # SOL_SOCKET (Darwin)
+    mov edx, 4103                     # SO_ERROR
+    lea rcx, [rsp + 96]
+    mov dword ptr [rsp + 100], 4
+    lea r8, [rsp + 100]
+    call _getsockopt
+    test eax, eax
+    jnz 7f
+    mov edi, dword ptr [rsp + 96]
+    test edi, edi
+    jz 12f                            # ошибки нет — подключён
+    call _bit_errno_map
+    mov [rip + Lrt_errcode], rax
+    mov edi, ebx
+    call _close
+    lea rdi, [rip + Lrt_enet]
+    jmp 71f
+12: mov edi, ebx
+    mov esi, 3                       # F_GETFL
+    call _fcntl
+    and eax, -16385                  # снять O_NONBLOCK (Darwin)
+    mov edi, ebx
+    mov esi, 4                       # F_SETFL
+    mov edx, eax
+    call _fcntl
+    mov eax, ebx
+    add rsp, 112
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+6:  mov qword ptr [rip + Lrt_errcode], 2
+    mov edi, ebx
+    call _close
+    lea rdi, [rip + Lrt_econn_timeout]
+    jmp 71f
+7:  call _bit_errno_code
+    mov [rip + Lrt_errcode], rax
+    mov edi, ebx
+    call _close
+    lea rdi, [rip + Lrt_enet]
+    jmp 71f
+8:  mov qword ptr [rip + Lrt_errcode], 0
+    mov edi, ebx
+    call _close
+    lea rdi, [rip + Lrt_enet]
+    jmp 71f
+9:  mov qword ptr [rip + Lrt_errcode], 0
+    lea rdi, [rip + Lrt_enet]
+    jmp 71f
+10: mov qword ptr [rip + Lrt_errcode], 0
+    lea rdi, [rip + Lrt_econn_args]
+71: mov rsi, r13
+    add rsp, 112
+    pop r14
     pop r13
     pop r12
     pop rbx
@@ -4414,7 +4605,8 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
     call _free
 7:  lea rdi, [rip + Lrt_erecv]
     jmp 5f
-8:  lea rdi, [rip + Lrt_erecv_timeout]
+8:  mov qword ptr [rip + Lrt_errcode], 2
+    lea rdi, [rip + Lrt_erecv_timeout]
     jmp 5f
 9:  lea rdi, [rip + Lrt_erecv_args]
 5:  mov rsi, r13
@@ -5278,6 +5470,7 @@ Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
+Lrt_errcode: .quad 0
 Lrt_stderr: .quad 0
 .p2align 4
 .section __TEXT,__cstring,cstring_literals
@@ -5301,6 +5494,8 @@ Lrt_curlpost: .asciz "curl -sS -L -d "
 Lrt_curlout: .asciz "curl -sS -L -o "
 Lrt_dashdash: .asciz " -- "
 Lrt_enet: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\270\321\202\321\214\321\201\321\217"
+Lrt_econn_timeout: .asciz "\320\270\321\201\321\202\320\265\320\272\320\273\320\276 \320\262\321\200\320\265\320\274\321\217 \320\276\320\266\320\270\320\264\320\260\320\275\320\270\321\217 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\265\320\275\320\270\321\217"
+Lrt_econn_args: .asciz "connect: \321\202\320\260\320\271\320\274\320\260\321\203\321\202 \320\276\321\202 0 \320\264\320\276 2147483647 \320\274\321\201"
 Lrt_elisten: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \320\277\320\276\321\200\321\202"
 Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\265\320\275\320\270\321\217"
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
