@@ -152,3 +152,17 @@ compiler, including build wall time and peak `mem >> used`; compiler sources dif
 states and the machine was not isolated. These measurements do not isolate the mutex cost.
 `tests.sh` now runs `tools/test_string_refs.py` when Python 3 is available and reports a
 skip when it is not.
+
+Thread lifecycle checks found two more leaks: the POSIX `pthread_create` result buffer and
+per-thread state were not freed; on Windows, `wait` left the operating-system handle open.
+On macOS ARM64, peak RSS in `tests/rt/thread_lifecycle.bit` grew from 2,719,744 to 4,456,448
+bytes across three batches of 10,000 threads before the fix, and from 1,835,008 to 1,867,776
+afterward. RSS is a peak, not an exact object counter. On Windows, `tests/windows/thread_handles.ps1`
+reported 1,068 handles after 1,000 spawned and joined threads before the fix, and 68 after.
+Run the script in a fresh empty directory next to `thread-handles.exe`, built from
+`tests/rt/thread_handles.bit`. Linux-under-QEMU RSS was not useful for this measurement: a
+control C program using only `pthread_create` / `pthread_join` also added about 60 KB per
+emulated thread. A native Linux memory run remains outstanding.
+
+`python3 tools/test_thread_lifecycle.py` checks repeated and concurrent joins with a child-process
+timeout; `tests.sh` runs it when Python 3 is available.

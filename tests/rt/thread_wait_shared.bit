@@ -1,0 +1,24 @@
+num done = 0;
+fn launch() {
+    thread target {
+        do(term >> wait(100));
+        do(done >> ch(42));
+    }
+    return target;
+}
+all shared = launch();
+host {
+    thread a { do(shared >> wait); }
+    thread b { do(shared >> wait); }
+    thread c { do(shared >> wait); }
+    thread d { do(shared >> wait); }
+    thread e { do(shared >> wait); }
+    thread f { do(shared >> wait); }
+    do(a >> wait);
+    do(b >> wait);
+    do(c >> wait);
+    do(d >> wait);
+    do(e >> wait);
+    do(f >> wait);
+    print(done);
+}

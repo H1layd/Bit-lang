@@ -262,34 +262,58 @@ _bit_user_lock_leave:                // rdi = lock, rsi = source line
     pop rbp
     jmp _bit_die
 
-_bit_thread_start:                  // rdi = код → rax = поток
+_bit_thread_start:                  // rdi = code -> stable thread token
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    sub rsp, 16
+    push r13
+    push r14
     mov rbx, rdi
-    // Initialize TLS and the registry lock before any bit thread can run.
+    // No bit thread can start before the shared registry and TLS key exist.
     call _bit_rt_ensure
-    mov edi, 8
+    mov edi, 128
     call _bit_alloc
     mov r12, rax
-    mov rdi, r12
+    mov qword ptr [r12 + 24], 0
+    mov qword ptr [r12 + 32], 0
+    mov qword ptr [r12 + 120], 0
+    lea rdi, [r12 + 40]
+    xor esi, esi
+    call _pthread_cond_init
+    test eax, eax
+    jnz 8f
+    lea rdi, [r12 + 16]
     xor esi, esi
     lea rdx, [rip + _bit_thread_run]
     mov rcx, rbx
     call _pthread_create
     test eax, eax
     jnz 9f
-    mov rax, [r12]
-    add rsp, 16
+    call _bit_lock
+    mov r13, [rip + Lrt_thread_next]
+    lea rax, [r13 + 1]
+    mov [rip + Lrt_thread_next], rax
+    mov [r12 + 8], r13
+    mov rax, [rip + Lrt_thread_list]
+    mov [r12], rax
+    mov [rip + Lrt_thread_list], r12
+    call _bit_unlock
+    mov rax, r13
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp
     ret
-9:  lea rdi, [rip + Lrt_ethread]
+9:  lea rdi, [r12 + 40]
+    call _pthread_cond_destroy
+8:  mov rdi, r12
+    call _free
+    lea rdi, [rip + Lrt_ethread]
     xor esi, esi
-    add rsp, 16
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp
@@ -299,17 +323,97 @@ _bit_thread_run:                    // rdi = код потока
     push rbp
     mov rbp, rsp
     call rdi
+    // State is optional: do not allocate it just to destroy it.
+    mov rdi, [rip + Lrt_tkey]
+    call _pthread_getspecific
+    test rax, rax
+    jz 1f
+    mov rdi, rax
+    call _free
+1:
     xor eax, eax
     pop rbp
     ret
 
-_bit_thread_wait:                   // rdi = поток
+_bit_thread_wait:                   // rdi = stable token; completed tokens are no-ops
     push rbp
     mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    call _bit_lock
+    mov r12, [rip + Lrt_thread_list]
+1:  test r12, r12
+    jz 8f
+    cmp [r12 + 8], rbx
+    je 2f
+    mov r12, [r12]
+    jmp 1b
+2:  inc qword ptr [r12 + 24]
+    xor r13d, r13d
+    cmp qword ptr [r12 + 32], 0
+    jne 4f
+    mov qword ptr [r12 + 32], 1
+    call _bit_unlock
+    mov rdi, [r12 + 16]
     xor esi, esi
     call _pthread_join
+    mov r13d, eax
+    call _bit_lock
+    mov [r12 + 120], r13
+    mov qword ptr [r12 + 32], 2
+    lea rdi, [r12 + 40]
+    call _pthread_cond_broadcast
+    jmp 6f
+4:  cmp qword ptr [r12 + 32], 2
+    je 5f
+    lea rdi, [r12 + 40]
+    lea rsi, [rip + Lrt_slock]
+    call _pthread_cond_wait
+    test eax, eax
+    jz 4b
+    mov r13d, eax
+    jmp 6f
+5:  mov r13, [r12 + 120]
+6:  dec qword ptr [r12 + 24]
+    jnz 7f
+    lea r14, [rip + Lrt_thread_list]
+61: mov rax, [r14]
+    cmp rax, r12
+    je 62f
+    mov r14, rax
+    jmp 61b
+62: mov rax, [r12]
+    mov [r14], rax
+    call _bit_unlock
+    lea rdi, [r12 + 40]
+    call _pthread_cond_destroy
+    mov rdi, r12
+    call _free
+    jmp 9f
+7:  call _bit_unlock
+    jmp 9f
+8:  call _bit_unlock
+    xor r13d, r13d
+9:  test r13, r13
+    jnz 10f
+    xor eax, eax
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret
+10: lea rdi, [rip + Lrt_ewait_thread]
+    xor esi, esi
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 
 _bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный
     push rbp
@@ -6736,6 +6840,8 @@ Lrt_errline: .quad 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
+Lrt_thread_list: .quad 0
+Lrt_thread_next: .quad 1
 Lrt_slock: .zero 80
 .p2align 3
 Lrt_stderr: .quad 0
@@ -6788,6 +6894,7 @@ Lrt_fp: .asciz "%.*f"
 Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
 Lrt_elock: .asciz "lock operation failed"
+Lrt_ewait_thread: .asciz "thread wait failed"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

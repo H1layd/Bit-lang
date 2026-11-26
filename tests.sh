@@ -54,8 +54,9 @@ T="${TMPDIR:-/tmp}"
 # Не делает Python зависимостью компилятора: при его отсутствии сообщает о пропуске.
 if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_string_refs.py; then pass; else fail "подсчёт ссылок строк"; fi
+    if python3 tools/test_thread_lifecycle.py; then pass; else fail "ожидание потоков"; fi
 else
-    echo "проверка подсчёта ссылок пропущена: нужен python3"
+    echo "проверки ссылок и потоков пропущены: нужен python3"
 fi
 echo "прошло: $ok, упало: $bad"
 [ "$bad" = 0 ]

@@ -1,0 +1,17 @@
+fn launch(num count) {
+    for i in 1:count {
+        thread worker {
+            string s = "text-{123}";
+            if s >> sz == 0 { print("bad"); }
+        }
+        do(worker >> wait);
+    }
+}
+host {
+    do(launch(10000));
+    print(mem >> used);
+    do(launch(10000));
+    print(mem >> used);
+    do(launch(10000));
+    print(mem >> used);
+}

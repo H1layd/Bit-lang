@@ -227,6 +227,10 @@ host {
 }
 ```
 
+`wait` releases the thread's system resources. Multiple threads can wait for the same
+thread; waiting again for a completed and already joined thread returns immediately.
+Wait for threads that are no longer needed: their resources remain allocated until then.
+
 A thread body sees global variables and the functions of the program; variables local to the
 surrounding function are not visible there, so anything shared is written down as a global.
 Threads run concurrently, so protect shared mutable data with the same lock:

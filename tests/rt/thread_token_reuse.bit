@@ -1,0 +1,26 @@
+lock gate;
+bool ready = false;
+num result = 0;
+host {
+    thread first { do(term >> wait(1)); }
+    all old = first;
+    do(first >> wait);
+    thread second {
+        bool go = false;
+        while not go {
+            do(gate >> enter);
+            do(go >> ch(ready));
+            do(gate >> leave);
+            if not go { do(term >> wait(1)); }
+        }
+        do(result >> ch(42));
+    }
+    # A stale token must never wait for the new thread. If it does, this
+    # program deadlocks and the external test runner reports a timeout.
+    do(old >> wait);
+    do(gate >> enter);
+    do(ready >> ch(true));
+    do(gate >> leave);
+    do(second >> wait);
+    print(result);
+}

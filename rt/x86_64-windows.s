@@ -3153,35 +3153,124 @@ _bit_thread_start:                   # rdi = код → rax = поток
     mov qword ptr [rsp + 32], 0
     mov qword ptr [rsp + 40], 0
     call CreateThread
+    test rax, rax
+    jz 9f
+    mov r12, rax
+    # A monotonically increasing token avoids reusing a closed Windows handle.
+    # The node is removed after the last concurrent waiter returns.
+    mov edi, 32
+    call _bit_alloc
+    mov rbx, rax
+    mov [rbx + 16], r12
+    mov qword ptr [rbx + 24], 0
+    call _bit_lock
+    mov rax, [rip + Lrt_thread_next]
+    lea rcx, [rax + 1]
+    mov [rip + Lrt_thread_next], rcx
+    mov [rbx + 8], rax
+    mov rcx, [rip + Lrt_thread_list]
+    mov [rbx], rcx
+    mov [rip + Lrt_thread_list], rbx
+    call _bit_unlock
+    mov rax, [rbx + 8]
     lea rsp, [rbp - 16]
     pop r12
     pop rbx
     pop rbp
     ret
+9:  lea rdi, [rip + Lrt_ethread]
+    xor esi, esi
+    lea rsp, [rbp - 16]
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 
 _bit_thread_run:                     # rcx = параметр (Win64)
     push rbp
     mov rbp, rsp
+    push rdi
+    push rsi
     and rsp, -16
     sub rsp, 32
     mov rdi, rcx
     call rdi
+    # A thread may never have needed state.  TlsGetValue does not create it.
+    mov ecx, dword ptr [rip + Lrt_tkey]
+    call TlsGetValue
+    mov rdi, rax
+    call _w_free
     xor eax, eax
-    mov rsp, rbp
+    lea rsp, [rbp - 16]
+    pop rsi
+    pop rdi
     pop rbp
     ret
 
-_bit_thread_wait:                    # rdi = поток
+_bit_thread_wait:                    # rdi = thread token; repeat wait is harmless
     push rbp
     mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
     and rsp, -16
     sub rsp, 32
-    mov rcx, rdi
-    mov rdx, -1
+    mov rbx, rdi
+    call _bit_lock
+    mov r12, [rip + Lrt_thread_list]
+1:  test r12, r12
+    jz 5f
+    cmp [r12 + 8], rbx
+    je 2f
+    mov r12, [r12]
+    jmp 1b
+2:  inc qword ptr [r12 + 24]
+    mov r13, [r12 + 16]
+    call _bit_unlock
+    mov rcx, r13
+    mov edx, -1
     call WaitForSingleObject
-    mov rsp, rbp
+    mov r14d, eax
+    call _bit_lock
+    dec qword ptr [r12 + 24]
+    jnz 4f
+    lea rbx, [rip + Lrt_thread_list]
+3:  mov rax, [rbx]
+    cmp rax, r12
+    je 31f
+    lea rbx, [rax]
+    jmp 3b
+31: mov rax, [r12]
+    mov [rbx], rax
+    call _bit_unlock
+    mov rcx, r13
+    call CloseHandle
+    mov rdi, r12
+    call _w_free
+    jmp 6f
+4:  call _bit_unlock
+6:  test r14d, r14d
+    jnz 9f
+    jmp 7f
+5:  call _bit_unlock
+7:  xor eax, eax
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret
+9:  lea rdi, [rip + Lrt_ewait_thread]
+    xor esi, esi
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 
 _bit_term_raw:                       # rdi = 1 сырой режим, 0 обычный
     push rbp
@@ -8307,6 +8396,8 @@ Lrt_ready: .byte 0
 Lrt_tkey: .quad 0
 .p2align 3
 Lrt_slock: .zero 80
+Lrt_thread_list: .quad 0
+Lrt_thread_next: .quad 1
 Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
@@ -8342,6 +8433,8 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
+Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
+Lrt_ewait_thread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\264\320\276\320\266\320\264\320\260\321\202\321\214\321\201\321\217 \320\277\320\276\321\202\320\276\320\272\320\260"
 Lrt_elisten_addr: .asciz "listen: \320\275\320\265\320\262\320\265\321\200\320\275\321\213\320\271 IPv4-\320\260\320\264\321\200\320\265\321\201"
 Lrt_peer_colon: .asciz ":"
 Lrt_epeer: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \320\260\320\264\321\200\320\265\321\201 \321\201\320\276\320\261\320\265\321\201\320\265\320\264\320\275\320\270\320\272\320\260"

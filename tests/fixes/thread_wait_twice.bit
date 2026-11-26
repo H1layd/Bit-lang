@@ -1,0 +1,11 @@
+num finished = 0;
+host {
+    thread first { do(finished >> ch(1)); }
+    all alias = first;
+    do(first >> wait);
+    do(alias >> wait);
+    thread second { do(finished >> ch(2)); }
+    do(alias >> wait);
+    do(second >> wait);
+    print(finished);
+}

@@ -1,0 +1,12 @@
+host {
+    for i in 1:1000 {
+        thread worker {
+            string value = "thread-{123}";
+            if value >> sz == 0 { print("unexpected"); }
+        }
+        do(worker >> wait);
+    }
+    file ready = "thread-handles-ready";
+    do(ready >> write("ready"));
+    do(term >> wait(12000));
+}

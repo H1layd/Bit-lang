@@ -261,30 +261,55 @@ _bit_user_lock_leave:                // x0 = lock, x1 = source line
     ldp x29, x30, [sp], #16
     b _bit_die
 
-_bit_thread_start:                  // x0 = код → x0 = поток
+_bit_thread_start:                  // x0 = code -> stable thread token
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
     mov x19, x0
-    // Initialize TLS and the registry lock before any bit thread can run.
+    // No bit thread can start before the shared registry and TLS key exist.
     bl _bit_rt_ensure
-    mov x0, #8
+    mov x0, #128
     bl _bit_alloc
     mov x20, x0
-    mov x0, x20
+    str xzr, [x20, #24]           // waiters
+    str xzr, [x20, #32]           // 0 = unjoined, 1 = joining, 2 = joined
+    str xzr, [x20, #120]          // pthread_join result
+    add x0, x20, #40
+    mov x1, #0
+    bl _pthread_cond_init
+    cbnz w0, 8f
+    add x0, x20, #16
     mov x1, #0
     adrp x2, _bit_thread_run@PAGE
     add x2, x2, _bit_thread_run@PAGEOFF
     mov x3, x19
     bl _pthread_create
     cbnz w0, 9f
-    ldr x0, [x20]
+    bl _bit_lock
+    adrp x1, Lrt_thread_next@PAGE
+    ldr x21, [x1, Lrt_thread_next@PAGEOFF]
+    add x2, x21, #1
+    str x2, [x1, Lrt_thread_next@PAGEOFF]
+    str x21, [x20, #8]
+    adrp x1, Lrt_thread_list@PAGE
+    ldr x2, [x1, Lrt_thread_list@PAGEOFF]
+    str x2, [x20]
+    str x20, [x1, Lrt_thread_list@PAGEOFF]
+    bl _bit_unlock
+    mov x0, x21
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  adrp x0, Lrt_ethread@PAGE
+9:  add x0, x20, #40
+    bl _pthread_cond_destroy
+8:  mov x0, x20
+    bl _free
+    adrp x0, Lrt_ethread@PAGE
     add x0, x0, Lrt_ethread@PAGEOFF
     mov x1, #0
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     b _bit_die
@@ -293,17 +318,100 @@ _bit_thread_run:                    // x0 = код потока
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     blr x0
+    // State is optional: do not allocate it just to destroy it.
+    adrp x0, Lrt_tkey@PAGE
+    add x0, x0, Lrt_tkey@PAGEOFF
+    ldr x0, [x0]
+    bl _pthread_getspecific
+    cbz x0, 1f
+    bl _free
+1:
     mov x0, #0
     ldp x29, x30, [sp], #16
     ret
 
-_bit_thread_wait:                   // x0 = поток
+_bit_thread_wait:                   // x0 = stable token; completed tokens are no-ops
     stp x29, x30, [sp, #-16]!
     mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    bl _bit_lock
+    adrp x0, Lrt_thread_list@PAGE
+    ldr x20, [x0, Lrt_thread_list@PAGEOFF]
+1:  cbz x20, 8f
+    ldr x0, [x20, #8]
+    cmp x0, x19
+    b.eq 2f
+    ldr x20, [x20]
+    b 1b
+2:  ldr x0, [x20, #24]
+    add x0, x0, #1
+    str x0, [x20, #24]
+    mov x21, #0
+    ldr x0, [x20, #32]
+    cbnz x0, 4f
+    mov x0, #1
+    str x0, [x20, #32]
+    bl _bit_unlock
+    ldr x0, [x20, #16]
     mov x1, #0
     bl _pthread_join
+    mov x21, x0
+    bl _bit_lock
+    str x21, [x20, #120]
+    mov x0, #2
+    str x0, [x20, #32]
+    add x0, x20, #40
+    bl _pthread_cond_broadcast
+    b 6f
+4:  ldr x0, [x20, #32]
+    cmp x0, #2
+    b.eq 5f
+    add x0, x20, #40
+    adrp x1, Lrt_slock@PAGE
+    add x1, x1, Lrt_slock@PAGEOFF
+    bl _pthread_cond_wait
+    cbz w0, 4b
+    mov x21, x0
+    b 6f
+5:  ldr x21, [x20, #120]
+6:  ldr x0, [x20, #24]
+    subs x0, x0, #1
+    str x0, [x20, #24]
+    b.ne 7f
+    adrp x22, Lrt_thread_list@PAGE
+    add x22, x22, Lrt_thread_list@PAGEOFF
+61: ldr x0, [x22]
+    cmp x0, x20
+    b.eq 62f
+    mov x22, x0
+    b 61b
+62: ldr x0, [x20]
+    str x0, [x22]
+    bl _bit_unlock
+    add x0, x20, #40
+    bl _pthread_cond_destroy
+    mov x0, x20
+    bl _free
+    b 9f
+7:  bl _bit_unlock
+    b 9f
+8:  bl _bit_unlock
+    mov x21, #0
+9:  cbnz x21, 10f
+    mov x0, #0
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
+10: adrp x0, Lrt_ewait_thread@PAGE
+    add x0, x0, Lrt_ewait_thread@PAGEOFF
+    mov x1, #0
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
 
 _bit_term_raw:                      // x0 = 1 сырой режим, 0 обычный
     stp x29, x30, [sp, #-16]!
@@ -6267,6 +6375,8 @@ Lrt_random_ready: .quad 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
+Lrt_thread_list: .quad 0
+Lrt_thread_next: .quad 1
 .p2align 3
 Lrt_slock: .zero 80
 Lrt_recover: .quad 0
@@ -6327,6 +6437,7 @@ Lrt_fp: .asciz "%.*f"
 Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
 Lrt_elock: .asciz "lock operation failed"
+Lrt_ewait_thread: .asciz "thread wait failed"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

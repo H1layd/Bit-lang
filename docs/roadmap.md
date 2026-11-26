@@ -110,6 +110,10 @@ wait.
 - [x] HOME/USERPROFILE ancestor protection passed on live Windows and was committed
   (`95be464`). The former Linux server was deleted; QEMU has intermittent emulator
   crashes, so native Linux remains a separate check.
+  After the thread lifecycle changes, two full QEMU runs passed 125/126 and 124/126;
+  QEMU crashed during different tests. In 500 repetitions of one example it crashed
+  once with the earlier version and four times with the new one; both core files were
+  ARM64 QEMU processes. The cause of the difference is unresolved without native Linux.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
 - [x] **`connect(ms)`** — a TCP connect with a bound wait: a nonblocking socket,
