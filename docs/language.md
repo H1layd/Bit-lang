@@ -398,6 +398,9 @@ printed directly. `dec` division stays decimal, but integer division gives an in
 
 `n >> char` goes the other way: a character code becomes a one-character string.
 
+`pad` and `pad_left` measure the width in characters, not bytes, and the filling character may
+be any UTF-8 character: `"я" >> pad(3, ".")` gives `я..`, and `"a" >> pad(3, "я")` gives `aяя`.
+
 Invalid input or a value outside the `num` range raises an error that `recover` can handle.
 A width or a repeat count outside its range is the same kind of error.
 

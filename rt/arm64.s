@@ -1146,71 +1146,140 @@ _bit_str_pad_left:                  // x0=строка, x1=ширина, x2=за
     mov x4, #0
     b _bit_str_pad_do
 
-_bit_str_pad_do:                    // x0=строка, x1=ширина, x2=заполнитель, x3=строка, x4=направление
+_bit_str_pad_do:                    // x0=строка, x1=ширина в символах, x2=заполнитель, x3=строка, x4=направление
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
     stp x23, x24, [sp, #-16]!
     stp x25, x26, [sp, #-16]!
+    sub sp, sp, #96
     mov x19, x0
     mov x20, x1
-    mov x21, x2
-    mov x22, x3
-    mov x23, x4
-    tbnz x20, #63, 9f
-    movz w2, #0x4240
-    movk w2, #0x000F, lsl #16
-    cmp x20, x2
-    b.gt 9f
-    bl _strlen
-    mov x24, x0
-    cmp x20, x24
-    b.hi 1f
+    mov x21, x3
+    mov x22, x4
+    mov x23, x2
+    tbnz x20, #63, 99f
+    movz w1, #0x4240
+    movk w1, #0x000F, lsl #16
+    cmp x20, x1
+    b.gt 99f
     mov x0, x19
+    bl _strlen
+    str x0, [sp, #32]
+    mov x2, #0
+    mov x3, #0
+1:  cmp x3, x0
+    b.hs 2f
+    ldrb w4, [x19, x3]
+    and w5, w4, #0xC0
+    cmp w5, #0x80
+    b.eq 11f
+    add x2, x2, #1
+11: add x3, x3, #1
+    b 1b
+2:  str x2, [sp, #40]
+    mov w4, #32
+    strb w4, [sp]
+    mov x5, #1
+    str x5, [sp, #48]
+    cbz x23, 5f
+    ldrb w4, [x23]
+    cbz w4, 5f
+    strb w4, [sp]
+    cmp w4, #0xC0
+    b.lo 52f
+    and w6, w4, #0xF0
+    cmp w6, #0xE0
+    b.eq 53f
+    cmp w6, #0xF0
+    b.eq 54f
+    mov x5, #2
+    b 52f
+53: mov x5, #3
+    b 52f
+54: mov x5, #4
+52: str x5, [sp, #48]
+    cmp x5, #1
+    b.ls 5f
+    mov x6, #1
+55: ldrb w7, [x23, x6]
+    strb w7, [sp, x6]
+    add x6, x6, #1
+    cmp x6, x5
+    b.lo 55b
+5:  ldr x2, [sp, #40]
+    cmp x20, x2
+    b.hi 6f
+    mov x0, x19
+    ldr x1, [sp, #32]
     bl _bit_substr
     b 8f
-1:  add x0, x20, #1
+6:  sub x2, x20, x2
+    str x2, [sp, #56]
+    ldr x3, [sp, #48]
+    mul x4, x2, x3
+    ldr x5, [sp, #32]
+    add x4, x4, x5
+    str x4, [sp, #64]
+    add x0, x4, #1
     bl _bit_alloc
-    mov x25, x0
-    mov w26, #32
-    cbz x21, 2f
-    ldrb w2, [x21]
-    cbz w2, 2f
-    mov w26, w2
-2:  cbz x23, 4f
-    mov x0, x25
+    mov x23, x0
+    cbz x22, 20f
+    mov x0, x23
     mov x1, x19
-    mov x2, x24
+    ldr x2, [sp, #32]
     bl _memcpy
-    mov x3, x24
-3:  cmp x3, x20
-    b.hs 6f
-    strb w26, [x25, x3]
-    add x3, x3, #1
-    b 3b
-4:  sub x3, x20, x24
-    mov x4, #0
-5:  cmp x4, x3
-    b.hs 51f
-    strb w26, [x25, x4]
-    add x4, x4, #1
-    b 5b
-51: add x0, x25, x3
+    ldr x9, [sp, #56]
+    ldr x10, [sp, #48]
+    ldr x8, [sp, #32]
+    mov x11, #0
+10: cmp x11, x9
+    b.hs 30f
+    mov x12, #0
+12: cmp x12, x10
+    b.hs 13f
+    ldrb w13, [sp, x12]
+    strb w13, [x23, x8]
+    add x8, x8, #1
+    add x12, x12, #1
+    b 12b
+13: add x11, x11, #1
+    b 10b
+20: ldr x9, [sp, #56]
+    ldr x10, [sp, #48]
+    mov x8, #0
+    mov x11, #0
+21: cmp x11, x9
+    b.hs 22f
+    mov x12, #0
+23: cmp x12, x10
+    b.hs 24f
+    ldrb w13, [sp, x12]
+    strb w13, [x23, x8]
+    add x8, x8, #1
+    add x12, x12, #1
+    b 23b
+24: add x11, x11, #1
+    b 21b
+22: add x0, x23, x8
     mov x1, x19
-    mov x2, x24
+    ldr x2, [sp, #32]
     bl _memcpy
-6:  strb wzr, [x25, x20]
-    mov x0, x25
-8:  ldp x25, x26, [sp], #16
+30: ldr x4, [sp, #64]
+    strb wzr, [x23, x4]
+    mov x0, x23
+8:  add sp, sp, #96
+    ldp x25, x26, [sp], #16
     ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  adrp x0, Lrt_epad_width@PAGE
+99: adrp x0, Lrt_epad_width@PAGE
     add x0, x0, Lrt_epad_width@PAGEOFF
-    mov x1, x22
+    mov x1, x21
+    add sp, sp, #96
     ldp x25, x26, [sp], #16
     ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16

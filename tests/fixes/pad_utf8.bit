@@ -1,0 +1,21 @@
+host {
+    string a = "я" >> pad(3, ".");
+    string b = "a" >> pad(3, "я");
+    string c = "я" >> pad_left(3, ".");
+    string d = "x" >> pad(2, "→");
+    string e = "привет" >> pad(8, "·");
+    string f = "привет" >> pad(2);
+    string g = "ab" >> pad(4);
+    string h = "ab" >> pad_left(4, "щ");
+    print("[{a}] {a >> sz}");
+    print("[{b}] {b >> sz}");
+    print("[{c}] {c >> sz}");
+    print("[{d}] {d >> sz}");
+    print("[{e}] {e >> sz}");
+    print("[{f}] {f >> sz}");
+    print("[{g}] {g >> sz}");
+    print("[{h}] {h >> sz}");
+    print(a >> bytes >> sz);
+    print(b >> bytes >> sz);
+    print(e >> bytes >> sz);
+}

@@ -1,0 +1,21 @@
+fn eight(num a, num b, num c, num d, num e, num f, num g, num h) {
+    return a + b + c + d + e + f + g + h;
+}
+fn ten(num a, num b, num c, num d, num e, num f, num g, num h, num i, num j) {
+    return a + b + c + d + e + f + g + h + i + j;
+}
+fn eight_str(string a, string b, string c, string d, string e, string f, string g, string h) {
+    return a + b + c + d + e + f + g + h;
+}
+host {
+    all f8 = (num a, num b, num c, num d, num e, num f, num g, num h) -> eight(a, b, c, d, e, f, g, h);
+    all f10 = (num a, num b, num c, num d, num e, num f, num g, num h, num i, num j) -> ten(a, b, c, d, e, f, g, h, i, j);
+    all fs = (string a, string b, string c, string d, string e, string f, string g, string h) -> eight_str(a, b, c, d, e, f, g, h);
+    print(eight(1, 2, 3, 4, 5, 6, 7, 8));
+    print(f8(1, 2, 3, 4, 5, 6, 7, 8));
+    print(ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+    print(f10(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+    print(fs("a", "b", "c", "d", "e", "f", "g", "h"));
+    all small = (num a, num b) -> a + b;
+    print(small(40, 2));
+}

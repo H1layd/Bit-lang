@@ -1206,7 +1206,7 @@ _bit_str_pad_left:                  // rdi=строка, rsi=ширина, rdx=�
     xor r8d, r8d
     jmp _bit_str_pad_do
 
-_bit_str_pad_do:                    // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка, r8=направление
+_bit_str_pad_do:                    // rdi=строка, rsi=ширина в символах, rdx=заполнитель, rcx=строка, r8=направление
     push rbp
     mov rbp, rsp
     push rbx
@@ -1214,67 +1214,125 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина, rdx=�
     push r13
     push r14
     push r15
-    sub rsp, 40
+    sub rsp, 64
     mov rbx, rdi
     mov r12, rsi
     mov r13, rcx
-    mov r15, rdx
     mov r14d, r8d
+    mov r15, rdx
     test r12, r12
-    js 9f
+    js 99f
     mov rax, 1000000
     cmp r12, rax
-    jg 9f
+    jg 99f
+    mov rdi, rbx
     call strlen@PLT
     mov [rsp], rax
-    cmp r12, rax
-    jg 1f
-    mov rdi, rbx
-    call _bit_substr
-    jmp 8f
-1:  lea rdi, [r12 + 1]
-    call _bit_alloc
-    mov [rsp + 8], rax
-    mov r10b, 32
+    xor rcx, rcx
+    xor rax, rax
+1:  cmp rcx, [rsp]
+    jge 2f
+    movzx edx, byte ptr [rbx + rcx]
+    and edx, 0xC0
+    cmp edx, 0x80
+    je 11f
+    inc rax
+11: inc rcx
+    jmp 1b
+2:  mov [rsp + 8], rax
+    mov byte ptr [rsp + 32], 32
+    mov qword ptr [rsp + 16], 1
     test r15, r15
-    jz 2f
+    jz 5f
     movzx eax, byte ptr [r15]
     test eax, eax
-    jz 2f
-    mov r10b, al
-2:  mov [rsp + 16], r10
+    jz 5f
+    mov byte ptr [rsp + 32], al
+    mov ecx, 1
+    cmp eax, 0xC0
+    jb 52f
+    and eax, 0xF0
+    cmp eax, 0xE0
+    je 53f
+    cmp eax, 0xF0
+    je 54f
+    mov ecx, 2
+    jmp 52f
+53: mov ecx, 3
+    jmp 52f
+54: mov ecx, 4
+52: mov [rsp + 16], rcx
+    cmp rcx, 1
+    jbe 5f
+    mov rdx, 1
+55: movzx eax, byte ptr [r15 + rdx]
+    mov [rsp + 32 + rdx], al
+    inc rdx
+    cmp rdx, rcx
+    jb 55b
+5:  mov rax, [rsp + 8]
+    cmp r12, rax
+    jg 6f
+    mov rdi, rbx
+    mov rsi, [rsp]
+    call _bit_substr
+    jmp 8f
+6:  mov rax, r12
+    sub rax, [rsp + 8]
+    mov [rsp + 48], rax
+    imul rax, [rsp + 16]
+    add rax, [rsp]
+    mov [rsp + 24], rax
+    lea rdi, [rax + 1]
+    call _bit_alloc
+    mov r15, rax
     test r14d, r14d
-    jz 4f
-    mov rdi, [rsp + 8]
+    jz 20f
+    mov rdi, r15
     mov rsi, rbx
     mov rdx, [rsp]
     call memcpy@PLT
-    mov rcx, [rsp]
-3:  cmp rcx, r12
-    jge 6f
-    mov rax, [rsp + 8]
+    mov r9, [rsp + 48]
     mov r10, [rsp + 16]
-    mov [rax + rcx], r10b
+    mov r8, [rsp]
+    xor r11, r11
+10: cmp r11, r9
+    jge 30f
+    xor rcx, rcx
+12: cmp rcx, r10
+    jge 13f
+    movzx eax, byte ptr [rsp + 32 + rcx]
+    mov [r15 + r8], al
+    inc r8
     inc rcx
-    jmp 3b
-4:  mov rcx, r12
-    sub rcx, [rsp]
-    xor r11d, r11d
-5:  cmp r11, rcx
-    jge 51f
-    mov rax, [rsp + 8]
+    jmp 12b
+13: inc r11
+    jmp 10b
+20: mov r9, [rsp + 48]
     mov r10, [rsp + 16]
-    mov [rax + r11], r10b
-    inc r11
-    jmp 5b
-51: mov rdi, [rsp + 8]
-    add rdi, rcx
+    xor r8, r8
+    xor r11, r11
+21: cmp r11, r9
+    jge 22f
+    xor rcx, rcx
+23: cmp rcx, r10
+    jge 24f
+    movzx eax, byte ptr [rsp + 32 + rcx]
+    mov [r15 + r8], al
+    inc r8
+    inc rcx
+    jmp 23b
+24: inc r11
+    jmp 21b
+22: mov rdi, r15
+    add rdi, r8
     mov rsi, rbx
     mov rdx, [rsp]
     call memcpy@PLT
-6:  mov rax, [rsp + 8]
-    mov byte ptr [rax + r12], 0
-8:  add rsp, 40
+30: mov rax, [rsp + 24]
+    mov byte ptr [r15 + rax], 0
+    mov rax, r15
+8:  add rsp, 64
     pop r15
     pop r14
     pop r13
@@ -1282,9 +1340,9 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина, rdx=�
     pop rbx
     pop rbp
     ret
-9:  lea rdi, [rip + Lrt_epad_width]
+99: lea rdi, [rip + Lrt_epad_width]
     mov rsi, r13
-    add rsp, 40
+    add rsp, 64
     pop r15
     pop r14
     pop r13
