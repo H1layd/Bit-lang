@@ -3972,7 +3972,14 @@ fn e_str(num n) {
     bool afresh = false;
     for k in 0:c1(n) - 1 {
         num p = arg(n, k);
+        mas parts = (num);
         if k > 0 {
+            # Keep the accumulated text alive while the next expression runs.
+            num previous = arg(n, k - 1);
+            if afresh or kind(previous) != "lit" {
+                do(RFRESH >> ch(afresh));
+                do(hold_call_string(n, "string", parts));
+            }
             do(push());
         }
         bool pfresh = false;
@@ -3984,25 +3991,16 @@ fn e_str(num n) {
             do(pfresh >> ch(RFRESH));
         }
         if k > 0 {
+            if pfresh {
+                do(hold_call_string(p, "string", parts));
+            }
             num ps = slot();
             do(op_st(acc(), ps));               # сохранить часть
             do(pop(pr(0)));                      # прежняя строка -> pr(0)
-            num asl = slot();
-            do(op_st(pr(0), asl));              # сохранить её для освобождения
             do(op_ld(pr(1), ps));              # часть -> pr(1)
             do(op_call("_bit_cat"));            # pr(0) + pr(1)
             do(op_rt1("_bit_str_adopt"));
-            num rs = slot();
-            do(op_st(acc(), rs));               # новая строка
-            if afresh {
-                do(op_ld(pr(0), asl));
-                do(op_call("_bit_drop_str"));
-            }
-            if pfresh {
-                do(op_ld(pr(0), ps));
-                do(op_call("_bit_drop_str"));
-            }
-            do(op_ld(acc(), rs));
+            do(drop_call_strings(parts));
             do(afresh >> ch(true));
         } else {
             do(afresh >> ch(pfresh));
@@ -4374,8 +4372,18 @@ fn e_bin(num n, string false_label) {
     }
     do(expr(fa(n)));
     string lt = RT;
-    bool left_fresh = RFRESH;
     num rhs = fb(n);
+    mas string_operands = (num);
+    bool string_operation = lt == "string" and (op == "+" or is_cmp(op));
+    if string_operation {
+        bool simple_rhs = kind(rhs) == "var";
+        if kind(rhs) == "str" and c1(rhs) == 1 {
+            do(simple_rhs >> ch(kind(arg(rhs, 0)) == "lit"));
+        }
+        if RFRESH or not simple_rhs {
+            do(hold_call_string(fa(n), lt, string_operands));
+        }
+    }
     num immediate = -1;
     if false_label != "" or op == "+" or op == "-" {
         do(immediate >> ch(immediate_rhs(lt, rhs)));
@@ -4401,6 +4409,14 @@ fn e_bin(num n, string false_label) {
     if immediate >= 0 {
         do(res("num"));
         do(rng(true, immediate, true, immediate));
+    } else if string_operation {
+        do(push());
+        do(expr(rhs));
+        if RFRESH {
+            do(hold_call_string(rhs, RT, string_operands));
+        }
+        do(op_mov(cr("x1"), acc()));
+        do(pop(acc()));
     } else if not simple_x1(rhs) {
         do(push());
         do(expr(rhs));
@@ -4417,6 +4433,7 @@ fn e_bin(num n, string false_label) {
     do(BHK >> ch(RHK));
     do(BH >> ch(RH));
     if lt == "?" or rt == "?" {
+        do(drop_call_strings(string_operands));
         do(res("?"));
         return;
     }
@@ -4449,6 +4466,7 @@ fn e_bin(num n, string false_label) {
             do(op_mov(pr(0), acc()));
             do(op_mov(pr(1), cr("x1")));
             do(op_call("_bit_str_eq"));
+            do(drop_call_strings(string_operands));
             if op == "!=" {
                 if IS_ARM {
                     do(em("eor x0, x0, #1"));
@@ -4470,31 +4488,8 @@ fn e_bin(num n, string false_label) {
     if op == "+" and lt == "string" and rt == "string" {
         do(op_mov(pr(0), acc()));
         do(op_mov(pr(1), cr("x1")));
-        bool right_fresh = RFRESH;
-        num left_slot = -1;
-        num right_slot = -1;
-        if left_fresh {
-            do(left_slot >> ch(slot()));
-            do(op_st(pr(0), left_slot));
-        }
-        if right_fresh {
-            do(right_slot >> ch(slot()));
-            do(op_st(pr(1), right_slot));
-        }
         do(op_call("_bit_cat"));
-        if left_fresh or right_fresh {
-            num result = slot();
-            do(op_st(acc(), result));
-            if left_fresh {
-                do(op_ld(pr(0), left_slot));
-                do(op_call("_bit_drop_str"));
-            }
-            if right_fresh {
-                do(op_ld(pr(0), right_slot));
-                do(op_call("_bit_drop_str"));
-            }
-            do(op_ld(acc(), result));
-        }
+        do(drop_call_strings(string_operands));
         do(res("string"));
         do(op_rt1("_bit_str_adopt"));
         do(RFRESH >> ch(true));

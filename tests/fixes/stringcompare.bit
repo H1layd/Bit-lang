@@ -1,0 +1,18 @@
+fn compare_make(num n) { return "value-{n}"; }
+fn compare_fail() { print("bad" >> num); return "unreachable"; }
+host {
+    print(compare_make(1) == compare_make(1));
+    print(compare_make(1) != compare_make(2));
+    if compare_make(1) == compare_make(2) { print("wrong"); }
+    else { print("different"); }
+    if compare_make(1) != compare_make(1) { print("wrong"); }
+    else { print("equal"); }
+    print(compare_make(2) + compare_make(3));
+    recover { print(compare_make(1) == compare_fail()); }
+    else { print("caught compare"); }
+    recover { print(compare_make(1) + compare_fail()); }
+    else { print("caught concat"); }
+    print("start {compare_make(4)} middle {compare_make(5)} end");
+    recover { print("start {compare_make(4)} middle {compare_fail()} end"); }
+    else { print("caught interpolation"); }
+}
