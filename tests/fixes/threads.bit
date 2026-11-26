@@ -1,0 +1,13 @@
+num a = 0;
+num b = 0;
+host {
+    thread t1 {
+        do(a >> ch(42));
+    }
+    thread t2 {
+        do(b >> ch(7));
+    }
+    do(t1 >> wait);
+    do(t2 >> wait);
+    print("{a} {b}");
+}

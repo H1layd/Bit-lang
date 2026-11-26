@@ -72,6 +72,8 @@ already exist; the agreed rules will apply to them as well.
 - [x] **No limit on parameters**: arguments beyond the register count travel on the stack,
   so functions take as many parameters as they need.
 - [x] **`pick`**: a choice by value without fall-through — `pick x { 1 { } 2, 4 { } else { } }`.
+- [x] **Threads**: `thread name { ... }` starts a second flow on its own stack and
+  `do(name >> wait)` joins it. Threads see globals; locks are the next step.
 - [x] **Immediate keyboard**: `do(term >> raw(true))` stops waiting for Enter and echoing, and
   `term >> key` returns one UTF-8 character, so interactive programs are possible.
 

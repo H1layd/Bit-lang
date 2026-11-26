@@ -2890,6 +2890,51 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbx
     pop rbp
     jmp _bit_die
+_bit_thread_start:                   # rdi = код → rax = поток
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    and rsp, -16
+    sub rsp, 64
+    mov rbx, rdi
+    xor ecx, ecx
+    xor edx, edx
+    lea r8, [rip + _bit_thread_run]
+    mov r9, rbx
+    mov qword ptr [rsp + 32], 0
+    mov qword ptr [rsp + 40], 0
+    call CreateThread
+    lea rsp, [rbp - 16]
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_thread_run:                     # rcx = параметр (Win64)
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov rdi, rcx
+    call rdi
+    xor eax, eax
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_thread_wait:                    # rdi = поток
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov rcx, rdi
+    mov rdx, -1
+    call WaitForSingleObject
+    mov rsp, rbp
+    pop rbp
+    ret
+
 _bit_term_raw:                       # rdi = 1 сырой режим, 0 обычный
     push rbp
     mov rbp, rsp

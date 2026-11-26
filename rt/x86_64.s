@@ -88,6 +88,53 @@ _bit_errno_code:                    // → код ошибки системы и
     pop rbp
     jmp _bit_errno_map
 
+_bit_thread_start:                  // rdi = код → rax = поток
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 16
+    mov rbx, rdi
+    mov edi, 8
+    call _bit_alloc
+    mov r12, rax
+    mov rdi, r12
+    xor esi, esi
+    lea rdx, [rip + _bit_thread_run]
+    mov rcx, rbx
+    call _pthread_create
+    test eax, eax
+    jnz 9f
+    mov rax, [r12]
+    add rsp, 16
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ethread]
+    xor esi, esi
+    add rsp, 16
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_thread_run:                    // rdi = код потока
+    push rbp
+    mov rbp, rsp
+    call rdi
+    xor eax, eax
+    pop rbp
+    ret
+
+_bit_thread_wait:                   // rdi = поток
+    push rbp
+    mov rbp, rsp
+    xor esi, esi
+    call _pthread_join
+    pop rbp
+    ret
+
 _bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный
     push rbp
     mov rbp, rsp
@@ -6514,6 +6561,7 @@ Lrt_gp: .asciz "%.*g"
 Lrt_fp: .asciz "%.*f"
 Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
+Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"
 Lrt_ehex_width: .asciz "hex: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 64"

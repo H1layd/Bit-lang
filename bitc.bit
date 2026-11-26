@@ -311,7 +311,7 @@ fn is_kw(string w) {
         or w == "all" or w == "file" or w == "dir" or w == "bytes" or w == "proc" or w == "conn" or w == "server" or w == "do" or w == "print" or w == "if"
         or w == "else" or w == "while" or w == "for" or w == "in" or w == "return" or w == "true"
         or w == "false" or w == "and" or w == "or" or w == "not" or w == "break" or w == "next" or w == "recover"
-        or w == "pick";
+        or w == "pick" or w == "thread";
 }
 
 fn is_type(string w) {
@@ -1051,6 +1051,9 @@ fn statement(bool layout) {
         if v == "pick" {
             return pick_stmt(layout);
         }
+        if v == "thread" {
+            return thread_stmt();
+        }
         if v == "while" {
             do(take());
             num cond = expr_p();
@@ -1124,6 +1127,24 @@ fn statement(bool layout) {
     do(expr_p());
     do(fail("действие нужно обернуть в do(...), например do(x >> ch(5));", line));
     return -1;
+}
+
+fn thread_stmt() {
+    num line = pl(0);
+    do(take());
+    string name = pname("имя потока");
+    mas body = pblock(line);
+    mas params = (num);
+    num f = node("fn", line);
+    string fname = "@thread_{f}";
+    do(mset(NS, f, fname));
+    do(setl1(f, params));
+    do(setl2(f, body));
+    do(FNS >> add(f));
+    num n = node("spawn", line);
+    do(mset(NS, n, name));
+    do(mset(NA, n, f));
+    return n;
 }
 
 fn pick_stmt(bool layout) {
@@ -2772,6 +2793,9 @@ fn stmt(num s, num rest, num count) {
     if k == "pick" {
         return s_pick(s);
     }
+    if k == "spawn" {
+        return s_spawn(s);
+    }
     if k == "while" {
         return s_while(s);
     }
@@ -3426,6 +3450,25 @@ fn cond_jump(num e, string label) {
         do(fail("условие должно быть bool (true/false), а тут {tn(RT)} — например x > 0", ln(e)));
     }
     do(op_jz(label));
+}
+
+fn s_spawn(num s) {
+    num line = ln(s);
+    num f = fa(s);
+    num inst = instance(f, "");
+    string lbl = ILAB >> get(inst, "");
+    if IS_ARM {
+        do(em("adrp x0, {lbl}@PAGE"));
+        do(em("add x0, x0, {lbl}@PAGEOFF"));
+    } else {
+        do(em("lea rax, [rip + {lbl}]"));
+    }
+    do(op_acc_to(0));
+    do(op_call("_bit_thread_start"));
+    num v = declare(fs(s), "thread", line, -1, 0);
+    do(op_st(acc(), vslot(v)));
+    do(assigned(v, false, -1, false, -1));
+    return false;
 }
 
 fn s_pick(num s) {
@@ -5468,6 +5511,9 @@ fn am(string t, string m) {
     }
     if t == "bytes" and m == "write" {
         return aset("_bit_bytes_put", "num,num", true, "");
+    }
+    if t == "thread" and m == "wait" {
+        return aset("_bit_thread_wait", "", false, "");
     }
     if t == "bytes" and m == "free" {
         return aset("_bit_bytes_free", "", false, "");
@@ -8257,6 +8303,48 @@ fn rt_arm(mas o) {
     do(o >> add("    bl ___error"));
     do(o >> add("    ldr w0, [x0]"));
     do(o >> add("    bl _bit_errno_map"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_start:                  // x0 = код → x0 = поток"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x0, #8"));
+    do(o >> add("    bl _bit_alloc"));
+    do(o >> add("    mov x20, x0"));
+    do(o >> add("    mov x0, x20"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    adrp x2, _bit_thread_run@PAGE"));
+    do(o >> add("    add x2, x2, _bit_thread_run@PAGEOFF"));
+    do(o >> add("    mov x3, x19"));
+    do(o >> add("    bl _pthread_create"));
+    do(o >> add("    cbnz w0, 9f"));
+    do(o >> add("    ldr x0, [x20]"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  adrp x0, Lrt_ethread@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_ethread@PAGEOFF"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    b _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_run:                    // x0 = код потока"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    blr x0"));
+    do(o >> add("    mov x0, #0"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_wait:                   // x0 = поток"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    bl _pthread_join"));
     do(o >> add("    ldp x29, x30, [sp], #16"));
     do(o >> add("    ret"));
     do(o >> add(""));
@@ -14255,6 +14343,7 @@ fn rt_arm(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
     do(o >> add("Lrt_ehex_width: .asciz \"hex: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 64\""));
@@ -14410,6 +14499,53 @@ fn rt_x86(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_start:                  // rdi = код → rax = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    sub rsp, 16"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov edi, 8"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov r12, rax"));
+    do(o >> add("    mov rdi, r12"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    lea rdx, [rip + _bit_thread_run]"));
+    do(o >> add("    mov rcx, rbx"));
+    do(o >> add("    call _pthread_create"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 9f"));
+    do(o >> add("    mov rax, [r12]"));
+    do(o >> add("    add rsp, 16"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  lea rdi, [rip + Lrt_ethread]"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    add rsp, 16"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_run:                    // rdi = код потока"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    call rdi"));
+    do(o >> add("    xor eax, eax"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_wait:                   // rdi = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    call _pthread_join"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add("_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный"));
     do(o >> add("    push rbp"));
@@ -20837,6 +20973,7 @@ fn rt_x86(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
     do(o >> add("Lrt_ehex_width: .asciz \"hex: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 64\""));
@@ -20992,6 +21129,53 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_start:                  // rdi = код → rax = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    sub rsp, 16"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    mov edi, 8"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov r12, rax"));
+    do(o >> add("    mov rdi, r12"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    lea rdx, [rip + _bit_thread_run]"));
+    do(o >> add("    mov rcx, rbx"));
+    do(o >> add("    call pthread_create@PLT"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 9f"));
+    do(o >> add("    mov rax, [r12]"));
+    do(o >> add("    add rsp, 16"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  lea rdi, [rip + Lrt_ethread]"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    add rsp, 16"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_run:                    // rdi = код потока"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    call rdi"));
+    do(o >> add("    xor eax, eax"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_wait:                   // rdi = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    call pthread_join@PLT"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add("_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный"));
     do(o >> add("    push rbp"));
@@ -27735,6 +27919,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
     do(o >> add("Lrt_ehex_width: .asciz \"hex: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 64\""));
@@ -30695,6 +30880,51 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
+    do(o >> add("_bit_thread_start:                   # rdi = код → rax = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 64"));
+    do(o >> add("    mov rbx, rdi"));
+    do(o >> add("    xor ecx, ecx"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("    lea r8, [rip + _bit_thread_run]"));
+    do(o >> add("    mov r9, rbx"));
+    do(o >> add("    mov qword ptr [rsp + 32], 0"));
+    do(o >> add("    mov qword ptr [rsp + 40], 0"));
+    do(o >> add("    call CreateThread"));
+    do(o >> add("    lea rsp, [rbp - 16]"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_run:                     # rcx = параметр (Win64)"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov rdi, rcx"));
+    do(o >> add("    call rdi"));
+    do(o >> add("    xor eax, eax"));
+    do(o >> add("    mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_thread_wait:                    # rdi = поток"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov rcx, rdi"));
+    do(o >> add("    mov rdx, -1"));
+    do(o >> add("    call WaitForSingleObject"));
+    do(o >> add("    mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
     do(o >> add("_bit_term_raw:                       # rdi = 1 сырой режим, 0 обычный"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
