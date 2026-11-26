@@ -1,0 +1,21 @@
+# небольшой отчёт: строки, числа и сортировка структур
+record Person:
+    string name;
+    num score;
+
+host {
+    mas people = (Person("Bob", 42), Person("Alice", 7), Person("Carol", 128));
+
+    for p in people >> sort(it >> score) {
+        string cell = p >> name >> pad(8);
+        string points = p >> score >> pad_left(4);
+        string hexed = p >> score >> hex(4);
+        print("{cell}{points}  {hexed}");
+    }
+
+    string title = " top scores ";
+    string trimmed = title >> trim;
+    string banner = trimmed >> pad(20, "-");
+    print("[{banner}]");
+    print(trimmed >> upper >> repeat(2) >> sz);
+}

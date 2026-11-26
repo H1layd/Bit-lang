@@ -1,0 +1,13 @@
+a:20
+c:25
+b:30
+---
+b
+c
+a
+---
+(a, cc, bbb, dddd)
+(4, 3, 2, 1)
+a,c,b
+(a, bbb, cc, dddd)
+0 

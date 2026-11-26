@@ -152,6 +152,179 @@ _bit_oom:
     xor esi, esi
     call _bit_die
 
+_bit_key_cmp:                       // rdi=a, rsi=b, rdx=вид → eax (-1, 0, 1)
+    cmp rdx, 2
+    je 1f
+    cmp rdi, rsi
+    jl 3f
+    jg 4f
+    xor eax, eax
+    ret
+1:  movzx eax, byte ptr [rdi]
+    movzx ecx, byte ptr [rsi]
+    cmp eax, ecx
+    jl 3f
+    jg 4f
+    test eax, eax
+    jz 5f
+    inc rdi
+    inc rsi
+    jmp 1b
+5:  xor eax, eax
+    ret
+3:  mov eax, -1
+    ret
+4:  mov eax, 1
+    ret
+
+_bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx=вид, rcx=убывание, r8=строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 64
+    mov rbx, rdi
+    mov r12, rsi
+    mov [rsp], rdx
+    mov [rsp + 8], rcx
+    mov r14, [rbx + 8]
+    mov rax, [r12 + 8]
+    cmp r14, rax
+    jle 1f
+    mov r14, rax
+1:  mov r15, 1
+2:  cmp r15, r14
+    jge 9f
+    mov rax, [rbx]
+    mov rdx, [rax + r15*8]
+    mov [rsp + 16], rdx
+    mov rax, [r12]
+    mov rdx, [rax + r15*8]
+    mov [rsp + 24], rdx
+    mov rcx, r15
+3:  test rcx, rcx
+    jz 6f
+    dec rcx
+    mov [rsp + 32], rcx
+    mov rax, [r12]
+    mov rdi, [rax + rcx*8]
+    mov rsi, [rsp + 24]
+    mov rdx, [rsp]
+    call _bit_key_cmp
+    cmp qword ptr [rsp + 8], 0
+    je 31f
+    neg eax
+31: test eax, eax
+    jle 7f
+    mov rcx, [rsp + 32]
+    mov rax, [r12]
+    mov rdx, [rax + rcx*8]
+    mov [rax + rcx*8 + 8], rdx
+    mov rax, [rbx]
+    mov rdx, [rax + rcx*8]
+    mov [rax + rcx*8 + 8], rdx
+    jmp 3b
+6:  xor ecx, ecx
+    jmp 52f
+7:  inc rcx
+52: mov rax, [r12]
+    mov rdx, [rsp + 24]
+    mov [rax + rcx*8], rdx
+    mov rax, [rbx]
+    mov rdx, [rsp + 16]
+    mov [rax + rcx*8], rdx
+    inc r15
+    jmp 2b
+9:  add rsp, 64
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_map_keys:                      // rdi=словарь, rsi=строка → mas строк
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r13, rsi
+    mov r12, [rbx + 8]
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r14, rax
+    xor r15d, r15d
+1:  cmp r15, r12
+    jge 2f
+    mov rax, [rbx]
+    mov rax, [rax + r15*8]
+    mov rax, [rbx]
+    mov rax, [rax + r15*8]
+    mov rsi, [rax]
+    mov rdi, r14
+    mov rdx, r13
+    call _bit_mas_add
+    inc r15
+    jmp 1b
+2:  mov rax, r14
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_map_values:                    // rdi=словарь, rsi=вид значения, rdx=строка → mas
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 24
+    mov rbx, rdi
+    mov [rsp], rsi                  # вид значения
+    mov r13, rdx
+    mov r12, [rbx + 8]
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r14, rax
+    xor r15d, r15d
+1:  cmp r15, r12
+    jge 2f
+    mov rax, [rbx]
+    mov rax, [rax + r15*8]
+    mov rsi, [rax + 8]
+    mov [rsp + 8], rsi
+3:  mov rdi, r14
+    mov rdx, r13
+    call _bit_mas_add
+    inc r15
+    jmp 1b
+2:  mov rax, r14
+    add rsp, 24
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_map_find:                      // map, key -> index or -1
     push rbp
     mov rbp, rsp
@@ -750,6 +923,556 @@ _bit_substr:                        // rdi=указатель, rsi=длина �
     pop rbx
     pop rbp
     ret
+
+_bit_str_index:                     // rdi=строка, rsi=подстрока → номер символа или -1
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov r12, rsi                    # подстрока
+    xor r14d, r14d                  # счётчик символов
+    movzx eax, byte ptr [r12]
+    test eax, eax
+    jz 8f                           # пустая подстрока — вхождение с нуля
+1:  movzx eax, byte ptr [rdi]
+    test eax, eax
+    jz 7f                           # конец строки — нет вхождения
+    mov rbx, rdi
+    mov r13, r12
+2:  movzx eax, byte ptr [r13]
+    test eax, eax
+    jz 6f                           # подстрока кончилась — нашли
+    movzx ecx, byte ptr [rbx]
+    cmp al, cl
+    jne 3f
+    inc rbx
+    inc r13
+    jmp 2b
+3:  movzx eax, byte ptr [rdi]
+    and eax, 0xC0
+    cmp eax, 0x80
+    je 4f                           # продолжение символа — не считаем
+    inc r14
+4:  inc rdi
+    jmp 1b
+6:  mov rax, r14
+    jmp 9f
+7:  mov rax, -1
+    jmp 9f
+8:  xor eax, eax
+9:  pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_str_contains:                  // rdi=строка, rsi=подстрока → 1/0
+    push rbp
+    mov rbp, rsp
+    call _bit_str_index
+    cmp rax, -1
+    jne 1f
+    xor eax, eax
+    pop rbp
+    ret
+1:  mov eax, 1
+    pop rbp
+    ret
+
+_bit_str_upper:                     // rdi=строка → новая строка в верхнем регистре
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    call strlen@PLT
+    mov r12, rax
+    lea rdi, [r12 + 1]
+    call _bit_alloc
+    mov r13, rax
+    xor r14d, r14d
+1:  cmp r14, r12
+    jge 3f
+    movzx eax, byte ptr [rbx + r14]
+    cmp al, 97                      # 'a'
+    jb 2f
+    cmp al, 122                     # 'z'
+    ja 2f
+    sub al, 32
+2:  mov [r13 + r14], al
+    inc r14
+    jmp 1b
+3:  mov byte ptr [r13 + r12], 0
+    mov rax, r13
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_str_lower:                     // rdi=строка → новая строка в нижнем регистре
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    call strlen@PLT
+    mov r12, rax
+    lea rdi, [r12 + 1]
+    call _bit_alloc
+    mov r13, rax
+    xor r14d, r14d
+1:  cmp r14, r12
+    jge 3f
+    movzx eax, byte ptr [rbx + r14]
+    cmp al, 65                      # 'A'
+    jb 2f
+    cmp al, 90                      # 'Z'
+    ja 2f
+    add al, 32
+2:  mov [r13 + r14], al
+    inc r14
+    jmp 1b
+3:  mov byte ptr [r13 + r12], 0
+    mov rax, r13
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_str_code:                      // rdi=строка, rsi=строка программы → код первого символа
+    push rbp
+    mov rbp, rsp
+    push rbx
+    mov rbx, rsi
+    movzx eax, byte ptr [rdi]
+    test eax, eax
+    jz 9f
+    cmp eax, 0x80
+    jae 1f
+    pop rbx
+    pop rbp
+    ret
+1:  and eax, 0xE0
+    cmp eax, 0xC0
+    jne 2f
+    movzx eax, byte ptr [rdi]
+    and eax, 0x1F
+    shl eax, 6
+    movzx ecx, byte ptr [rdi + 1]
+    and ecx, 0x3F
+    or eax, ecx
+    pop rbx
+    pop rbp
+    ret
+2:  movzx eax, byte ptr [rdi]
+    and eax, 0xF0
+    cmp eax, 0xE0
+    jne 3f
+    movzx eax, byte ptr [rdi]
+    and eax, 0x0F
+    shl eax, 12
+    movzx ecx, byte ptr [rdi + 1]
+    and ecx, 0x3F
+    shl ecx, 6
+    or eax, ecx
+    movzx ecx, byte ptr [rdi + 2]
+    and ecx, 0x3F
+    or eax, ecx
+    pop rbx
+    pop rbp
+    ret
+3:  movzx eax, byte ptr [rdi]
+    and eax, 0x07
+    shl eax, 18
+    movzx ecx, byte ptr [rdi + 1]
+    and ecx, 0x3F
+    shl ecx, 12
+    or eax, ecx
+    movzx ecx, byte ptr [rdi + 2]
+    and ecx, 0x3F
+    shl ecx, 6
+    or eax, ecx
+    movzx ecx, byte ptr [rdi + 3]
+    and ecx, 0x3F
+    or eax, ecx
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ecode_empty]
+    mov rsi, rbx
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_num_char:                      // rdi=код, rsi=строка программы → строка из одного символа
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    mov r13, rsi
+    mov rbx, rdi
+    test rbx, rbx
+    js 9f
+    mov rax, 1114111
+    cmp rbx, rax
+    jg 9f
+    mov edi, 5
+    call _bit_alloc
+    mov r12, rax
+    cmp rbx, 0x80
+    jb 1f
+    cmp rbx, 0x800
+    jb 2f
+    cmp rbx, 0x10000
+    jb 3f
+    mov rax, rbx
+    shr rax, 18
+    or al, 0xF0
+    mov [r12], al
+    mov rax, rbx
+    shr rax, 12
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 1], al
+    mov rax, rbx
+    shr rax, 6
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 2], al
+    mov rax, rbx
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 3], al
+    mov byte ptr [r12 + 4], 0
+    jmp 8f
+1:  mov [r12], bl
+    mov byte ptr [r12 + 1], 0
+    jmp 8f
+2:  mov rax, rbx
+    shr rax, 6
+    or al, 0xC0
+    mov [r12], al
+    mov rax, rbx
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 1], al
+    mov byte ptr [r12 + 2], 0
+    jmp 8f
+3:  mov rax, rbx
+    shr rax, 12
+    or al, 0xE0
+    mov [r12], al
+    mov rax, rbx
+    shr rax, 6
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 1], al
+    mov rax, rbx
+    and al, 0x3F
+    or al, 0x80
+    mov [r12 + 2], al
+    mov byte ptr [r12 + 3], 0
+8:  mov rax, r12
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_echar_range]
+    mov rsi, r13
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_str_pad:                       // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка → строка
+    mov r8d, 1
+    jmp _bit_str_pad_do
+
+_bit_str_pad_left:                  // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка
+    xor r8d, r8d
+    jmp _bit_str_pad_do
+
+_bit_str_pad_do:                    // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка, r8=направление
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 40
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rcx
+    mov r15, rdx
+    mov r14d, r8d
+    test r12, r12
+    js 9f
+    mov rax, 1000000
+    cmp r12, rax
+    jg 9f
+    call strlen@PLT
+    mov [rsp], rax
+    cmp r12, rax
+    jg 1f
+    mov rdi, rbx
+    call _bit_substr
+    jmp 8f
+1:  lea rdi, [r12 + 1]
+    call _bit_alloc
+    mov [rsp + 8], rax
+    mov r10b, 32
+    test r15, r15
+    jz 2f
+    movzx eax, byte ptr [r15]
+    test eax, eax
+    jz 2f
+    mov r10b, al
+2:  mov [rsp + 16], r10
+    test r14d, r14d
+    jz 4f
+    mov rdi, [rsp + 8]
+    mov rsi, rbx
+    mov rdx, [rsp]
+    call memcpy@PLT
+    mov rcx, [rsp]
+3:  cmp rcx, r12
+    jge 6f
+    mov rax, [rsp + 8]
+    mov r10, [rsp + 16]
+    mov [rax + rcx], r10b
+    inc rcx
+    jmp 3b
+4:  mov rcx, r12
+    sub rcx, [rsp]
+    xor r11d, r11d
+5:  cmp r11, rcx
+    jge 51f
+    mov rax, [rsp + 8]
+    mov r10, [rsp + 16]
+    mov [rax + r11], r10b
+    inc r11
+    jmp 5b
+51: mov rdi, [rsp + 8]
+    add rdi, rcx
+    mov rsi, rbx
+    mov rdx, [rsp]
+    call memcpy@PLT
+6:  mov rax, [rsp + 8]
+    mov byte ptr [rax + r12], 0
+8:  add rsp, 40
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epad_width]
+    mov rsi, r13
+    add rsp, 40
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_str_repeat:                    // rdi=строка, rsi=раз, rdx=строка → строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    test r12, r12
+    js 9f
+    mov rax, 100000000
+    cmp r12, rax
+    jg 9f
+    call strlen@PLT
+    mov r14, rax
+    test r12, r12
+    jz 5f
+    mov rax, r14
+    mul r12
+    jc 9f
+    mov r15, rax
+    cmp r15, 100000000
+    jg 9f
+    lea rdi, [r15 + 1]
+    call _bit_alloc
+    mov r8, rax
+    xor r9d, r9d
+1:  cmp r9, r12
+    jge 3f
+    mov rdi, r8
+    mov rax, r9
+    imul rax, r14
+    add rdi, rax
+    mov rsi, rbx
+    mov rdx, r14
+    push r8
+    push r9
+    sub rsp, 8
+    call memcpy@PLT
+    add rsp, 8
+    pop r9
+    pop r8
+    inc r9
+    jmp 1b
+3:  mov byte ptr [r8 + r15], 0
+    mov rax, r8
+    jmp 8f
+5:  mov edi, 1
+    call _bit_alloc
+    mov byte ptr [rax], 0
+8:  add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epad_count]
+    mov rsi, r13
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_num_hex:                       // rdi=число, rsi=ширина, rdx=строка → строка в hex
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 32
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    test r12, r12
+    js 9f
+    cmp r12, 64
+    jg 9f
+    lea r14, [rip + Lrt_hex]
+    mov rax, rbx
+    mov ecx, 1
+1:  mov rdx, rax
+    shr rdx, 4
+    jz 2f
+    mov rax, rdx
+    inc ecx
+    jmp 1b
+2:  mov r8, rcx
+    cmp r8, r12
+    jge 3f
+    mov r8, r12
+3:  lea rdi, [r8 + 1]
+    mov [rsp + 16], r8
+    call _bit_alloc
+    mov r9, rax
+    mov r8, [rsp + 16]
+    mov rcx, r8
+    mov rax, rbx
+4:  test rcx, rcx
+    jz 6f
+    dec rcx
+    mov rdx, rax
+    and rdx, 0x0F
+    movzx edx, byte ptr [r14 + rdx]
+    mov [r9 + rcx], dl
+    shr rax, 4
+    jmp 4b
+6:  mov byte ptr [r9 + r8], 0
+    mov rax, r9
+    add rsp, 32
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_ehex_width]
+    mov rsi, r13
+    add rsp, 32
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_dec_fixed:                     // rdi=биты dec, rsi=знаков после точки, rdx=строка → строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    test r12, r12
+    js 9f
+    cmp r12, 17
+    jg 9f
+    mov edi, 512
+    call _bit_alloc
+    mov r14, rax
+    mov rdi, rax
+    xor eax, eax
+    mov esi, 512
+    lea rdx, [rip + Lrt_fp]
+    mov ecx, r12d
+    movq xmm0, rbx
+    mov eax, 1
+    call snprintf@PLT
+    mov rdi, r14
+    call strlen@PLT
+    mov rsi, rax
+    mov rdi, r14
+    call _bit_substr
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_efixed_places]
+    mov rsi, r13
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 
 _bit_str_split:                     // rdi=строка, rsi=разделитель → mas строк
     push rbp
@@ -5967,6 +6690,13 @@ Lrt_badnum: .asciz "invalid num: expected a decimal integer in range"
 Lrt_random_bounds: .asciz "random: expected minimum <= maximum"
 Lrt_random_entropy: .asciz "random: cannot read system entropy"
 Lrt_gp: .asciz "%.*g"
+Lrt_fp: .asciz "%.*f"
+Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
+Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
+Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
+Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"
+Lrt_ehex_width: .asciz "hex: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 64"
+Lrt_efixed_places: .asciz "fixed: \320\267\320\275\320\260\320\272\320\276\320\262 \320\276\321\202 0 \320\264\320\276 17"
 Lrt_eread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \321\204\320\260\320\271\320\273: "
 Lrt_enotfile: .asciz "\321\215\321\202\320\276 \320\275\320\265 \321\204\320\260\320\271\320\273: "
 Lrt_enotdir: .asciz "\321\215\321\202\320\276 \320\275\320\265 \320\277\320\260\320\277\320\272\320\260: "

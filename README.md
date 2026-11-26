@@ -123,7 +123,10 @@ More programs live in [`examples/`](examples/): files, memory, network, system.
 bit supports system utilities, text processing, records, maps, function values and multi-file
 programs through `use`. Working directory and environment changes are built into `term` and
 inherited by launched programs. File operations include `read_only`, POSIX permissions, recursive
-directory removal, and walks with `FileInfo` metadata. TCP connects can be bounded in time
+directory removal, and walks with `FileInfo` metadata. Text work has `find`, `contains`,
+`upper`, `lower`, `code`, `char`, `pad` and `repeat`; numbers print as `hex` or `fixed`
+text; arrays sort by any `num` or `string` key, and a `map` walks its keys in insertion
+order. TCP connects can be bounded in time
 (`connect(ms)`), and the kind of a caught failure is a stable code through `term >> error_code`.
 A network service can listen on a specific IPv4 address, inspect the remote endpoint with
 `peer`, and measure intervals with `os >> clock`.

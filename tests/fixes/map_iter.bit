@@ -1,0 +1,17 @@
+host {
+    map m = (num);
+    do(m >> set("a", 1));
+    do(m >> set("b", 2));
+    do(m >> set("c", 3));
+    print(m >> keys);
+    print(m >> values);
+    for k in m {
+        print("{k}={m >> get(k, 0)}");
+    }
+    print(m >> has("b"));
+    do(m >> remove("b"));
+    print(m >> keys);
+    map s = (string);
+    do(s >> set("x", "one"));
+    print(s >> values);
+}

@@ -257,6 +257,10 @@ A `map` has string keys and one value type. `set` adds or replaces an entry. `re
 missing key. `has` checks for a key and `sz` gives the key count. `get(key)` raises an error for
 a missing key. `get(key, fallback)` computes the fallback only when needed. Lookup is linear.
 
+`keys` gives the keys as a `mas` of strings and `values` gives the values, both in the order the
+entries were added. `for k in m` walks the keys in the same order, so a map can be printed or
+serialised without extra bookkeeping.
+
 A named function with concrete parameter types can be assigned to an `all` variable, passed
 or returned. In `x -> ...`, the parameter has type `num`. Supply types explicitly with
 `(num x, dec y) -> ...`. Anonymous functions can read globals. Pass local values as arguments.
@@ -277,6 +281,11 @@ host {
 
     all twice = x -> x * 2;
     print(apply(twice, counts >> get("x", 0)));
+
+    print(counts >> keys);                  # (x)
+    for k in counts {
+        print("{k}: {counts >> get(k, 0)}");  # x: 7
+    }
 }
 ```
 
@@ -337,6 +346,9 @@ floating-point number. A `num` overflow that occurs at runtime can be handled wi
 | `n >> sqrt` | square root, result is `dec` |
 | `n >> pow(k)` | `n` to the whole power `k` (`num` only) |
 | `a >> min(b)` / `a >> max(b)` | smaller / larger of two (`num` or `dec`) |
+| `n >> hex` / `n >> hex(w)` | lowercase hex text; `w` zero-pads it to that width |
+| `d >> fixed(k)` | text with exactly `k` digits after the point, rounded |
+| `n >> pad(w)` / `n >> pad_left(w)` | the number as text, widened to `w` characters |
 
 Bit operations on `num`:
 
@@ -351,7 +363,15 @@ Bit operations on `num`:
 num m = n >> shift_left(3) >> bit_and(0xFF);
 dec r = 2 >> sqrt;                 # 1.4142135623730951
 num c = 3 >> pow(4);               # 81
+print(255 >> hex);                 # ff
+print(255 >> hex(4));              # 00ff
+print(3.14159 >> fixed(2));        # 3.14
+string cell = 42 >> pad_left(6);   # "    42"
 ```
+
+The text of `hex`, `fixed` and the padding methods is a `string`, so it can be joined and
+printed directly. `dec` division stays decimal, but integer division gives an integer: writing
+`dec x = 1 / 3;` is a build error that asks for a fractional operand.
 
 ### string
 
@@ -368,8 +388,18 @@ num c = 3 >> pow(4);               # 81
 | `s >> starts(p)` / `s >> ends(p)` | `true` if the text starts / ends with `p` |
 | `s >> bytes` | `mas` of the string's bytes |
 | `s >> run` | run as a shell command, return the output |
+| `s >> find(p)` | character index of the first `p`, or -1 |
+| `s >> contains(p)` | `true` if `p` occurs in the text |
+| `s >> upper` / `s >> lower` | ASCII letters in the other case; other characters are kept |
+| `s >> code` | code of the first character; a two- or three-byte character gives one code |
+| `s >> pad(w)` / `s >> pad_left(w)` | text widened to `w` characters with spaces |
+| `s >> pad(w, ".")` | the same, with `.` as the filling character |
+| `s >> repeat(n)` | the text repeated `n` times |
+
+`n >> char` goes the other way: a character code becomes a one-character string.
 
 Invalid input or a value outside the `num` range raises an error that `recover` can handle.
+A width or a repeat count outside its range is the same kind of error.
 
 Network methods of strings are under [Network](#network).
 
@@ -379,6 +409,11 @@ print("{s >> get(0)} | {s >> get(0:4)} | length {s >> sz}");
 mas parts = "a,b,c" >> split(",");            # (a, b, c)
 string t = "  text  " >> trim;                # "text"
 bool web = url >> starts("http://");
+print("привет" >> find("вет"));              # 2
+print("Привет" >> get(0) >> code);           # 1055, the code of П
+string line = 65 >> char;                    # "A"
+string cell = "ab" >> pad(4, ".");           # "ab.."
+string bar = "=" >> repeat(10);              # "=========="
 ```
 
 ### mas (array)
@@ -404,6 +439,8 @@ bool web = url >> starts("http://");
 | `a >> sum` | sum (numbers) |
 | `a >> sort` | return a sorted copy |
 | `do(a >> sort)` | sort the original array in place |
+| `a >> sort(it >> f)` | sorted copy by the expression `f`; `num` and `string` keys |
+| `a >> sort(it >> f, "down")` | the same, descending |
 | `a >> join(sep)` | join strings with a separator |
 | `a >> text(from, to)` | decode a slice of bytes as a string |
 
@@ -420,6 +457,19 @@ who holds it sees the change.
 
 Sorting in an expression creates a separate array. The original and its aliases keep their element
 order. In an action chain inside `do(...)`, sorting changes the receiver in place.
+
+Sorting by an expression orders records and any other values by a chosen key:
+
+```bit
+record User:
+    string name;
+    num age;
+
+mas users = (User("b", 30), User("a", 20));
+mas by_age = users >> sort(it >> age);      # a, then b
+mas newest = users >> sort(it >> age, "down");
+print(users >> sort(it >> age) >> each(it >> name));
+```
 
 ```
 mas a = (5, 3, 9, 1, 7);

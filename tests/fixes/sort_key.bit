@@ -1,0 +1,17 @@
+record User:
+    string name;
+    num age;
+host {
+    mas users = (User("b", 30), User("a", 20), User("c", 25));
+    mas by_age = users >> sort(it >> age);
+    for u in by_age { print("{u >> name}:{u >> age}"); }
+    print("---");
+    mas desc = users >> sort(it >> age, "down");
+    for u in desc { print("{u >> name}"); }
+    print("---");
+    mas words = ("bbb", "a", "cc", "dddd");
+    print(words >> sort(it >> sz));
+    print(words >> sort(it >> sz, "down") >> each(it >> sz));
+    print(users >> sort(it >> age) >> each(it >> name) >> join(","));
+    print(words >> sort);
+}

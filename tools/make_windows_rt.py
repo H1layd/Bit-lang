@@ -27,7 +27,11 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
         "_bit_setjmp", "_bit_longjmp", "_bit_own_str", "_bit_drop_owned", "_bit_term_error", "_bit_term_errcode", "_bit_mas_argv",
         "_bit_term_stderr", "_bit_args",
         "_bit_random_seed", "_bit_random_next", "_bit_random_range",
-        "_bit_map_find", "_bit_map_set", "_bit_map_remove"]
+        "_bit_map_find", "_bit_map_set", "_bit_map_remove",
+        "_bit_map_keys", "_bit_map_values", "_bit_key_cmp", "_bit_mas_sort_by",
+        "_bit_str_index", "_bit_str_contains", "_bit_str_upper", "_bit_str_lower",
+        "_bit_str_code", "_bit_num_char", "_bit_str_pad", "_bit_str_pad_left",
+        "_bit_str_pad_do", "_bit_str_repeat", "_bit_num_hex"]
 WRAP = ["calloc", "memcpy", "qsort", "realloc", "strlen", "free", "getentropy"]
 # сеть: переносим и оборачиваем вызовы Winsock
 NET = ["_bit_tcp_connect", "_bit_udp_connect", "_bit_ip_connect", "_bit_tcp_listen", "_bit_tcp_listen_at",
@@ -82,7 +86,9 @@ def wrapcalls(body, names):
     return body
 
 def extract(name):
-    return wrapcalls(extract_raw(name), WRAP)
+    body = wrapcalls(extract_raw(name), WRAP)
+    # snprintf is C99 and available as such under mingw
+    return body.replace("call _snprintf", "call snprintf")
 
 def extract_net(name):
     b = wrapcalls(extract_raw(name), SOCK)
@@ -330,6 +336,71 @@ _bit_drop_str:
 _bit_string_str:
     mov rax, rdi
     ret
+
+_bit_dec_fixed:                       # rdi=биты dec, rsi=знаков после точки, rdx=строка
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    and rsp, -16
+    sub rsp, 64
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    test r12, r12
+    js 9f
+    cmp r12, 17
+    jg 9f
+    lea r8, [rsp + 32]
+    mov byte ptr [r8], 37
+    mov byte ptr [r8 + 1], 46
+    mov rax, r12
+    cmp rax, 10
+    jl 1f
+    mov byte ptr [r8 + 2], 49
+    sub rax, 10
+    add al, 48
+    mov byte ptr [r8 + 3], al
+    mov byte ptr [r8 + 4], 102
+    mov byte ptr [r8 + 5], 0
+    jmp 2f
+1:  add al, 48
+    mov byte ptr [r8 + 2], al
+    mov byte ptr [r8 + 3], 102
+    mov byte ptr [r8 + 4], 0
+2:  mov edi, 512
+    call _bit_alloc
+    mov r14, rax
+    mov rcx, rax
+    mov edx, 512
+    lea r8, [rsp + 32]
+    mov r9, rbx
+    movq xmm3, rbx
+    mov eax, 1
+    call snprintf
+    mov rcx, r14
+    call strlen
+    mov rsi, rax
+    mov rdi, r14
+    call _bit_substr
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_efixed_places]
+    mov rsi, r13
+    lea rsp, [rbp - 32]
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    jmp _bit_die
 
 _bit_bool_str:
     lea rax, [rip + Lrt_true]
@@ -3746,6 +3817,13 @@ NEWSTR = {
     "Lrt_edir": "ne mogu prochitat papku: ", "Lrt_slash": "/",
     "Lrt_w": "wb", "Lrt_a": "ab", "Lrt_erun": "ne mogu zapustit komandu: ",
     "Lrt_cls": "\x1b[2J\x1b[H", "Lrt_dashdash": " -- ", "Lrt_gp": "%.*g",
+    "Lrt_fp": "%.*f",
+    "Lrt_ecode_empty": "code: пустая строка",
+    "Lrt_echar_range": "char: код символа от 0 до 1114111",
+    "Lrt_epad_width": "pad: ширина от 0 до 1000000",
+    "Lrt_epad_count": "repeat: число от 0 до 100000000",
+    "Lrt_ehex_width": "hex: ширина от 0 до 64",
+    "Lrt_efixed_places": "fixed: знаков от 0 до 17",
     "Lrt_cpucmd": "", "Lrt_memsize": "", "Lrt_vmps": "",
     "Lrt_curlget": "curl -sS -L -- ", "Lrt_curlout": "curl -sS -L -o ",
     "Lrt_curlpost": "curl -sS -L -d ", "Lrt_pingcmd": "ping -n 1 ",

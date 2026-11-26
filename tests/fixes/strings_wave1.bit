@@ -1,0 +1,30 @@
+host {
+    string s = "Hello World";
+    print(s >> find("World"));
+    print(s >> find("zzz"));
+    print(s >> find(""));
+    print(s >> contains("lo W"));
+    print(s >> contains("nope"));
+    print(s >> upper);
+    print(s >> lower);
+    print("A" >> code);
+    print("П" >> code);
+    print(65 >> char);
+    print(1055 >> char);
+    string p = "ab" >> pad(5);
+    string q = "ab" >> pad_left(5);
+    string r = "ab" >> pad(5, "-");
+    print("[{p}][{q}][{r}]");
+    print("ab" >> repeat(3));
+    print("x" >> repeat(0) >> sz);
+    print(255 >> hex);
+    print(255 >> hex(4));
+    print(0 >> hex);
+    print(3.14159 >> fixed(2));
+    print(3.7 >> fixed(0));
+    num n = 42;
+    string w = n >> pad_left(6);
+    print("[{w}]");
+    string v = 2.5 >> pad(7);
+    print("[{v}]");
+}

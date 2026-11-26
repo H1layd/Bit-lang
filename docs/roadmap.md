@@ -62,6 +62,15 @@ already exist; the agreed rules will apply to them as well.
 - [x] **`random`**: inclusive integer ranges. The seed is a hash of a word generated from OS entropy or set with `seed(word)`.
 - [x] **Typed `bytes`**: read and write `u16`, `u32`, `i64`, `f32` and `f64` with explicit byte order.
 - [x] **String escapes**: `\r` and escaped whitespace inside interpolated string expressions.
+- [x] **Text and numbers for real programs**: `find`, `contains`, `upper`, `lower`, `code`,
+  `char`, `pad`, `pad_left`, `repeat`; `hex` with a width and `fixed` for decimals;
+  padding also works on numbers. Integer division into a `dec` is a build error.
+- [x] **Sorting by a field**: `a >> sort(it >> f)` and `sort(it >> f, "down")` order records
+  and any values by a `num` or `string` key.
+- [x] **Walking a map**: `m >> keys`, `m >> values` and `for k in m` in the order entries
+  were added.
+- [x] **No limit on parameters**: arguments beyond the register count travel on the stack,
+  so functions take as many parameters as they need.
 
 ## Control over the system
 
@@ -185,11 +194,17 @@ applies. The author chooses the license and new language decisions.
 8. **A dedicated IDE for bit.** A project editor with builds, execution, diagnostics,
    navigation, and completion, followed by debugging. Write the tooling core in bit
    and exercise the language with a real application. Details and acceptance criteria follow.
-9. **Recognition on GitHub.** GitHub detects languages with the Linguist library; languages are
-   added by pull request. Requirements: the `.bit` extension appears in hundreds of other people's
-   repositories (forks excluded), a TextMate highlighting grammar under a free license, and code
-   samples. Check the clash of `.bit` with FPGA bitstream files and offer a way to tell them apart.
-   Path: users → grammar → PR to Linguist.
+9. **Recognition on GitHub.** GitHub detects languages with the Linguist library; a language is
+   added by pull request, and only once it is already used widely. The requirements as stated in
+   the Linguist contribution guide: at least 2000 files per extension indexed by GitHub Search
+   in the last year, forks excluded, spread over different repositories — and the primary
+   author's own repositories are subtracted from that count (`-user:`). Linguist says outright
+   that pull requests for very new or hobby languages are closed. Also required: a TextMate
+   grammar under one of the approved free licenses, added with `script/add-grammar` as a
+   submodule, at least two samples with the license stated, and a link to the GitHub search
+   results in the pull request. `.bit` is not taken in `languages.yml`, so no other format has
+   to be told apart. Path: real users and projects → grammar for editors → PR to Linguist,
+   in that order; the count grows from other people's code, not from the author's own repos.
 10. **BitOS — a working name for the flagship project.** Build a system environment in bit
     and develop it into an experimental OS with a kernel, processes, and a filesystem.
     Use the project to exercise the language, extract reusable libraries, and install them

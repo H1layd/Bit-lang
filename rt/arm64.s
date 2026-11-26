@@ -166,6 +166,165 @@ _bit_oom:
     mov x1, #0
     b _bit_die
 
+_bit_key_cmp:                       // x0=a, x1=b, x2=вид → w0 (-1, 0, 1)
+    cmp x2, #2
+    b.eq 1f
+    cmp x0, x1
+    b.lt 3f
+    b.gt 4f
+    mov w0, #0
+    ret
+1:  ldrb w2, [x0]
+    ldrb w3, [x1]
+    cmp w2, w3
+    b.lo 3f
+    b.hi 4f
+    cbz w2, 5f
+    add x0, x0, #1
+    add x1, x1, #1
+    b 1b
+5:  mov w0, #0
+    ret
+3:  mov w0, #-1
+    ret
+4:  mov w0, #1
+    ret
+
+_bit_mas_sort_by:                   // x0=значения, x1=ключи, x2=вид, x3=убывание, x4=строка
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    sub sp, sp, #64
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    ldr x23, [x19, #8]
+    ldr x24, [x20, #8]
+    cmp x23, x24
+    b.le 1f
+    mov x23, x24
+1:  mov x24, #1
+2:  cmp x24, x23
+    b.hs 9f
+    ldr x0, [x19]
+    ldr x5, [x0, x24, lsl #3]
+    str x5, [sp, #16]
+    ldr x0, [x20]
+    ldr x5, [x0, x24, lsl #3]
+    str x5, [sp, #24]
+    mov x25, x24
+3:  cbz x25, 6f
+    sub x25, x25, #1
+    str x25, [sp, #32]
+    ldr x0, [x20]
+    ldr x0, [x0, x25, lsl #3]
+    ldr x1, [sp, #24]
+    mov x2, x21
+    bl _bit_key_cmp
+    cbz x22, 31f
+    neg w0, w0
+31: cmp w0, #0
+    b.le 7f
+    ldr x25, [sp, #32]
+    ldr x0, [x20]
+    ldr x5, [x0, x25, lsl #3]
+    add x6, x25, #1
+    str x5, [x0, x6, lsl #3]
+    ldr x0, [x19]
+    ldr x5, [x0, x25, lsl #3]
+    str x5, [x0, x6, lsl #3]
+    b 3b
+6:  mov x25, #0
+    b 52f
+7:  add x25, x25, #1
+52: ldr x0, [x20]
+    ldr x5, [sp, #24]
+    str x5, [x0, x25, lsl #3]
+    ldr x0, [x19]
+    ldr x5, [sp, #16]
+    str x5, [x0, x25, lsl #3]
+    add x24, x24, #1
+    b 2b
+9:  add sp, sp, #64
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_map_keys:                      // x0=словарь, x1=строка → mas строк
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x21, x1
+    ldr x20, [x19, #8]
+    mov x0, #-1
+    mov x1, #0
+    bl _bit_mas_new
+    mov x22, x0
+    mov x23, #0
+1:  cmp x23, x20
+    b.hs 2f
+    ldr x0, [x19]
+    ldr x0, [x0, x23, lsl #3]
+    ldr x0, [x19]
+    ldr x0, [x0, x23, lsl #3]
+    ldr x1, [x0]
+    mov x0, x22
+    mov x2, x21
+    bl _bit_mas_add
+    add x23, x23, #1
+    b 1b
+2:  mov x0, x22
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_map_values:                    // x0=словарь, x1=вид значения, x2=строка → mas
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    mov x19, x0
+    mov x21, x2
+    mov x24, x1
+    ldr x20, [x19, #8]
+    mov x0, #-1
+    mov x1, #0
+    bl _bit_mas_new
+    mov x22, x0
+    mov x23, #0
+1:  cmp x23, x20
+    b.hs 2f
+    ldr x0, [x19]
+    ldr x0, [x0, x23, lsl #3]
+    ldr x25, [x0, #8]
+3:  mov x0, x22
+    mov x1, x25
+    mov x2, x21
+    bl _bit_mas_add
+    add x23, x23, #1
+    b 1b
+2:  mov x0, x22
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_map_find:                      // map, key -> index or -1
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -738,6 +897,476 @@ _bit_substr:                        // x0=указатель, x1=длина → 
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
+
+_bit_str_index:                     // x0=строка, x1=подстрока → номер символа или -1
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, #0
+    ldrb w2, [x20]
+    cbz w2, 8f
+1:  ldrb w2, [x19]
+    cbz w2, 7f
+    mov x3, x19
+    mov x4, x20
+2:  ldrb w2, [x4]
+    cbz w2, 6f
+    ldrb w5, [x3]
+    cmp w2, w5
+    b.ne 3f
+    add x3, x3, #1
+    add x4, x4, #1
+    b 2b
+3:  ldrb w2, [x19]
+    and w5, w2, #0xC0
+    cmp w5, #0x80
+    b.eq 4f
+    add x21, x21, #1
+4:  add x19, x19, #1
+    b 1b
+6:  mov x0, x21
+    b 9f
+7:  mov x0, #-1
+    b 9f
+8:  mov x0, #0
+9:  ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_str_contains:                  // x0=строка, x1=подстрока → 1/0
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl _bit_str_index
+    cmn x0, #1
+    b.ne 1f
+    mov x0, #0
+    ldp x29, x30, [sp], #16
+    ret
+1:  mov x0, #1
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_str_upper:                     // x0=строка → новая строка в верхнем регистре
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    bl _strlen
+    mov x20, x0
+    add x0, x20, #1
+    bl _bit_alloc
+    mov x21, x0
+    mov x22, #0
+1:  cmp x22, x20
+    b.hs 3f
+    ldrb w2, [x19, x22]
+    cmp w2, #97
+    b.lo 2f
+    cmp w2, #122
+    b.hi 2f
+    sub w2, w2, #32
+2:  strb w2, [x21, x22]
+    add x22, x22, #1
+    b 1b
+3:  strb wzr, [x21, x20]
+    mov x0, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_str_lower:                     // x0=строка → новая строка в нижнем регистре
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    bl _strlen
+    mov x20, x0
+    add x0, x20, #1
+    bl _bit_alloc
+    mov x21, x0
+    mov x22, #0
+1:  cmp x22, x20
+    b.hs 3f
+    ldrb w2, [x19, x22]
+    cmp w2, #65
+    b.lo 2f
+    cmp w2, #90
+    b.hi 2f
+    add w2, w2, #32
+2:  strb w2, [x21, x22]
+    add x22, x22, #1
+    b 1b
+3:  strb wzr, [x21, x20]
+    mov x0, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_str_code:                      // x0=строка, x1=строка программы → код первого символа
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x1
+    ldrb w2, [x0]
+    cbz w2, 9f
+    cmp w2, #0x80
+    b.hs 1f
+    mov x0, x2
+    b 8f
+1:  and w3, w2, #0xE0
+    cmp w3, #0xC0
+    b.ne 2f
+    and w4, w2, #0x1F
+    lsl w4, w4, #6
+    ldrb w5, [x0, #1]
+    and w5, w5, #0x3F
+    orr w0, w4, w5
+    b 8f
+2:  and w3, w2, #0xF0
+    cmp w3, #0xE0
+    b.ne 3f
+    and w4, w2, #0x0F
+    lsl w4, w4, #12
+    ldrb w5, [x0, #1]
+    and w5, w5, #0x3F
+    lsl w5, w5, #6
+    orr w4, w4, w5
+    ldrb w5, [x0, #2]
+    and w5, w5, #0x3F
+    orr w0, w4, w5
+    b 8f
+3:  and w4, w2, #0x07
+    lsl w4, w4, #18
+    ldrb w5, [x0, #1]
+    and w5, w5, #0x3F
+    lsl w5, w5, #12
+    orr w4, w4, w5
+    ldrb w5, [x0, #2]
+    and w5, w5, #0x3F
+    lsl w5, w5, #6
+    orr w4, w4, w5
+    ldrb w5, [x0, #3]
+    and w5, w5, #0x3F
+    orr w0, w4, w5
+8:  ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_ecode_empty@PAGE
+    add x0, x0, Lrt_ecode_empty@PAGEOFF
+    mov x1, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_num_char:                      // x0=код, x1=строка программы → строка из одного символа
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    tbnz x19, #63, 9f
+    movz w2, #0xFFFF
+    movk w2, #0x0010, lsl #16
+    cmp x19, x2
+    b.gt 9f
+    mov x0, #5
+    bl _bit_alloc
+    mov x21, x0
+    cmp x19, #0x80
+    b.lo 1f
+    cmp x19, #0x800
+    b.lo 2f
+    cmp x19, #0x10000
+    b.lo 3f
+    lsr w2, w19, #18
+    orr w2, w2, #0xF0
+    strb w2, [x21]
+    lsr w2, w19, #12
+    and w2, w2, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #1]
+    lsr w2, w19, #6
+    and w2, w2, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #2]
+    and w2, w19, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #3]
+    strb wzr, [x21, #4]
+    b 8f
+1:  strb w19, [x21]
+    strb wzr, [x21, #1]
+    b 8f
+2:  lsr w2, w19, #6
+    orr w2, w2, #0xC0
+    strb w2, [x21]
+    and w2, w19, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #1]
+    strb wzr, [x21, #2]
+    b 8f
+3:  lsr w2, w19, #12
+    orr w2, w2, #0xE0
+    strb w2, [x21]
+    lsr w2, w19, #6
+    and w2, w2, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #1]
+    and w2, w19, #0x3F
+    orr w2, w2, #0x80
+    strb w2, [x21, #2]
+    strb wzr, [x21, #3]
+8:  mov x0, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_echar_range@PAGE
+    add x0, x0, Lrt_echar_range@PAGEOFF
+    mov x1, x20
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_str_pad:                       // x0=строка, x1=ширина, x2=заполнитель, x3=строка
+    mov x4, #1
+    b _bit_str_pad_do
+
+_bit_str_pad_left:                  // x0=строка, x1=ширина, x2=заполнитель, x3=строка
+    mov x4, #0
+    b _bit_str_pad_do
+
+_bit_str_pad_do:                    // x0=строка, x1=ширина, x2=заполнитель, x3=строка, x4=направление
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    mov x23, x4
+    tbnz x20, #63, 9f
+    movz w2, #0x4240
+    movk w2, #0x000F, lsl #16
+    cmp x20, x2
+    b.gt 9f
+    bl _strlen
+    mov x24, x0
+    cmp x20, x24
+    b.hi 1f
+    mov x0, x19
+    bl _bit_substr
+    b 8f
+1:  add x0, x20, #1
+    bl _bit_alloc
+    mov x25, x0
+    mov w26, #32
+    cbz x21, 2f
+    ldrb w2, [x21]
+    cbz w2, 2f
+    mov w26, w2
+2:  cbz x23, 4f
+    mov x0, x25
+    mov x1, x19
+    mov x2, x24
+    bl _memcpy
+    mov x3, x24
+3:  cmp x3, x20
+    b.hs 6f
+    strb w26, [x25, x3]
+    add x3, x3, #1
+    b 3b
+4:  sub x3, x20, x24
+    mov x4, #0
+5:  cmp x4, x3
+    b.hs 51f
+    strb w26, [x25, x4]
+    add x4, x4, #1
+    b 5b
+51: add x0, x25, x3
+    mov x1, x19
+    mov x2, x24
+    bl _memcpy
+6:  strb wzr, [x25, x20]
+    mov x0, x25
+8:  ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_epad_width@PAGE
+    add x0, x0, Lrt_epad_width@PAGEOFF
+    mov x1, x22
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_str_repeat:                    // x0=строка, x1=раз, x2=строка → строка
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x22, x2
+    tbnz x20, #63, 9f
+    movz w21, #0xE100
+    movk w21, #0x05F5, lsl #16
+    cmp x20, x21
+    b.gt 9f
+    bl _strlen
+    mov x24, x0
+    cbz x20, 5f
+    mul x25, x24, x20
+    cmp x25, x21
+    b.gt 9f
+    add x0, x25, #1
+    bl _bit_alloc
+    mov x26, x0
+    mov x23, #0
+1:  cmp x23, x20
+    b.hs 3f
+    mov x0, x26
+    mul x2, x23, x24
+    add x0, x0, x2
+    mov x1, x19
+    mov x2, x24
+    bl _memcpy
+    add x23, x23, #1
+    b 1b
+3:  strb wzr, [x26, x25]
+    mov x0, x26
+    b 8f
+5:  mov x0, #1
+    bl _bit_alloc
+    strb wzr, [x0]
+8:  ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_epad_count@PAGE
+    add x0, x0, Lrt_epad_count@PAGEOFF
+    mov x1, x22
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_num_hex:                       // x0=число, x1=ширина, x2=строка → строка в hex
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    tbnz x20, #63, 9f
+    cmp x20, #64
+    b.gt 9f
+    adrp x22, Lrt_hex@PAGE
+    add x22, x22, Lrt_hex@PAGEOFF
+    mov x3, x19
+    mov x4, #1
+1:  lsr x5, x3, #4
+    cbz x5, 2f
+    mov x3, x5
+    add x4, x4, #1
+    b 1b
+2:  cmp x4, x20
+    b.hs 3f
+    mov x4, x20
+3:  add x0, x4, #1
+    mov x23, x4
+    bl _bit_alloc
+    mov x24, x0
+    mov x3, x19
+    mov x5, x23
+4:  cbz x5, 6f
+    sub x5, x5, #1
+    and x6, x3, #0x0F
+    ldrb w6, [x22, x6]
+    strb w6, [x24, x5]
+    lsr x3, x3, #4
+    b 4b
+6:  strb wzr, [x24, x23]
+    mov x0, x24
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_ehex_width@PAGE
+    add x0, x0, Lrt_ehex_width@PAGEOFF
+    mov x1, x21
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_dec_fixed:                     // x0=биты dec, x1=знаков после точки, x2=строка → строка
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    tbnz x20, #63, 9f
+    cmp x20, #17
+    b.gt 9f
+    mov x0, #512
+    bl _bit_alloc
+    mov x22, x0
+    sub sp, sp, #16
+    str x20, [sp]
+    str x19, [sp, #8]
+    mov x0, x22
+    mov x1, #512
+    adrp x2, Lrt_fp@PAGE
+    add x2, x2, Lrt_fp@PAGEOFF
+    bl _snprintf
+    add sp, sp, #16
+    mov x0, x22
+    bl _strlen
+    mov x1, x0
+    mov x0, x22
+    bl _bit_substr
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_efixed_places@PAGE
+    add x0, x0, Lrt_efixed_places@PAGEOFF
+    mov x1, x21
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
 
 _bit_str_split:                     // x0=строка, x1=разделитель → mas строк
     stp x29, x30, [sp, #-16]!
@@ -5318,6 +5947,13 @@ Lrt_badnum: .asciz "invalid num: expected a decimal integer in range"
 Lrt_random_bounds: .asciz "random: expected minimum <= maximum"
 Lrt_random_entropy: .asciz "random: cannot read system entropy"
 Lrt_gp: .asciz "%.*g"
+Lrt_fp: .asciz "%.*f"
+Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
+Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
+Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
+Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"
+Lrt_ehex_width: .asciz "hex: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 64"
+Lrt_efixed_places: .asciz "fixed: \320\267\320\275\320\260\320\272\320\276\320\262 \320\276\321\202 0 \320\264\320\276 17"
 Lrt_eread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \321\204\320\260\320\271\320\273: "
 Lrt_enotfile: .asciz "\321\215\321\202\320\276 \320\275\320\265 \321\204\320\260\320\271\320\273: "
 Lrt_enotdir: .asciz "\321\215\321\202\320\276 \320\275\320\265 \320\277\320\260\320\277\320\272\320\260: "
