@@ -229,9 +229,36 @@ host {
 
 A thread body sees global variables and the functions of the program; variables local to the
 surrounding function are not visible there, so anything shared is written down as a global.
-Threads run truly at the same time, so two threads writing one global at once can lose a write:
-one writer per global keeps it simple, and work can also be handed over through files and sockets.
-Locks are not in the language yet.
+Threads run concurrently, so protect shared mutable data with the same lock:
+
+```bit
+lock guard;
+num total = 0;
+
+fn increment() {
+    do(guard >> enter);
+    do(total >> ch(total + 1));
+    do(guard >> leave);
+}
+
+host {
+    thread a { do(increment()); }
+    thread b { do(increment()); }
+    do(a >> wait);
+    do(b >> wait);
+    print(total);                    # 2
+}
+```
+
+`enter` waits for and acquires the lock; `leave` releases it. A lock can be passed as a
+`lock` parameter, and `lock other = guard;` makes another name for the same lock. All
+accesses to shared data, including reads, must use the same lock. The thread that entered
+must leave it; do not enter the same lock recursively or wait while holding a lock needed
+by another thread. Violating these rules may deadlock or cause undefined behavior.
+
+A lock is not released automatically by `return`, `break`, or a failure caught by `recover`;
+release it explicitly on every path. Each created lock lasts until program termination, so
+reuse locks for repeated work instead of creating them in a loop.
 
 Each thread has its own `recover` handlers and its own text of the last error, so a failure in one
 thread never jumps into another thread's handler. A thread that fails with no handler of its own

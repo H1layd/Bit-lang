@@ -311,12 +311,12 @@ fn is_kw(string w) {
         or w == "all" or w == "file" or w == "dir" or w == "bytes" or w == "proc" or w == "conn" or w == "server" or w == "do" or w == "print" or w == "if"
         or w == "else" or w == "while" or w == "for" or w == "in" or w == "return" or w == "true"
         or w == "false" or w == "and" or w == "or" or w == "not" or w == "break" or w == "next" or w == "recover"
-        or w == "pick" or w == "thread";
+        or w == "pick" or w == "thread" or w == "lock";
 }
 
 fn is_type(string w) {
     return w == "num" or w == "dec" or w == "string" or w == "bool" or w == "mas" or w == "map" or w == "all"
-        or w == "file" or w == "dir" or w == "bytes" or w == "proc" or w == "conn" or w == "server";
+        or w == "file" or w == "dir" or w == "bytes" or w == "proc" or w == "conn" or w == "server" or w == "lock";
 }
 
 fn is_base(string w) {
@@ -1227,7 +1227,9 @@ fn decl() {
         do(mset(NS, it, name));
         do(mset(NT, it, ty));
         do(mset(NV, it, -1));
-        if at("(") {
+        if ty == "lock" and not at("=") {
+            do(mset(NM, it, "lock"));
+        } else if at("(") {
             do(take());
             num limit = -1;
             if not at(")") {
@@ -2847,6 +2849,13 @@ fn decl_item(num it, num rest, num count) {
     string name = fs(it);
     string mode = fm(it);
     num line = ln(it);
+    if mode == "lock" {
+        do(op_call("_bit_user_lock_new"));
+        num v = declare(name, ty, line, -1, 0);
+        do(op_st(acc(), vslot(v)));
+        do(assigned(v, false, -1, false, -1));
+        return;
+    }
     if mode == "empty" {
         num v = declare(name, ty, line, -1, 0);
         do(op_stz(vslot(v)));
@@ -5514,6 +5523,12 @@ fn am(string t, string m) {
     }
     if t == "thread" and m == "wait" {
         return aset("_bit_thread_wait", "", false, "");
+    }
+    if t == "lock" and m == "enter" {
+        return aset("_bit_user_lock_enter", "", true, "");
+    }
+    if t == "lock" and m == "leave" {
+        return aset("_bit_user_lock_leave", "", true, "");
     }
     if t == "bytes" and m == "free" {
         return aset("_bit_bytes_free", "", false, "");
@@ -8409,6 +8424,64 @@ fn rt_arm(mas o) {
     do(o >> add("    bl _bit_errno_map"));
     do(o >> add("    ldp x29, x30, [sp], #16"));
     do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("// User locks have process lifetime; aliases refer to the same mutex."));
+    do(o >> add("_bit_user_lock_new:"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x0, #80"));
+    do(o >> add("    bl _bit_alloc"));
+    do(o >> add("    mov x19, x0"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    bl _pthread_mutex_init"));
+    do(o >> add("    cbnz w0, 1f"));
+    do(o >> add("    mov x0, x19"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  mov x0, x19"));
+    do(o >> add("    bl _free"));
+    do(o >> add("    adrp x0, Lrt_elock@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_elock@PAGEOFF"));
+    do(o >> add("    mov x1, #0"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    b _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_enter:                // x0 = lock, x1 = source line"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x19, x1"));
+    do(o >> add("    bl _pthread_mutex_lock"));
+    do(o >> add("    cbnz w0, 1f"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  adrp x0, Lrt_elock@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_elock@PAGEOFF"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    b _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_leave:                // x0 = lock, x1 = source line"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x19, x1"));
+    do(o >> add("    bl _pthread_mutex_unlock"));
+    do(o >> add("    cbnz w0, 1f"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  adrp x0, Lrt_elock@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_elock@PAGEOFF"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    b _bit_die"));
     do(o >> add(""));
     do(o >> add("_bit_thread_start:                  // x0 = код → x0 = поток"));
     do(o >> add("    stp x29, x30, [sp, #-16]!"));
@@ -14475,6 +14548,7 @@ fn rt_arm(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_elock: .asciz \"lock operation failed\""));
     do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
@@ -14737,6 +14811,74 @@ fn rt_x86(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("// User locks have process lifetime; aliases refer to the same mutex."));
+    do(o >> add("_bit_user_lock_new:"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov edi, 80"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    mov rdi, rax"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    call _pthread_mutex_init"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  mov rdi, rbx"));
+    do(o >> add("    call _free"));
+    do(o >> add("    lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_enter:                // rdi = lock, rsi = source line"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    call _pthread_mutex_lock"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_leave:                // rdi = lock, rsi = source line"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    call _pthread_mutex_unlock"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
     do(o >> add("_bit_thread_start:                  // rdi = код → rax = поток"));
     do(o >> add("    push rbp"));
@@ -21263,6 +21405,7 @@ fn rt_x86(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_elock: .asciz \"lock operation failed\""));
     do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
@@ -21525,6 +21668,74 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov edi, dword ptr [rax]"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
+    do(o >> add(""));
+    do(o >> add("// User locks have process lifetime; aliases refer to the same mutex."));
+    do(o >> add("_bit_user_lock_new:"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov edi, 80"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    mov rdi, rax"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    call pthread_mutex_init@PLT"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  mov rdi, rbx"));
+    do(o >> add("    call free@PLT"));
+    do(o >> add("    lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    xor esi, esi"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_enter:                // rdi = lock, rsi = source line"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    call pthread_mutex_lock@PLT"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_leave:                // rdi = lock, rsi = source line"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    sub rsp, 8"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    call pthread_mutex_unlock@PLT"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 1f"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("1:  lea rdi, [rip + Lrt_elock]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    add rsp, 8"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
     do(o >> add("_bit_thread_start:                  // rdi = код → rax = поток"));
     do(o >> add("    push rbp"));
@@ -28367,6 +28578,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("Lrt_fp: .asciz \"%.*f\""));
     do(o >> add("Lrt_ecode_empty: .asciz \"\\320\\272\\320\\276\\320\\264: \\320\\277\\321\\203\\321\\201\\321\\202\\320\\260\\321\\217 \\321\\201\\321\\202\\321\\200\\320\\276\\320\\272\\320\\260\""));
     do(o >> add("Lrt_echar_range: .asciz \"char: \\320\\272\\320\\276\\320\\264 \\321\\201\\320\\270\\320\\274\\320\\262\\320\\276\\320\\273\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1114111\""));
+    do(o >> add("Lrt_elock: .asciz \"lock operation failed\""));
     do(o >> add("Lrt_ethread: .asciz \"\\320\\275\\320\\265 \\320\\274\\320\\276\\320\\263\\321\\203 \\321\\201\\320\\276\\320\\267\\320\\264\\320\\260\\321\\202\\321\\214 \\320\\277\\320\\276\\321\\202\\320\\276\\320\\272\""));
     do(o >> add("Lrt_epad_width: .asciz \"pad: \\321\\210\\320\\270\\321\\200\\320\\270\\320\\275\\320\\260 \\320\\276\\321\\202 0 \\320\\264\\320\\276 1000000\""));
     do(o >> add("Lrt_epad_count: .asciz \"repeat: \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 0 \\320\\264\\320\\276 100000000\""));
@@ -31534,6 +31746,46 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    pop rbx"));
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
+    do(o >> add("# User locks have process lifetime; aliases refer to the same critical section."));
+    do(o >> add("_bit_user_lock_new:"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov edi, 80"));
+    do(o >> add("    call _bit_alloc"));
+    do(o >> add("    mov rbx, rax"));
+    do(o >> add("    mov rcx, rbx"));
+    do(o >> add("    call InitializeCriticalSection"));
+    do(o >> add("    mov rax, rbx"));
+    do(o >> add("    lea rsp, [rbp - 8]"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_enter:                # rdi = lock"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov rcx, rdi"));
+    do(o >> add("    call EnterCriticalSection"));
+    do(o >> add("    mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
+    do(o >> add("_bit_user_lock_leave:                # rdi = lock"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    and rsp, -16"));
+    do(o >> add("    sub rsp, 32"));
+    do(o >> add("    mov rcx, rdi"));
+    do(o >> add("    call LeaveCriticalSection"));
+    do(o >> add("    mov rsp, rbp"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
     do(o >> add("_bit_thread_start:                   # rdi = код → rax = поток"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));

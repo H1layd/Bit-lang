@@ -1,0 +1,3 @@
+Ошибка в examples/errors/lock_args.bit, строка 3:
+  3 | do(guard >> enter(1));
+  enter пишется без скобок и значений

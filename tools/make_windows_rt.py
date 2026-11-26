@@ -3106,6 +3106,46 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbx
     pop rbp
     jmp _bit_die
+# User locks have process lifetime; aliases refer to the same critical section.
+_bit_user_lock_new:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    mov edi, 80
+    call _bit_alloc
+    mov rbx, rax
+    mov rcx, rbx
+    call InitializeCriticalSection
+    mov rax, rbx
+    lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_user_lock_enter:                # rdi = lock
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov rcx, rdi
+    call EnterCriticalSection
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_user_lock_leave:                # rdi = lock
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov rcx, rdi
+    call LeaveCriticalSection
+    mov rsp, rbp
+    pop rbp
+    ret
+
 _bit_thread_start:                   # rdi = код → rax = поток
     push rbp
     mov rbp, rsp

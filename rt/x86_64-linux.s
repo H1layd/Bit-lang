@@ -194,6 +194,74 @@ _bit_errno_code:                    // → код ошибки системы и
     pop rbp
     jmp _bit_errno_map
 
+// User locks have process lifetime; aliases refer to the same mutex.
+_bit_user_lock_new:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 8
+    mov edi, 80
+    call _bit_alloc
+    mov rbx, rax
+    mov rdi, rax
+    xor esi, esi
+    call pthread_mutex_init@PLT
+    test eax, eax
+    jnz 1f
+    mov rax, rbx
+    add rsp, 8
+    pop rbx
+    pop rbp
+    ret
+1:  mov rdi, rbx
+    call free@PLT
+    lea rdi, [rip + Lrt_elock]
+    xor esi, esi
+    add rsp, 8
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_user_lock_enter:                // rdi = lock, rsi = source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 8
+    mov rbx, rsi
+    call pthread_mutex_lock@PLT
+    test eax, eax
+    jnz 1f
+    add rsp, 8
+    pop rbx
+    pop rbp
+    ret
+1:  lea rdi, [rip + Lrt_elock]
+    mov rsi, rbx
+    add rsp, 8
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
+_bit_user_lock_leave:                // rdi = lock, rsi = source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 8
+    mov rbx, rsi
+    call pthread_mutex_unlock@PLT
+    test eax, eax
+    jnz 1f
+    add rsp, 8
+    pop rbx
+    pop rbp
+    ret
+1:  lea rdi, [rip + Lrt_elock]
+    mov rsi, rbx
+    add rsp, 8
+    pop rbx
+    pop rbp
+    jmp _bit_die
+
 _bit_thread_start:                  // rdi = код → rax = поток
     push rbp
     mov rbp, rsp
@@ -7035,6 +7103,7 @@ Lrt_gp: .asciz "%.*g"
 Lrt_fp: .asciz "%.*f"
 Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
+Lrt_elock: .asciz "lock operation failed"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

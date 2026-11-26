@@ -73,7 +73,8 @@ already exist; the agreed rules will apply to them as well.
   so functions take as many parameters as they need.
 - [x] **`pick`**: a choice by value without fall-through — `pick x { 1 { } 2, 4 { } else { } }`.
 - [x] **Threads**: `thread name { ... }` starts a second flow on its own stack and
-  `do(name >> wait)` joins it. Threads see globals; locks are the next step.
+  `do(name >> wait)` joins it. Threads see globals.
+- [x] **Locks**: `lock guard;`, `do(guard >> enter)` and `do(guard >> leave)` protect shared data.
 - [x] **Immediate keyboard**: `do(term >> raw(true))` stops waiting for Enter and echoing, and
   `term >> key` returns one UTF-8 character, so interactive programs are possible.
 

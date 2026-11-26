@@ -203,6 +203,64 @@ _bit_errno_code:                    // → код ошибки системы и
     ldp x29, x30, [sp], #16
     ret
 
+// User locks have process lifetime; aliases refer to the same mutex.
+_bit_user_lock_new:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x0, #80
+    bl _bit_alloc
+    mov x19, x0
+    mov x1, #0
+    bl _pthread_mutex_init
+    cbnz w0, 1f
+    mov x0, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+1:  mov x0, x19
+    bl _free
+    adrp x0, Lrt_elock@PAGE
+    add x0, x0, Lrt_elock@PAGEOFF
+    mov x1, #0
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_user_lock_enter:                // x0 = lock, x1 = source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x1
+    bl _pthread_mutex_lock
+    cbnz w0, 1f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+1:  adrp x0, Lrt_elock@PAGE
+    add x0, x0, Lrt_elock@PAGEOFF
+    mov x1, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
+_bit_user_lock_leave:                // x0 = lock, x1 = source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x1
+    bl _pthread_mutex_unlock
+    cbnz w0, 1f
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+1:  adrp x0, Lrt_elock@PAGE
+    add x0, x0, Lrt_elock@PAGEOFF
+    mov x1, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    b _bit_die
+
 _bit_thread_start:                  // x0 = код → x0 = поток
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -6268,6 +6326,7 @@ Lrt_gp: .asciz "%.*g"
 Lrt_fp: .asciz "%.*f"
 Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\202\320\260\321\217 \321\201\321\202\321\200\320\276\320\272\320\260"
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
+Lrt_elock: .asciz "lock operation failed"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

@@ -1,0 +1,35 @@
+lock guard;
+num total = 0;
+fn increment(lock g, num count) {
+    for i in 1:count {
+        do(g >> enter);
+        do(total >> ch(total + 1));
+        do(g >> leave);
+    }
+}
+host {
+    thread first { do(increment(guard, 10000)); }
+    thread second { do(increment(guard, 10000)); }
+    thread third { do(increment(guard, 10000)); }
+    thread fourth { do(increment(guard, 10000)); }
+    do(first >> wait);
+    do(second >> wait);
+    do(third >> wait);
+    do(fourth >> wait);
+    print(total);
+    lock alias = guard;
+    do(alias >> enter);
+    do(total >> ch(total + 1));
+    do(guard >> leave);
+    print(total);
+    recover {
+        do(alias >> enter);
+        print("bad" >> num);
+    } else {
+        do(guard >> leave);
+        print("caught");
+    }
+    lock local;
+    do(local >> enter);
+    do(local >> leave);
+}
