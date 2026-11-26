@@ -3114,6 +3114,8 @@ _bit_thread_start:                   # rdi = код → rax = поток
     and rsp, -16
     sub rsp, 64
     mov rbx, rdi
+    # Initialize TLS and the registry lock before any bit thread can run.
+    call _bit_rt_ensure
     xor ecx, ecx
     xor edx, edx
     lea r8, [rip + _bit_thread_run]

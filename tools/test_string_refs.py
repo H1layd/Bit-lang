@@ -14,8 +14,8 @@ def run(args, **kwargs):
 def write_unwind_probes(root, work, compiler):
     # Observe the ownership invariant after an ordinary compiled program returns:
     # no live strings or stack cleanup records remain after successful calls or recover.
-    arm_check = """    adrp x1, Lrt_owned@PAGE
-    ldr x1, [x1, Lrt_owned@PAGEOFF]
+    arm_check = """    bl _bit_tstate
+    ldr x1, [x0, #8]
     cbnz x1, Lprobe_unwind_bad
     adrp x1, Lrt_str_registry@PAGE
     ldr x1, [x1, Lrt_str_registry@PAGEOFF]
@@ -32,7 +32,8 @@ Lprobe_unwind_bad:
     mov x0, #1
 Lprobe_unwind_end:
 """
-    x86_check = """    cmp qword ptr [rip + Lrt_owned], 0
+    x86_check = """    call _bit_tstate
+    cmp qword ptr [rax + 8], 0
     jne Lprobe_unwind_bad
     mov rdx, [rip + Lrt_str_registry]
     test rdx, rdx

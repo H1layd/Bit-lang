@@ -143,3 +143,12 @@ reduced peak memory from 72,400,896 to 1,802,240 bytes; both checksums were 51,4
 The expanded private probe covers local replacement, mutable parameters, returning from
 `recover` handlers, and the absence of remaining references after program completion.
 Add `--windows-host dtwin` to execute the probe on a real Windows machine.
+
+After threads were introduced, a string-release regression increased the median self-build
+on macOS ARM64 from 4.613 s and 643.84 MiB (commit `885a4e5`) to 5.740 s and 937.00 MiB
+(`5d4f06f`). After fixing the saved string pointer and runtime initialization, the median
+was 4.950 s and 655.73 MiB. Each state was measured over three runs of an instrumented
+compiler, including build wall time and peak `mem >> used`; compiler sources differ across
+states and the machine was not isolated. These measurements do not isolate the mutex cost.
+`tests.sh` now runs `tools/test_string_refs.py` when Python 3 is available and reports a
+skip when it is not.

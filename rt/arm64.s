@@ -208,6 +208,8 @@ _bit_thread_start:                  // x0 = код → x0 = поток
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     mov x19, x0
+    // Initialize TLS and the registry lock before any bit thread can run.
+    bl _bit_rt_ensure
     mov x0, #8
     bl _bit_alloc
     mov x20, x0
@@ -859,8 +861,8 @@ _bit_str_release:
     adrp x20, Lrt_str_registry@PAGE
     ldr x20, [x20, Lrt_str_registry@PAGEOFF]
     cbz x20, 2f
-    lsr x1, x0, #4
-    eor x1, x1, x0, lsr #20
+    lsr x1, x19, #4
+    eor x1, x1, x19, lsr #20
     and x1, x1, #1048575
     add x20, x20, x1, lsl #3
 1:  ldr x0, [x20]

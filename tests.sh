@@ -50,5 +50,12 @@ T="${TMPDIR:-/tmp}"
 ./bitc asm bitc.bit --arch arm64 > "$T/bit_self.s"
 ./bitc build bitc.bit -o "$T/bit_self" >/dev/null && "$T/bit_self" asm bitc.bit --arch arm64 | cmp -s - "$T/bit_self.s" \
     && { pass; echo "самосборка: сошлась"; } || fail "самосборка"
+# Низкоуровневая проверка реально освобождённых строк и очистки recover.
+# Не делает Python зависимостью компилятора: при его отсутствии сообщает о пропуске.
+if command -v python3 >/dev/null 2>&1; then
+    if python3 tools/test_string_refs.py; then pass; else fail "подсчёт ссылок строк"; fi
+else
+    echo "проверка подсчёта ссылок пропущена: нужен python3"
+fi
 echo "прошло: $ok, упало: $bad"
 [ "$bad" = 0 ]
