@@ -1,0 +1,11 @@
+host {
+    recover {
+        thread t {
+            print("bad" >> num);
+        }
+        do(t >> wait);
+        print("нет ошибки");
+    } else {
+        print("главный поток поймал ошибку");
+    }
+}

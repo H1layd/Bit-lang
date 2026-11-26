@@ -23,8 +23,8 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
         "_bit_str_starts", "_bit_str_ends", "_bit_str_trim",
         "_bit_substr", "_bit_str_split", "_bit_str_replace",
         "_bit_mas_join", "_bit_mas_text", "_bit_str_bytes", "_bit_hexval_ptr",
-        "_bit_ipow", "_bit_recover_enter", "_bit_recover_leave",
-        "_bit_setjmp", "_bit_longjmp", "_bit_own_str", "_bit_drop_owned", "_bit_term_error", "_bit_term_errcode", "_bit_mas_argv",
+        "_bit_ipow", "_bit_str_find_raw",
+        "_bit_setjmp", "_bit_longjmp", "_bit_mas_argv",
         "_bit_term_stderr", "_bit_args",
         "_bit_random_seed", "_bit_random_next", "_bit_random_range",
         "_bit_map_find", "_bit_map_set", "_bit_map_remove",
@@ -295,29 +295,231 @@ _bit_oom:
     mov ecx, 1
     call exit
 
-_bit_die:
-    mov rax, [rip + Lrt_recover]
+_bit_rt_ensure:                      # подготовка ключа потока и замка строк
+    cmp byte ptr [rip + Lrt_ready], 0
+    jne 9f
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call TlsAlloc
+    mov [rip + Lrt_tkey], rax
+    lea rcx, [rip + Lrt_slock]
+    call InitializeCriticalSection
+    mov byte ptr [rip + Lrt_ready], 1
+    mov rsp, rbp
+    pop rbp
+9:  ret
+
+_bit_lock:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call _bit_rt_ensure
+    lea rcx, [rip + Lrt_slock]
+    call EnterCriticalSection
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_unlock:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    lea rcx, [rip + Lrt_slock]
+    call LeaveCriticalSection
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_tstate:                         # → блок состояния этого потока
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    call _bit_rt_ensure
+    mov rcx, [rip + Lrt_tkey]
+    call TlsGetValue
+    test rax, rax
+    jnz 9f
+    mov edi, 64
+    call _bit_alloc
+    mov rbx, rax
+    xor ecx, ecx
+1:  mov qword ptr [rbx + rcx*8], 0
+    inc rcx
+    cmp rcx, 8
+    jl 1b
+    mov rcx, [rip + Lrt_tkey]
+    mov rdx, rbx
+    call TlsSetValue
+    mov rax, rbx
+9:  lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_recover_enter:                  # rdi = frame
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    and rsp, -16
+    sub rsp, 32
+    mov r12, rdi
+    call _bit_tstate
+    mov rbx, rax
+    mov rax, [rbx]
+    mov [r12 + 168], rax
+    mov [rbx], r12
+    mov rax, [rbx + 8]
+    mov [r12 + 176], rax
+    mov qword ptr [rbx + 32], 0
+    mov rax, r12
+    lea rsp, [rbp - 16]
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_recover_leave:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    call _bit_tstate
+    mov rbx, rax
+    mov rax, [rbx]
+    mov rax, [rax + 168]
+    mov [rbx], rax
+    lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_own_str:                        # rdi = запись со строкой и ссылкой на прежнюю
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    mov rbx, rdi
+    call _bit_tstate
+    mov rcx, [rax + 8]
+    mov [rbx + 8], rcx
+    mov [rax + 8], rbx
+    lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_drop_owned:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    call _bit_tstate
+    mov rbx, rax
+    mov rax, [rbx + 8]
+    mov rcx, [rax + 8]
+    mov [rbx + 8], rcx
+    mov rdi, [rax]
+    lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    jmp _bit_drop_str
+
+_bit_set_errcode:                    # rdi = код для этого потока
+    push rbp
+    mov rbp, rsp
+    push rbx
+    and rsp, -16
+    sub rsp, 32
+    mov rbx, rdi
+    call _bit_tstate
+    mov [rax + 32], rbx
+    lea rsp, [rbp - 8]
+    pop rbx
+    pop rbp
+    ret
+
+_bit_term_errcode:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call _bit_tstate
+    mov rax, [rax + 32]
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_bit_term_error:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    and rsp, -16
+    sub rsp, 32
+    call _bit_tstate
+    mov rbx, [rax + 16]
+    test rbx, rbx
+    jnz 1f
+    mov edi, 1
+    call _bit_alloc
+    mov byte ptr [rax], 0
+    jmp 2f
+1:  mov rdi, rbx
+    call _w_strlen
+    mov rsi, rax
+    mov rdi, rbx
+    call _bit_substr
+2:  lea rsp, [rbp - 16]
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_die:                            # rdi = сообщение, rsi = строка программы
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    and rsp, -16
+    sub rsp, 32
+    mov r12, rdi
+    mov r13, rsi
+    call _bit_tstate
+    mov rbx, rax
+    mov rax, [rbx]
     test rax, rax
     jz 5f
-    mov [rip + Lrt_errmsg], rdi
-    mov [rip + Lrt_errline], rsi
+    mov [rbx + 16], r12
+    mov [rbx + 24], r13
     mov rcx, [rax + 168]
-    mov [rip + Lrt_recover], rcx
-    push rax
-1:  mov rcx, [rip + Lrt_owned]
-    cmp rcx, [rax + 176]
+    mov [rbx], rcx
+    mov r13, rax
+1:  mov rcx, [rbx + 8]
+    cmp rcx, [r13 + 176]
     je 2f
     call _bit_drop_owned
-    mov rax, [rsp]
     jmp 1b
-2:  pop rdi
+2:  mov rdi, r13
     mov esi, 1
+    lea rsp, [rbp - 24]
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
     jmp _bit_longjmp
-5:  push rbp
-    mov rbp, rsp
-    sub rsp, 32
-    mov r8, rdi
-    mov rdx, rsi
+5:  mov r8, r12
+    mov rdx, r13
     lea rcx, [rip + Lrt_die]
     call printf
     mov ecx, 1
@@ -2867,14 +3069,16 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     mov edi, eax
     mov r14d, eax                     # запомнить код для выбора текста
     call _bit_errno_map
-    mov [rip + Lrt_errcode], rax
+    mov rdi, rax
+    call _bit_set_errcode
     mov rcx, rbx
     call closesocket
     cmp r14d, 10060                   # WSAETIMEDOUT
     jne 72f
     lea rdi, [rip + Lrt_econn_timeout]
     jmp 71f
-8:  mov qword ptr [rip + Lrt_errcode], 0
+8:  xor edi, edi
+    call _bit_set_errcode
     mov rcx, rbx
     call closesocket
 72: lea rdi, [rip + Lrt_enet]
@@ -2887,10 +3091,12 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbx
     pop rbp
     ret
-9:  mov qword ptr [rip + Lrt_errcode], 0
+9:  xor edi, edi
+    call _bit_set_errcode
     lea rdi, [rip + Lrt_enet]
     jmp 71f
-10: mov qword ptr [rip + Lrt_errcode], 0
+10: xor edi, edi
+    call _bit_set_errcode
     lea rdi, [rip + Lrt_econn_args]
 71: mov rsi, r13
     lea rsp, [rbp - 32]
@@ -3874,6 +4080,11 @@ Lrt_argv: .quad 0
 Lrt_status: .quad 0
 Lrt_random_state: .quad 0
 Lrt_random_ready: .quad 0
+Lrt_ready: .byte 0
+.p2align 3
+Lrt_tkey: .quad 0
+.p2align 3
+Lrt_slock: .zero 80
 Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0

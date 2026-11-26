@@ -230,8 +230,12 @@ host {
 A thread body sees global variables and the functions of the program; variables local to the
 surrounding function are not visible there, so anything shared is written down as a global.
 Threads run truly at the same time, so two threads writing one global at once can lose a write:
-give each thread its own data, or hand work over through files and sockets. Locks are not in
-the language yet.
+one writer per global keeps it simple, and work can also be handed over through files and sockets.
+Locks are not in the language yet.
+
+Each thread has its own `recover` handlers and its own text of the last error, so a failure in one
+thread never jumps into another thread's handler. A thread that fails with no handler of its own
+reports the error and ends the program, as the main flow would.
 
 `pick` chooses a branch by the value of an expression. Values are written plainly, one branch
 may list several of them separated by commas, and `else` runs when nothing matched. There is no

@@ -1,38 +1,128 @@
 
 // ─────────── среда выполнения bit ───────────
 .p2align 2
+_bit_rt_ensure:                     // однократная подготовка ключа потока и замка строк
+    adrp x9, Lrt_ready@PAGE
+    ldrb w10, [x9, Lrt_ready@PAGEOFF]
+    cbnz w10, 9f
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    adrp x0, Lrt_tkey@PAGE
+    add x0, x0, Lrt_tkey@PAGEOFF
+    mov x1, #0
+    bl _pthread_key_create
+    adrp x0, Lrt_slock@PAGE
+    add x0, x0, Lrt_slock@PAGEOFF
+    mov x1, #0
+    bl _pthread_mutex_init
+    adrp x9, Lrt_ready@PAGE
+    mov w10, #1
+    strb w10, [x9, Lrt_ready@PAGEOFF]
+    ldp x29, x30, [sp], #16
+9:  ret
+
+_bit_lock:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl _bit_rt_ensure
+    adrp x0, Lrt_slock@PAGE
+    add x0, x0, Lrt_slock@PAGEOFF
+    bl _pthread_mutex_lock
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_unlock:
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    adrp x0, Lrt_slock@PAGE
+    add x0, x0, Lrt_slock@PAGEOFF
+    bl _pthread_mutex_unlock
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_tstate:                        // → блок состояния этого потока
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    bl _bit_rt_ensure
+    adrp x0, Lrt_tkey@PAGE
+    add x0, x0, Lrt_tkey@PAGEOFF
+    ldr x0, [x0]
+    bl _pthread_getspecific
+    cbnz x0, 9f
+    mov x0, #64
+    bl _bit_alloc
+    mov x19, x0
+    mov x0, x19
+    mov x1, #0
+    mov x2, #64
+    bl _memset
+    adrp x0, Lrt_tkey@PAGE
+    add x0, x0, Lrt_tkey@PAGEOFF
+    ldr x0, [x0]
+    mov x1, x19
+    bl _pthread_setspecific
+    mov x0, x19
+9:  ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_recover_enter:                 // x0 = frame allocated by the compiler
-    adrp x1, Lrt_recover@PAGE
-    ldr x2, [x1, Lrt_recover@PAGEOFF]
-    str x2, [x0, #168]
-    str x0, [x1, Lrt_recover@PAGEOFF]
-    adrp x1, Lrt_owned@PAGE
-    ldr x2, [x1, Lrt_owned@PAGEOFF]
-    str x2, [x0, #176]
-    adrp x1, Lrt_errcode@PAGE
-    str xzr, [x1, Lrt_errcode@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    bl _bit_tstate
+    mov x20, x0
+    ldr x1, [x20]
+    str x1, [x19, #168]
+    str x19, [x20]
+    ldr x1, [x20, #8]
+    str x1, [x19, #176]
+    str xzr, [x20, #32]
+    mov x0, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
     ret
 
 _bit_recover_leave:
-    adrp x1, Lrt_recover@PAGE
-    ldr x0, [x1, Lrt_recover@PAGEOFF]
-    ldr x0, [x0, #168]
-    str x0, [x1, Lrt_recover@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    bl _bit_tstate
+    mov x1, x0
+    ldr x2, [x1]
+    ldr x2, [x2, #168]
+    str x2, [x1]
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
     ret
 
 _bit_own_str:                       // x0 = stack record with string and previous pointer
-    adrp x1, Lrt_owned@PAGE
-    ldr x2, [x1, Lrt_owned@PAGEOFF]
-    str x2, [x0, #8]
-    str x0, [x1, Lrt_owned@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    bl _bit_tstate
+    ldr x1, [x0, #8]
+    str x1, [x19, #8]
+    str x19, [x0, #8]
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
     ret
 
 _bit_drop_owned:
-    adrp x1, Lrt_owned@PAGE
-    ldr x0, [x1, Lrt_owned@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    bl _bit_tstate
+    mov x1, x0
+    ldr x0, [x1, #8]
     ldr x2, [x0, #8]
-    str x2, [x1, Lrt_owned@PAGEOFF]
+    str x2, [x1, #8]
     ldr x0, [x0]
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
     b _bit_drop_str
 
 _bit_setjmp:                        // x0 = буфер → 0; сохраняет x19-x30, sp, d8-d15
@@ -67,9 +157,23 @@ _bit_longjmp:                       // x0 = буфер, x1 = значение �
     mov x0, x1
     ret
 
+_bit_set_errcode:                   // x0 = код → запомнить для этого потока
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    bl _bit_tstate
+    str x19, [x0, #32]
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_term_errcode:                  // → код последней пойманной ошибки (0 = без кода)
-    adrp x1, Lrt_errcode@PAGE
-    ldr x0, [x1, Lrt_errcode@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    bl _bit_tstate
+    ldr x0, [x0, #32]
+    ldp x29, x30, [sp], #16
     ret
 
 _bit_errno_map:                     // w0 = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
@@ -220,8 +324,8 @@ _bit_term_error:                    // → копия текста послед�
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
-    adrp x1, Lrt_errmsg@PAGE
-    ldr x19, [x1, Lrt_errmsg@PAGEOFF]
+    bl _bit_tstate
+    ldr x19, [x0, #16]
     cbnz x19, 1f
     mov x0, #1
     bl _bit_alloc
@@ -237,32 +341,35 @@ _bit_term_error:                    // → копия текста послед�
     ret
 
 _bit_die:                           // x0 = сообщение, x1 = строка программы
-    adrp x9, Lrt_recover@PAGE
-    ldr x10, [x9, Lrt_recover@PAGEOFF]
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x20, x0
+    mov x21, x1
+    bl _bit_tstate
+    mov x19, x0
+    ldr x10, [x19]
     cbz x10, 5f
-    adrp x12, Lrt_errmsg@PAGE
-    str x0, [x12, Lrt_errmsg@PAGEOFF]
-    adrp x12, Lrt_errline@PAGE
-    str x1, [x12, Lrt_errline@PAGEOFF]
+    str x20, [x19, #16]
+    str x21, [x19, #24]
     ldr x11, [x10, #168]
-    str x11, [x9, Lrt_recover@PAGEOFF]
-    stp x10, x30, [sp, #-16]!
-1:  adrp x12, Lrt_owned@PAGE
-    ldr x12, [x12, Lrt_owned@PAGEOFF]
-    ldr x11, [x10, #176]
+    str x11, [x19]
+    mov x22, x10
+1:  ldr x12, [x19, #8]
+    ldr x11, [x22, #176]
     cmp x12, x11
     b.eq 2f
     bl _bit_drop_owned
-    ldr x10, [sp]
     b 1b
-2:  ldp x0, x30, [sp], #16
+2:  mov x0, x22
     mov x1, #1
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
     b _bit_longjmp
-5:  stp x29, x30, [sp, #-16]!
-    mov x29, sp
-    stp x19, x20, [sp, #-16]!
-    mov x19, x0
-    mov x20, x1
+5:  mov x19, x20
+    mov x20, x21
     mov x0, #0
     bl _fflush
     sub sp, sp, #16
@@ -617,7 +724,7 @@ _bit_random_range:                  // Inclusive signed bounds, source line.
 
 // String ownership registry. Unknown pointers (literals and borrowed values) are ignored.
 // Node layout: payload, references, next. Ownership adoption is explicit and idempotent.
-_bit_str_find:
+_bit_str_find_raw:
     adrp x1, Lrt_str_low@PAGE
     ldr x1, [x1, Lrt_str_low@PAGEOFF]
     cmp x0, x1
@@ -644,6 +751,21 @@ _bit_str_find:
 3:  mov x0, x1
     ret
 
+_bit_str_find:                      // x0 = указатель → запись реестра или 0 (под замком)
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    bl _bit_lock
+    mov x0, x19
+    bl _bit_str_find_raw
+    mov x19, x0
+    bl _bit_unlock
+    mov x0, x19
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_str_retain:
     adrp x1, Lrt_str_low@PAGE
     ldr x1, [x1, Lrt_str_low@PAGEOFF]
@@ -657,12 +779,15 @@ _bit_str_retain:
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     mov x19, x0
-    bl _bit_str_find
+    bl _bit_lock
+    mov x0, x19
+    bl _bit_str_find_raw
     cbz x0, 1f
     ldr x1, [x0, #8]
     add x1, x1, #1
     str x1, [x0, #8]
-1:  mov x0, x19
+1:  bl _bit_unlock
+    mov x0, x19
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
 3:  ret
@@ -674,8 +799,10 @@ _bit_str_adopt:
     stp x21, x22, [sp, #-16]!
     mov x19, x0
     cbz x0, 2f
-    bl _bit_str_find
-    cbnz x0, 2f
+    bl _bit_lock
+    mov x0, x19
+    bl _bit_str_find_raw
+    cbnz x0, 3f
     adrp x20, Lrt_str_registry@PAGE
     ldr x20, [x20, Lrt_str_registry@PAGEOFF]
     cbnz x20, 1f
@@ -708,6 +835,7 @@ _bit_str_adopt:
     cmp x19, x2
     csel x2, x19, x2, hi
     str x2, [x1, Lrt_str_high@PAGEOFF]
+3:  bl _bit_unlock
 2:  mov x0, x19
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
@@ -727,6 +855,7 @@ _bit_str_release:
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     mov x19, x0
+    bl _bit_lock
     adrp x20, Lrt_str_registry@PAGE
     ldr x20, [x20, Lrt_str_registry@PAGEOFF]
     cbz x20, 2f
@@ -750,7 +879,8 @@ _bit_str_release:
     bl _free
     mov x0, x19
     bl _free
-2:  ldp x19, x20, [sp], #16
+2:  bl _bit_unlock
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
 3:  ret
 
@@ -4762,13 +4892,12 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
     ldp x29, x30, [sp], #16
     ret
 8:  bl _bit_errno_code
-    adrp x1, Lrt_errcode@PAGE
-    str x0, [x1, Lrt_errcode@PAGEOFF]
+    bl _bit_set_errcode
     mov w0, w19
     bl _close
     b 10f
-9:  adrp x1, Lrt_errcode@PAGE
-    str xzr, [x1, Lrt_errcode@PAGEOFF]
+9:  mov x0, #0
+    bl _bit_set_errcode
 10: add sp, sp, #112
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
@@ -4885,8 +5014,7 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
     ldr w0, [sp, #96]
     cbz w0, 12f                       // ошибки нет — подключён
     bl _bit_errno_map
-    adrp x1, Lrt_errcode@PAGE
-    str x0, [x1, Lrt_errcode@PAGEOFF]
+    bl _bit_set_errcode
     mov w0, w19
     bl _close
     adrp x0, Lrt_enet@PAGE
@@ -4912,36 +5040,34 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-6:  adrp x1, Lrt_errcode@PAGE
-    mov x2, #2
-    str x2, [x1, Lrt_errcode@PAGEOFF]
+6:  mov x0, #2
+    bl _bit_set_errcode
     mov w0, w19
     bl _close
     adrp x0, Lrt_econn_timeout@PAGE
     add x0, x0, Lrt_econn_timeout@PAGEOFF
     b 71f
 7:  bl _bit_errno_code
-    adrp x1, Lrt_errcode@PAGE
-    str x0, [x1, Lrt_errcode@PAGEOFF]
+    bl _bit_set_errcode
     mov w0, w19
     bl _close
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
     b 71f
-8:  adrp x1, Lrt_errcode@PAGE
-    str xzr, [x1, Lrt_errcode@PAGEOFF]
+8:  mov x0, #0
+    bl _bit_set_errcode
     mov w0, w19
     bl _close
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
     b 71f
-9:  adrp x1, Lrt_errcode@PAGE
-    str xzr, [x1, Lrt_errcode@PAGEOFF]
+9:  mov x0, #0
+    bl _bit_set_errcode
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
     b 71f
-10: adrp x1, Lrt_errcode@PAGE
-    str xzr, [x1, Lrt_errcode@PAGEOFF]
+10: mov x0, #0
+    bl _bit_set_errcode
     adrp x0, Lrt_econn_args@PAGE
     add x0, x0, Lrt_econn_args@PAGEOFF
 71: mov x1, x20
@@ -5202,9 +5328,8 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
 7:  adrp x0, Lrt_erecv@PAGE
     add x0, x0, Lrt_erecv@PAGEOFF
     b 5f
-8:  adrp x1, Lrt_errcode@PAGE
-    mov x2, #2
-    str x2, [x1, Lrt_errcode@PAGEOFF]
+8:  mov x0, #2
+    bl _bit_set_errcode
     adrp x0, Lrt_erecv_timeout@PAGE
     add x0, x0, Lrt_erecv_timeout@PAGEOFF
     b 5f
@@ -6079,6 +6204,11 @@ Lrt_argv: .quad 0
 Lrt_status: .quad 0
 Lrt_random_state: .quad 0
 Lrt_random_ready: .quad 0
+Lrt_ready: .byte 0
+.p2align 3
+Lrt_tkey: .quad 0
+.p2align 3
+Lrt_slock: .zero 80
 Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0

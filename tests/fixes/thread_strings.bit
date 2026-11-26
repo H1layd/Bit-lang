@@ -1,0 +1,21 @@
+num a = 0;
+num b = 0;
+num c = 0;
+fn calculate(num n) {
+    num sum = 0;
+    for i in 0:n - 1 {
+        string s = "thread-string-{i}";
+        do(sum >> ch(sum + (s >> sz)));
+    }
+    return sum;
+}
+host {
+    thread t1 { do(a >> ch(calculate(20000))); }
+    thread t2 { do(b >> ch(calculate(20000))); }
+    thread t3 { do(c >> ch(calculate(20000))); }
+    do(t1 >> wait);
+    do(t2 >> wait);
+    do(t3 >> wait);
+    print("{a} {b} {c}");
+    print(a == b and b == c);
+}
