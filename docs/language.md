@@ -644,6 +644,7 @@ produce the same sequence across architectures.
 | `os >> user` | user name |
 | `os >> cpus` | number of cores |
 | `os >> now` | time (seconds since 1970) |
+| `os >> clock` | monotonic milliseconds for measuring intervals |
 | `os >> procs` | list of processes (text) |
 
 ### term (terminal)
@@ -745,8 +746,10 @@ shell**: arguments are passed as an array, so a URL may safely contain any chara
 
 | Method | What it does |
 |---|---|
-| `net >> listen(port)` | open a listening `server` |
+| `net >> listen(port)` | listen on all IPv4 interfaces → `server` |
+| `net >> listen(port, "address")` | listen on a specified IPv4 address → `server` |
 | `s >> accept` | accept a connection → `conn` |
+| `c >> peer` | remote address and port as an `ip:port` string |
 | `"ip:port" >> connect` | connect over TCP → `conn` |
 | `"ip:port" >> connect(ms)` | connect over TCP, waiting no longer than `ms` milliseconds |
 | `"ip:port" >> udp` | open UDP → `conn` |
@@ -771,13 +774,25 @@ print(c >> recv);
 do(c >> close);
 ```
 
+`listen` takes a port from 0 to 65535 and a numeric IPv4 address such as `"127.0.0.1"`;
+hostnames and IPv6 are not supported here yet. Without an address it listens on all
+interfaces. The socket uses `SO_REUSEADDR`; failures close it and can be caught by `recover`.
+`connect` and `udp` take a numeric IPv4 address and port such as `"127.0.0.1:9100"`;
+the port must contain only digits and be in 0–65535. Invalid addresses raise an error.
+`peer` returns the remote end of a connected socket; a lookup failure is an error.
+
+`os >> clock` returns monotonic milliseconds from an arbitrary origin. Subtract two
+values to measure an interval; this is not calendar time, and values cannot be compared
+across reboots or computers.
+
 `recv` returns what a single read from the system gives; over TCP a long message may arrive in parts.
 In `recv(count, timeout_ms)`, the count is in bytes (1–2147483647) and the timeout is in
 milliseconds (0–2147483647). A zero timeout checks for data without waiting. A timeout
 is an error that `recover` can handle, while a clean TCP close returns an empty string.
 Join the chunks before processing text when a UTF-8 character can span two reads.
 
-`connect(ms)` opens the socket without blocking and waits no longer than the given time.
+`connect(ms)` bounds the connection wait. macOS and Linux use a nonblocking socket
+and `poll`; Windows uses a socket timeout.
 What happened is told by `term >> error_code`: `1` the target refused, `2` the wait ended,
 `3` no route to the target, `0` the failure has no code. The codes are the same on macOS,
 Linux and Windows. A plain `connect` also fills `error_code` for refused and unreachable

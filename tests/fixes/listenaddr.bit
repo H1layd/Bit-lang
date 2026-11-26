@@ -1,0 +1,38 @@
+host {
+    num port = 20000 + (term >> pid % 20000);
+    string addr = "127.0.0.1:{port}";
+    server listener = net >> listen(port, "127.0.0.1");
+    recover {
+        conn wrong = "127.0.0.2:{port}" >> connect(500);
+        print("unexpected address");
+        do(wrong >> close);
+    } else {
+        print("other address refused");
+    }
+    conn client = addr >> connect(1000);
+    conn accepted = listener >> accept;
+    print("connected");
+    string peer = accepted >> peer;
+    print(peer >> starts("127.0.0.1:"));
+    mas fields = peer >> split(":");
+    print((fields >> get(1, "0") >> num) > 0);
+    print(client >> peer == addr);
+    do(accepted >> close);
+    recover {
+        print(accepted >> peer);
+    } else {
+        print(term >> error);
+    }
+    do(client >> close);
+    do(listener >> close);
+    server again = net >> listen(port, "127.0.0.1");
+    do(again >> close);
+    print("restarted");
+    recover {
+        server invalid = net >> listen(port, "not-an-ip");
+        do(invalid >> close);
+        print("unexpected");
+    } else {
+        print(term >> error);
+    }
+}

@@ -1,0 +1,9 @@
+host {
+    num before = os >> clock;
+    do(term >> wait(50));
+    num after = os >> clock;
+    print(before >= 0);
+    print(after >= before);
+    print(after - before >= 20);
+    print((os >> clock) >= after);
+}

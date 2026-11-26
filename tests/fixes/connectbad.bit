@@ -1,0 +1,17 @@
+fn check(string address) {
+    recover { conn x = address >> connect; do(x >> close); print("unexpected"); }
+    else { print("ordinary rejected: {term >> error_code}"); }
+    recover { conn x = address >> connect(50); do(x >> close); print("unexpected"); }
+    else { print("timed rejected: {term >> error_code}"); }
+    recover { conn x = address >> udp; do(x >> close); print("unexpected"); }
+    else { print("udp rejected: {term >> error_code}"); }
+}
+host {
+    string address = "xxxxxxxxxxxxxxxx";
+    for i in 0:6 { do(address >> ch(address + address)); }
+    do(check(address + ":80"));
+    do(check("127.0.0.1:65536"));
+    do(check("127.0.0.1:80junk"));
+    do(check("127.0.0.1:"));
+    print("done");
+}

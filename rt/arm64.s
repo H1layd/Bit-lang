@@ -3887,6 +3887,9 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
     cbz w2, 9f
     cmp w2, #58
     b.eq 2f
+    add x4, sp, #15
+    cmp x21, x4
+    b.hs 9f
     strb w2, [x21]
     add x19, x19, #1
     add x21, x21, #1
@@ -3894,11 +3897,20 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
 2:  strb wzr, [x21]
     add x19, x19, #1
     mov w3, #0
+    ldrb w2, [x19]
+    cbz w2, 9f
 3:  ldrb w2, [x19]
+    cbz w2, 4f
     sub w4, w2, #48
     cmp w4, #9
-    b.hi 4f
-    mov w5, #10
+    b.hi 9f
+    mov w5, #6553
+    cmp w3, w5
+    b.hi 9f
+    b.ne 5f
+    cmp w4, #5
+    b.hi 9f
+5:  mov w5, #10
     mul w3, w3, w5
     add w3, w3, w4
     add x19, x19, #1
@@ -3945,9 +3957,9 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
 10: add sp, sp, #112
     adrp x0, Lrt_enet@PAGE
     add x0, x0, Lrt_enet@PAGEOFF
+    mov x1, x20
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
-    mov x1, x20
     bl _bit_die
 
 _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут мс, x2 = строка -> TCP conn
@@ -3967,6 +3979,9 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
     cbz w3, 9f                        // пустой адрес
     cmp w3, #58
     b.eq 2f
+    add x4, sp, #15
+    cmp x22, x4
+    b.hs 9f
     strb w3, [x22]
     add x0, x0, #1
     add x22, x22, #1
@@ -3974,11 +3989,20 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
 2:  strb wzr, [x22]
     add x0, x0, #1
     mov w3, #0
+    ldrb w4, [x0]
+    cbz w4, 9f
 3:  ldrb w4, [x0]
+    cbz w4, 4f
     sub w5, w4, #48
     cmp w5, #9
-    b.hi 4f
-    mov w6, #10
+    b.hi 9f
+    mov w6, #6553
+    cmp w3, w6
+    b.hi 9f
+    b.ne 5f
+    cmp w5, #5
+    b.hi 9f
+5:  mov w6, #10
     mul w3, w3, w6
     add w3, w3, w5
     add x0, x0, #1
@@ -4007,12 +4031,14 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
     mov w1, #3                        // F_GETFL
     bl _fcntl
     tbnz w0, #31, 8f
-    orr w0, w0, #0x4000               // O_NONBLOCK (Darwin)
+    orr w0, w0, #4               // O_NONBLOCK (Darwin)
     mov w22, w0
     mov w0, w19
     mov w1, #4                        // F_SETFL
-    mov w2, w22
+    sub sp, sp, #16
+    str w22, [sp]                     // Darwin ARM64 variadic argument
     bl _fcntl
+    add sp, sp, #16
     tbnz w0, #31, 8f
     mov w0, w19
     add x1, sp, #80
@@ -4054,13 +4080,17 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
 12: mov w0, w19
     mov w1, #3                        // F_GETFL
     bl _fcntl
-    mov w4, #0x4000
+    tbnz w0, #31, 8f
+    mov w4, #4
     bic w0, w0, w4                    // снять O_NONBLOCK (Darwin)
     mov w22, w0
     mov w0, w19
     mov w1, #4                        // F_SETFL
-    mov w2, w22
+    sub sp, sp, #16
+    str w22, [sp]                     // Darwin ARM64 variadic argument
     bl _fcntl
+    add sp, sp, #16
+    tbnz w0, #31, 8f
     mov w0, w19
     add sp, sp, #112
     ldp x21, x22, [sp], #16
@@ -4106,46 +4136,78 @@ _bit_tcp_connect_timed:               // x0 = "ip:port", x1 = таймаут м�
     ldp x29, x30, [sp], #16
     b _bit_die
 
-_bit_tcp_listen:                    // x0 = порт, x1 = строка -> server (сокет)
+_bit_tcp_listen:                    // port, line -> server
+    mov x2, x1
+    mov x1, #0
+    b _bit_tcp_listen_at
+
+_bit_tcp_listen_at:                 // port, IPv4 address or null, line -> server
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
     sub sp, sp, #32
-    mov w19, w0
+    mov x19, x0
     mov x20, x1
+    mov x22, x2
+    mov x21, #-1
+    cmp x19, #0
+    b.lt 9f
+    mov x3, #65535
+    cmp x19, x3
+    b.gt 9f
+    stp xzr, xzr, [sp]
+    mov w3, #0x210                   // Darwin sockaddr_in: length 16, AF_INET 2
+    strh w3, [sp]
+    rev16 w3, w19
+    strh w3, [sp, #2]
+    cbz x20, 1f
     mov w0, #2
+    mov x1, x20
+    add x2, sp, #4
+    bl _inet_pton
+    cmp w0, #1
+    b.ne 8f
+1:  mov w0, #2
     mov w1, #1
     mov w2, #0
     bl _socket
     tbnz w0, #31, 9f
     mov w21, w0
-    str xzr, [sp]
-    str xzr, [sp, #8]
-    mov w2, #2
-    strh w2, [sp]
-    lsl w4, w19, #8
-    lsr w5, w19, #8
-    orr w4, w4, w5
-    strh w4, [sp, #2]
+    mov w3, #1
+    str w3, [sp, #16]
     mov w0, w21
-    add x1, sp, #0
+    mov w1, #0xffff                 // Darwin SOL_SOCKET
+    mov w2, #4                      // Darwin SO_REUSEADDR
+    add x3, sp, #16
+    mov w4, #4
+    bl _setsockopt
+    cbnz w0, 7f
+    mov w0, w21
+    mov x1, sp
     mov w2, #16
     bl _bind
-    tbnz w0, #31, 9f
+    cbnz w0, 7f
     mov w0, w21
     mov w1, #16
     bl _listen
-    tbnz w0, #31, 9f
+    cbnz w0, 7f
     mov w0, w21
     add sp, sp, #32
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  add sp, sp, #32
-    adrp x0, Lrt_elisten@PAGE
+7:  mov w0, w21
+    bl _close
+9:  adrp x0, Lrt_elisten@PAGE
     add x0, x0, Lrt_elisten@PAGEOFF
-    mov x1, x20
-    ldp x19, x20, [sp], #16
+    b 6f
+8:  adrp x0, Lrt_elisten_addr@PAGE
+    add x0, x0, Lrt_elisten_addr@PAGEOFF
+6:  mov x1, x22
     bl _bit_die
 
 _bit_tcp_accept:                    // x0 = server, x1 = строка -> conn
@@ -4164,6 +4226,56 @@ _bit_tcp_accept:                    // x0 = server, x1 = строка -> conn
     add x0, x0, Lrt_eaccept@PAGEOFF
     mov x1, x20
     ldp x19, x20, [sp], #16
+    bl _bit_die
+
+_bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    sub sp, sp, #64
+    mov x19, x1
+    mov w2, #16
+    str w2, [sp, #16]
+    mov x1, sp
+    add x2, sp, #16
+    bl _getpeername
+    cbnz w0, 9f
+    ldrh w21, [sp, #2]
+    rev16 w21, w21
+    mov w0, #2
+    add x1, sp, #4
+    add x2, sp, #32
+    mov w3, #16
+    bl _inet_ntop
+    cbz x0, 9f
+    add x0, sp, #32
+    adrp x1, Lrt_peer_colon@PAGE
+    add x1, x1, Lrt_peer_colon@PAGEOFF
+    bl _bit_cat
+    mov x22, x0
+    mov x0, x21
+    bl _bit_num_str
+    mov x23, x0
+    mov x1, x0
+    mov x0, x22
+    bl _bit_cat
+    mov x24, x0
+    mov x0, x22
+    bl _free
+    mov x0, x23
+    bl _free
+    mov x0, x24
+    add sp, sp, #64
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_epeer@PAGE
+    add x0, x0, Lrt_epeer@PAGEOFF
+    mov x1, x19
     bl _bit_die
 
 _bit_sock_send:                     // x0 = conn, x1 = строка, x2 = строка программы
@@ -4762,6 +4874,33 @@ _bit_os_user:                       // -> имя пользователя
 1:  ldp x29, x30, [sp], #16
     ret
 
+_bit_os_clock:                      // x0 = source line -> monotonic milliseconds
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    sub sp, sp, #16
+    mov x19, x0
+    mov w0, #6                       // CLOCK_MONOTONIC on Darwin
+    mov x1, sp
+    bl _clock_gettime
+    cbnz w0, 9f
+    ldr x0, [sp]
+    mov x1, #1000
+    mul x0, x0, x1
+    ldr x1, [sp, #8]
+    mov x2, #0x4240
+    movk x2, #15, lsl #16
+    udiv x1, x1, x2
+    add x0, x0, x1
+    add sp, sp, #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_eclock@PAGE
+    add x0, x0, Lrt_eclock@PAGEOFF
+    mov x1, x19
+    bl _bit_die
+
 _bit_os_now:                        // -> время (секунды с 1970)
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -5136,6 +5275,10 @@ Lrt_stderr: .quad 0
 .p2align 2
 
 .section __TEXT,__cstring,cstring_literals
+Lrt_eclock: .asciz "не могу узнать монотонное время"
+Lrt_elisten_addr: .asciz "listen: неверный IPv4-адрес"
+Lrt_peer_colon: .asciz ":"
+Lrt_epeer: .asciz "не могу узнать адрес собеседника"
 Lrt_curl: .asciz "curl"
 Lrt_sS: .asciz "-sS"
 Lrt_L: .asciz "-L"

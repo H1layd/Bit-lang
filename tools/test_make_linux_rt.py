@@ -22,4 +22,11 @@ with tempfile.TemporaryDirectory(prefix="bit-linux-rt-") as folder:
         "\n_bit_remove_at:", 1
     )[0]
     assert "mov rdi, -100" in removal, "Linux removal needs Linux AT_FDCWD"
-print("Linux runtime: AT_FDCWD replacement is scoped")
+    timed = result.split("\n_bit_tcp_connect_timed:", 1)[1].split(
+        "\n_bit_tcp_listen:", 1
+    )[0]
+    assert "mov edx, 4                     # SO_ERROR" in timed, "Linux SO_ERROR must be 4"
+    assert "mov edx, 4103" not in timed, "Darwin SO_ERROR leaked into Linux"
+    assert "or eax, 2048" in timed, "Linux O_NONBLOCK must be 2048"
+    assert "and eax, -2049" in timed, "Linux O_NONBLOCK must be cleared"
+print("Linux runtime: scoped AT_FDCWD and timed connect constants passed")

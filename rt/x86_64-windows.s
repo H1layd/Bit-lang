@@ -523,6 +523,16 @@ _w_system:
     ret
 
 
+_bit_os_clock:                      # monotonic milliseconds since boot
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call GetTickCount64
+    mov rsp, rbp
+    pop rbp
+    ret
+
 
 _bit_remove_is_home:                // canonical target -> bool
     push rbp
@@ -2551,6 +2561,32 @@ _w_connect:
     mov rsp, rbp
     pop rbp
     ret
+_w_setsockopt:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 48
+    mov [rsp + 32], r8
+    mov r9, rcx
+    mov r8, rdx
+    mov rdx, rsi
+    mov rcx, rdi
+    call setsockopt
+    mov rsp, rbp
+    pop rbp
+    ret
+_w_getpeername:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov r8, rdx
+    mov rdx, rsi
+    mov rcx, rdi
+    call getpeername
+    mov rsp, rbp
+    pop rbp
+    ret
 _w_bind:
     push rbp
     mov rbp, rsp
@@ -2682,6 +2718,9 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     jz 9f                             # пустой адрес
     cmp eax, 58
     je 2f
+    lea r9, [rsp + 55]
+    cmp r14, r9
+    jae 9f
     mov [r14], al
     inc rbx
     inc r14
@@ -2689,11 +2728,20 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
 2:  mov byte ptr [r14], 0
     inc rbx
     xor r8d, r8d
+    cmp byte ptr [rbx], 0
+    je 9f
 3:  movzx eax, byte ptr [rbx]
+    test eax, eax
+    jz 4f
     sub eax, 48
     cmp eax, 9
-    ja 4f
-    imul r8d, r8d, 10
+    ja 9f
+    cmp r8d, 6553
+    ja 9f
+    jne 5f
+    cmp eax, 5
+    ja 9f
+5:  imul r8d, r8d, 10
     add r8d, eax
     inc rbx
     jmp 3b
@@ -4432,6 +4480,9 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     jz 9f
     cmp eax, 58
     je 2f
+    lea r9, [rsp + 15]
+    cmp rdx, r9
+    jae 9f
     mov [rdx], al
     inc rcx
     inc rdx
@@ -4439,11 +4490,20 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
 2:  mov byte ptr [rdx], 0
     inc rcx
     xor r8d, r8d
+    cmp byte ptr [rcx], 0
+    je 9f
 3:  movzx eax, byte ptr [rcx]
+    test eax, eax
+    jz 4f
     sub eax, 48
     cmp eax, 9
-    ja 4f
-    imul r8d, r8d, 10
+    ja 9f
+    cmp r8d, 6553
+    ja 9f
+    jne 5f
+    cmp eax, 5
+    ja 9f
+5:  imul r8d, r8d, 10
     add r8d, eax
     inc rcx
     jmp 3b
@@ -4499,58 +4559,86 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     pop rbp
     jmp _bit_die
 
-_bit_tcp_listen:                    // rdi = порт, rsi = строка -> server
+_bit_tcp_listen:                    // port, line -> server
+    mov rdx, rsi
+    xor esi, esi
+    jmp _bit_tcp_listen_at
+
+_bit_tcp_listen_at:                 // port, IPv4 address or null, line -> server
     push rbp
     mov rbp, rsp
     push rbx
     push r12
     push r13
-    sub rsp, 32
-    mov r12d, edi
+    push r14
+    push r15
+    sub rsp, 40
+    mov r12, rdi
     mov r13, rsi
+    mov r14, rdx
+    mov rbx, -1
+    test r12, r12
+    js 9f
+    cmp r12, 65535
+    ja 9f
+    xor eax, eax
+    mov [rsp], rax
+    mov [rsp + 8], rax
+    mov word ptr [rsp], 2       # Darwin sockaddr_in: length 16, AF_INET 2
+    mov eax, r12d
+    rol ax, 8
+    mov [rsp + 2], ax
+    test r13, r13
+    jz 1f
     mov edi, 2
+    mov rsi, r13
+    lea rdx, [rsp + 4]
+    call _w_inet_pton
+    cmp eax, 1
+    jne 8f
+1:  mov edi, 2
     mov esi, 1
     xor edx, edx
     call _w_socket
     test eax, eax
     js 9f
     mov ebx, eax
-    xor eax, eax
-    mov [rsp], rax
-    mov [rsp + 8], rax
-    mov word ptr [rsp], 2
-    mov eax, r12d
-    mov ecx, eax
-    shl eax, 8
-    shr ecx, 8
-    or eax, ecx
-    mov [rsp + 2], ax
+    mov dword ptr [rsp + 16], 1
     mov edi, ebx
-    lea rsi, [rsp]
+    mov esi, 0xffff                 # Darwin SOL_SOCKET
+    mov edx, 4                      # Darwin SO_REUSEADDR
+    lea rcx, [rsp + 16]
+    mov r8d, 4
+    call _w_setsockopt
+    test eax, eax
+    jnz 7f
+    mov edi, ebx
+    mov rsi, rsp
     mov edx, 16
     call _w_bind
     test eax, eax
-    js 9f
+    jnz 7f
     mov edi, ebx
     mov esi, 16
     call _w_listen
     test eax, eax
-    js 9f
+    jnz 7f
     mov eax, ebx
-    add rsp, 32
+    add rsp, 40
+    pop r15
+    pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
     ret
-9:  add rsp, 32
-    lea rdi, [rip + Lrt_elisten]
-    mov rsi, r13
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    jmp _bit_die
+7:  mov edi, ebx
+    call _w_closesocket
+9:  lea rdi, [rip + Lrt_elisten]
+    jmp 6f
+8:  lea rdi, [rip + Lrt_elisten_addr]
+6:  mov rsi, r14
+    call _bit_die
 
 _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     push rbp
@@ -4570,6 +4658,59 @@ _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     pop rbx
     pop rbp
     jmp _bit_die
+
+_bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 72
+    mov r12, rsi
+    mov dword ptr [rsp + 16], 16
+    mov rsi, rsp
+    lea rdx, [rsp + 16]
+    call _w_getpeername
+    test eax, eax
+    jnz 9f
+    movzx ebx, word ptr [rsp + 2]
+    rol bx, 8
+    mov edi, 2
+    lea rsi, [rsp + 4]
+    lea rdx, [rsp + 32]
+    mov ecx, 16
+    call _w_inet_ntop
+    test rax, rax
+    jz 9f
+    lea rdi, [rsp + 32]
+    lea rsi, [rip + Lrt_peer_colon]
+    call _bit_cat
+    mov r13, rax
+    mov edi, ebx
+    call _bit_num_str
+    mov r14, rax
+    mov rdi, r13
+    mov rsi, r14
+    call _bit_cat
+    mov r15, rax
+    mov rdi, r13
+    call _w_free
+    mov rdi, r14
+    call _w_free
+    mov rax, r15
+    add rsp, 72
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epeer]
+    mov rsi, r12
+    call _bit_die
 
 _bit_sock_send:                     // rdi = conn, rsi = строка, rdx = строка программы
     push rbp
@@ -7040,6 +7181,9 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
+Lrt_elisten_addr: .asciz "listen: \320\275\320\265\320\262\320\265\321\200\320\275\321\213\320\271 IPv4-\320\260\320\264\321\200\320\265\321\201"
+Lrt_peer_colon: .asciz ":"
+Lrt_epeer: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\320\267\320\275\320\260\321\202\321\214 \320\260\320\264\321\200\320\265\321\201 \321\201\320\276\320\261\320\265\321\201\320\265\320\264\320\275\320\270\320\272\320\260"
 Lrt_remove_home: .asciz "HOME"
 Lrt_remove_profile: .asciz "USERPROFILE"
 Lrt_ermhome: .asciz "remove_all: \320\275\320\265\320\273\321\214\320\267\321\217 \321\203\320\264\320\260\320\273\321\217\321\202\321\214 \320\264\320\276\320\274\320\260\321\210\320\275\321\216\321\216 \320\277\320\260\320\277\320\272\321\203: "

@@ -30,11 +30,11 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
         "_bit_map_find", "_bit_map_set", "_bit_map_remove"]
 WRAP = ["calloc", "memcpy", "qsort", "realloc", "strlen", "free", "getentropy"]
 # сеть: переносим и оборачиваем вызовы Winsock
-NET = ["_bit_tcp_connect", "_bit_udp_connect", "_bit_ip_connect", "_bit_tcp_listen",
-       "_bit_tcp_accept", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_recv_timed",
+NET = ["_bit_tcp_connect", "_bit_udp_connect", "_bit_ip_connect", "_bit_tcp_listen", "_bit_tcp_listen_at",
+       "_bit_tcp_accept", "_bit_sock_peer", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_recv_timed",
        "_bit_sock_close", "_bit_resolve"]
-SOCK = ["accept", "bind", "connect", "gethostbyname", "inet_ntop", "inet_pton",
-        "listen", "recv", "send", "socket", "strlen", "free"]
+SOCK = ["accept", "bind", "connect", "getpeername", "gethostbyname", "inet_ntop", "inet_pton",
+        "listen", "setsockopt", "recv", "send", "socket", "strlen", "free"]
 # файлы, ввод, ОС — переносим с заменой libc на _w_* обёртки.
 # (_bit_kind, _bit_dir_list, _bit_os_cpus, _bit_readline — вручную под Windows)
 FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines",
@@ -86,6 +86,8 @@ def extract(name):
 
 def extract_net(name):
     b = wrapcalls(extract_raw(name), SOCK)
+    if name == "_bit_tcp_listen_at":
+        b = b.replace("mov word ptr [rsp], 0x210", "mov word ptr [rsp], 2")
     b = b.replace("call _close\n", "call _w_closesocket\n")
     b = b.replace("jmp _close\n", "jmp _w_closesocket\n").replace("jmp _close", "jmp _w_closesocket")
     return b
@@ -523,6 +525,16 @@ _bit_mem_used:
 
 # ── обёртки и функции для файлов/ввода/ОС, написанные под Windows вручную ──
 WINEXTRA = r"""
+_bit_os_clock:                      # monotonic milliseconds since boot
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    call GetTickCount64
+    mov rsp, rbp
+    pop rbp
+    ret
+
 
 _bit_remove_is_home:                // canonical target -> bool
     push rbp
@@ -2553,6 +2565,32 @@ _w_connect:
     mov rsp, rbp
     pop rbp
     ret
+_w_setsockopt:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 48
+    mov [rsp + 32], r8
+    mov r9, rcx
+    mov r8, rdx
+    mov rdx, rsi
+    mov rcx, rdi
+    call setsockopt
+    mov rsp, rbp
+    pop rbp
+    ret
+_w_getpeername:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    mov r8, rdx
+    mov rdx, rsi
+    mov rcx, rdi
+    call getpeername
+    mov rsp, rbp
+    pop rbp
+    ret
 _w_bind:
     push rbp
     mov rbp, rsp
@@ -2684,6 +2722,9 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     jz 9f                             # пустой адрес
     cmp eax, 58
     je 2f
+    lea r9, [rsp + 55]
+    cmp r14, r9
+    jae 9f
     mov [r14], al
     inc rbx
     inc r14
@@ -2691,11 +2732,20 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
 2:  mov byte ptr [r14], 0
     inc rbx
     xor r8d, r8d
+    cmp byte ptr [rbx], 0
+    je 9f
 3:  movzx eax, byte ptr [rbx]
+    test eax, eax
+    jz 4f
     sub eax, 48
     cmp eax, 9
-    ja 4f
-    imul r8d, r8d, 10
+    ja 9f
+    cmp r8d, 6553
+    ja 9f
+    jne 5f
+    cmp eax, 5
+    ja 9f
+5:  imul r8d, r8d, 10
     add r8d, eax
     inc rbx
     jmp 3b
@@ -3662,6 +3712,8 @@ Lrt_edns: .asciz "ne mogu najti adres hosta"
 """
 
 NEWSTR = {
+    "Lrt_elisten_addr": "listen: неверный IPv4-адрес",
+    "Lrt_peer_colon": ":", "Lrt_epeer": "не могу узнать адрес собеседника",
     "Lrt_remove_home": "HOME", "Lrt_remove_profile": "USERPROFILE",
     "Lrt_ermhome": "remove_all: нельзя удалять домашнюю папку: ",
     "Lrt_ermroot": "remove_all: нельзя удалять корень, пустой путь, . или ..: ",

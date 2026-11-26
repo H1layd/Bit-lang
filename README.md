@@ -125,6 +125,8 @@ programs through `use`. Working directory and environment changes are built into
 inherited by launched programs. File operations include `read_only`, POSIX permissions, recursive
 directory removal, and walks with `FileInfo` metadata. TCP connects can be bounded in time
 (`connect(ms)`), and the kind of a caught failure is a stable code through `term >> error_code`.
+A network service can listen on a specific IPv4 address, inspect the remote endpoint with
+`peer`, and measure intervals with `os >> clock`.
 The targets are macOS (arm64 and x86-64),
 Linux (x86-64) and Windows (x86-64).
 Compiler and runtime messages are currently in Russian.

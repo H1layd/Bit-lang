@@ -92,14 +92,29 @@ wait.
 - [ ] Run the updated runtimes on native Linux.
 - [x] Linux in Colima: Debian, x86-64 under QEMU, unprivileged user;
   95/95 and self-hosting passed, including `remove_all` protection for HOME and its ancestors.
-- [ ] Repeat the Windows HOME/USERPROFILE ancestor-protection run when SSH is available.
+- [x] HOME/USERPROFILE ancestor protection passed on live Windows and was committed
+  (`95be464`). The former Linux server was deleted; QEMU has intermittent emulator
+  crashes, so native Linux remains a separate check.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
-- [x] **`connect(ms)`** — a TCP connect with a bound wait: the socket opens without blocking,
-  the wait is a `poll`, and the result is checked through `SO_ERROR`.
+- [x] **`connect(ms)`** — a TCP connect with a bound wait: a nonblocking socket,
+  `poll`, and `SO_ERROR` on macOS/Linux; a socket timeout on Windows.
   **`term >> error_code`** — a stable numeric code of the last caught failure
   (1 refused, 2 wait ended, 3 no route, 0 no code) on macOS, Linux and Windows;
   a plain `connect` and a timed-out `recv` also fill it.
+
+### Service capabilities and signals
+
+- [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
+  Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected
+  compile errors), and Linux under QEMU (109/109 plus the new error-line check).
+  Fixed Linux `SO_ERROR` in `connect(ms)`, macOS `O_NONBLOCK`, its `fcntl` argument,
+  and the error line. Address and port parsing is bounded. An end-to-end timeout test
+  against a guaranteed nonresponding host remains outstanding.
+- [ ] After the network milestone, audit stack alignment of the remaining handwritten
+  Windows wrappers, as agreed with the author.
+- [ ] Signals through `term >> signalled`: test with a separate child bit program
+  receiving a signal or console event from an external process.
 
 ## System capability milestones
 
@@ -128,9 +143,15 @@ Status of the milestones already started. Each change ends with checks and docum
 Before implementing the package manager, stop, report progress, and wait for the author.
 Do not start the package manager or subsequent milestones until instructed.
 
-1. **Finish the current work.** Run HOME/USERPROFILE ancestor protection on a real Windows
-   machine, then commit the fixes. macOS and Linux in Colima have been checked;
-   native Linux remains a separate portability check.
+**Current work:** after the service-network milestone, complete the agreed Windows-wrapper
+audit and signals. Continue the unfinished memory work:
+strings first, followed by `mas`, `map`, and records. The items below are directions,
+not a commitment to a strictly sequential order; the package-manager checkpoint still
+applies. The author chooses the license and new language decisions.
+
+1. ~~**Finish the current work.**~~ HOME/USERPROFILE ancestor protection passed on
+   Windows, macOS, and Linux under QEMU and was committed. Native Linux remains a
+   separate portability check.
 2. **Open the project to people.** A `LICENSE` file (the author picks the license; without one
    nobody may legally use the code). GitHub Actions: build, self-hosting and tests on macOS, Linux
    and Windows on every commit, with a badge in the README. A run on a real Linux machine.

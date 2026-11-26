@@ -28,6 +28,17 @@ def func_transform(text, name, transform):
     end = start + match.start() if match else len(text)
     return text[:start] + transform(text[start:end]) + text[end:]
 
+# CLOCK_MONOTONIC differs between Darwin and Linux.
+t = func_transform(t, "_bit_os_clock", lambda body: body.replace(
+    "mov edi, 6                       // CLOCK_MONOTONIC on Darwin",
+    "mov edi, 1                       # CLOCK_MONOTONIC on Linux"))
+
+# sockaddr_in and socket option constants for Linux.
+t = func_transform(t, "_bit_tcp_listen_at", lambda body: body
+    .replace("mov word ptr [rsp], 0x210", "mov word ptr [rsp], 2")
+    .replace("mov esi, 0xffff", "mov esi, 1")
+    .replace("mov edx, 4                      # Darwin SO_REUSEADDR", "mov edx, 2                      # Linux SO_REUSEADDR"))
+
 # AT_FDCWD belongs only to the top-level removal wrapper.
 t = func_transform(t, "_bit_dir_remove_all",
                    lambda body: body.replace("mov rdi, -2", "mov rdi, -100"))
@@ -46,10 +57,11 @@ t = func_transform(t, "_bit_errno_map", lambda body: body
                    .replace("(Darwin)", "(Linux)"))
 # connect(ms): O_NONBLOCK и EINPROGRESS различаются, SOL_SOCKET = 1
 t = func_transform(t, "_bit_tcp_connect_timed", lambda body: body
-                   .replace("or eax, 0x4000", "or eax, 2048")
+                   .replace("or eax, 4", "or eax, 2048")
+                   .replace("mov edx, 4103", "mov edx, 4")       # SO_ERROR
                    .replace("cmp eax, 36", "cmp eax, 115")       # EINPROGRESS
                    .replace("mov esi, 65535", "mov esi, 1")      # SOL_SOCKET
-                   .replace("and eax, -16385", "and eax, -2049") # снять O_NONBLOCK
+                   .replace("and eax, -5", "and eax, -2049") # снять O_NONBLOCK
                    .replace("(Darwin)", "(Linux)"))
 # struct dirent: имя с 19-го байта, struct stat: st_mode с 24-го
 t = t.replace("lea rdi, [rax + 21]", "lea rdi, [rax + 19]")

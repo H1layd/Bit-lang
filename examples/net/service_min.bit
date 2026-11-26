@@ -1,0 +1,13 @@
+# Одно подключение к локальному сервису и время обработки.
+host {
+    server listener = net >> listen(9100, "127.0.0.1");
+    print("ожидаю подключение на 127.0.0.1:9100");
+    conn client = listener >> accept;
+    num started = os >> clock;
+    print("клиент: {client >> peer}");
+    string message = client >> recv;
+    do(client >> send("эхо: {message}"));
+    print("обработка заняла {os >> clock - started} мс");
+    do(client >> close);
+    do(listener >> close);
+}

@@ -3922,6 +3922,9 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     jz 9f
     cmp eax, 58
     je 2f
+    lea r9, [rsp + 15]
+    cmp rdx, r9
+    jae 9f
     mov [rdx], al
     inc rcx
     inc rdx
@@ -3929,11 +3932,20 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
 2:  mov byte ptr [rdx], 0
     inc rcx
     xor r8d, r8d
+    cmp byte ptr [rcx], 0
+    je 9f
 3:  movzx eax, byte ptr [rcx]
+    test eax, eax
+    jz 4f
     sub eax, 48
     cmp eax, 9
-    ja 4f
-    imul r8d, r8d, 10
+    ja 9f
+    cmp r8d, 6553
+    ja 9f
+    jne 5f
+    cmp eax, 5
+    ja 9f
+5:  imul r8d, r8d, 10
     add r8d, eax
     inc rcx
     jmp 3b
@@ -4010,6 +4022,9 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     jz 9f                             # пустой адрес
     cmp eax, 58
     je 2f
+    lea r9, [rsp + 15]
+    cmp rdx, r9
+    jae 9f
     mov [rdx], al
     inc rcx
     inc rdx
@@ -4017,11 +4032,20 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
 2:  mov byte ptr [rdx], 0
     inc rcx
     xor r8d, r8d
+    cmp byte ptr [rcx], 0
+    je 9f
 3:  movzx eax, byte ptr [rcx]
+    test eax, eax
+    jz 4f
     sub eax, 48
     cmp eax, 9
-    ja 4f
-    imul r8d, r8d, 10
+    ja 9f
+    cmp r8d, 6553
+    ja 9f
+    jne 5f
+    cmp eax, 5
+    ja 9f
+5:  imul r8d, r8d, 10
     add r8d, eax
     inc rcx
     jmp 3b
@@ -4083,7 +4107,7 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     js 7f                             # ошибка poll
 11: mov edi, ebx
     mov esi, 1                    # SOL_SOCKET (Linux)
-    mov edx, 4103                     # SO_ERROR
+    mov edx, 4                     # SO_ERROR
     lea rcx, [rsp + 96]
     mov dword ptr [rsp + 100], 4
     lea r8, [rsp + 100]
@@ -4102,11 +4126,15 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
 12: mov edi, ebx
     mov esi, 3                       # F_GETFL
     call fcntl@PLT
+    test eax, eax
+    js 8f
     and eax, -2049                  # снять O_NONBLOCK (Linux)
     mov edi, ebx
     mov esi, 4                       # F_SETFL
     mov edx, eax
     call fcntl@PLT
+    test eax, eax
+    js 8f
     mov eax, ebx
     add rsp, 112
     pop r14
@@ -4145,58 +4173,86 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbp
     jmp _bit_die
 
-_bit_tcp_listen:                    // rdi = порт, rsi = строка -> server
+_bit_tcp_listen:                    // port, line -> server
+    mov rdx, rsi
+    xor esi, esi
+    jmp _bit_tcp_listen_at
+
+_bit_tcp_listen_at:                 // port, IPv4 address or null, line -> server
     push rbp
     mov rbp, rsp
     push rbx
     push r12
     push r13
-    sub rsp, 32
-    mov r12d, edi
+    push r14
+    push r15
+    sub rsp, 40
+    mov r12, rdi
     mov r13, rsi
+    mov r14, rdx
+    mov rbx, -1
+    test r12, r12
+    js 9f
+    cmp r12, 65535
+    ja 9f
+    xor eax, eax
+    mov [rsp], rax
+    mov [rsp + 8], rax
+    mov word ptr [rsp], 2       # Darwin sockaddr_in: length 16, AF_INET 2
+    mov eax, r12d
+    rol ax, 8
+    mov [rsp + 2], ax
+    test r13, r13
+    jz 1f
     mov edi, 2
+    mov rsi, r13
+    lea rdx, [rsp + 4]
+    call inet_pton@PLT
+    cmp eax, 1
+    jne 8f
+1:  mov edi, 2
     mov esi, 1
     xor edx, edx
     call socket@PLT
     test eax, eax
     js 9f
     mov ebx, eax
-    xor eax, eax
-    mov [rsp], rax
-    mov [rsp + 8], rax
-    mov word ptr [rsp], 2
-    mov eax, r12d
-    mov ecx, eax
-    shl eax, 8
-    shr ecx, 8
-    or eax, ecx
-    mov [rsp + 2], ax
+    mov dword ptr [rsp + 16], 1
     mov edi, ebx
-    lea rsi, [rsp]
+    mov esi, 1                 # Darwin SOL_SOCKET
+    mov edx, 2                      # Linux SO_REUSEADDR
+    lea rcx, [rsp + 16]
+    mov r8d, 4
+    call setsockopt@PLT
+    test eax, eax
+    jnz 7f
+    mov edi, ebx
+    mov rsi, rsp
     mov edx, 16
     call bind@PLT
     test eax, eax
-    js 9f
+    jnz 7f
     mov edi, ebx
     mov esi, 16
     call listen@PLT
     test eax, eax
-    js 9f
+    jnz 7f
     mov eax, ebx
-    add rsp, 32
+    add rsp, 40
+    pop r15
+    pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
     ret
-9:  add rsp, 32
-    lea rdi, [rip + Lrt_elisten]
-    mov rsi, r13
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    jmp _bit_die
+7:  mov edi, ebx
+    call close@PLT
+9:  lea rdi, [rip + Lrt_elisten]
+    jmp 6f
+8:  lea rdi, [rip + Lrt_elisten_addr]
+6:  mov rsi, r14
+    call _bit_die
 
 _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     push rbp
@@ -4216,6 +4272,59 @@ _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     pop rbx
     pop rbp
     jmp _bit_die
+
+_bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 72
+    mov r12, rsi
+    mov dword ptr [rsp + 16], 16
+    mov rsi, rsp
+    lea rdx, [rsp + 16]
+    call getpeername@PLT
+    test eax, eax
+    jnz 9f
+    movzx ebx, word ptr [rsp + 2]
+    rol bx, 8
+    mov edi, 2
+    lea rsi, [rsp + 4]
+    lea rdx, [rsp + 32]
+    mov ecx, 16
+    call inet_ntop@PLT
+    test rax, rax
+    jz 9f
+    lea rdi, [rsp + 32]
+    lea rsi, [rip + Lrt_peer_colon]
+    call _bit_cat
+    mov r13, rax
+    mov edi, ebx
+    call _bit_num_str
+    mov r14, rax
+    mov rdi, r13
+    mov rsi, r14
+    call _bit_cat
+    mov r15, rax
+    mov rdi, r13
+    call free@PLT
+    mov rdi, r14
+    call free@PLT
+    mov rax, r15
+    add rsp, 72
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_epeer]
+    mov rsi, r12
+    call _bit_die
 
 _bit_sock_send:                     // rdi = conn, rsi = строка, rdx = строка программы
     push rbp
@@ -4830,6 +4939,31 @@ _bit_os_user:                       // -> имя пользователя
     lea rax, [rip + Lrt_empty]
 1:  pop rbp
     ret
+
+_bit_os_clock:                      // rdi = source line -> monotonic milliseconds
+    push rbp
+    mov rbp, rsp
+    push rbx
+    sub rsp, 24
+    mov rbx, rdi
+    mov edi, 1                       # CLOCK_MONOTONIC on Linux
+    mov rsi, rsp
+    call clock_gettime@PLT
+    test eax, eax
+    jnz 9f
+    imul rcx, qword ptr [rsp], 1000
+    mov rax, [rsp + 8]
+    xor edx, edx
+    mov esi, 1000000
+    div rsi
+    add rax, rcx
+    add rsp, 24
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_eclock]
+    mov rsi, rbx
+    call _bit_die
 
 _bit_os_now:                        // -> время (секунды)
     push rbp
@@ -5790,6 +5924,10 @@ Lrt_espawn: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\3
 Lrt_epread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\277\321\200\320\276\321\207\320\270\321\202\320\260\321\202\321\214 \320\277\320\260\320\274\321\217\321\202\321\214 "
 Lrt_epwrite: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\320\270\321\201\320\260\321\202\321\214 \320\262 \320\277\320\260\320\274\321\217\321\202\321\214 "
 Lrt_ekill: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 "
+Lrt_eclock: .asciz "не могу узнать монотонное время"
+Lrt_elisten_addr: .asciz "listen: неверный IPv4-адрес"
+Lrt_peer_colon: .asciz ":"
+Lrt_epeer: .asciz "не могу узнать адрес собеседника"
 Lrt_curl: .asciz "curl"
 Lrt_sS: .asciz "-sS"
 Lrt_L: .asciz "-L"
