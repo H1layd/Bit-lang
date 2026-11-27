@@ -2646,7 +2646,11 @@ fn string_escapes(num n, string name) {
     # Calls hold arguments, and returned strings own a reference. Record constructors
     # still store raw field pointers until container ownership is integrated.
     bool held_call = k == "call" and record_by_name(fs(n)) < 0;
-    bool read_only = (k == "pipe" and fs(n) == "sz") or k == "print" or copying;
+    # These string methods copy their results or only compare; their receiver is
+    # never stored beyond the call. Arguments are still analysed separately.
+    bool safe_receiver = k == "pipe" and (fs(n) == "sz" or fs(n) == "starts" or
+        fs(n) == "ends" or fs(n) == "trim" or fs(n) == "replace");
+    bool read_only = safe_receiver or k == "print" or copying;
     if not (read_only and kind(a) == "var") and string_escapes(a, name) {
         return true;
     }

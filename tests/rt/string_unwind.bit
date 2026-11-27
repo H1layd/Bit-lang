@@ -80,6 +80,24 @@ fn unwind_interpolate(num n) {
 fn unwind_method_replace(num n) {
     return "value-10" >> replace(unwind_string(n), unwind_string(2));
 }
+fn unwind_local_methods(num n) {
+    string value = unwind_string(n);
+    bool prefix = value >> starts("value");
+    bool suffix = value >> ends("{n}");
+    string trimmed = value >> trim;
+    string changed = value >> replace("value", "new");
+    recover {
+        print(value >> replace("value", unwind_fail_text()));
+    } else {
+        if not (value >> starts("value")) {
+            print("lost-local-receiver" >> num);
+        }
+    }
+    if not prefix or not suffix {
+        print("invalid-local-method" >> num);
+    }
+    return (trimmed >> sz) + (changed >> sz);
+}
 host {
     num caught = 0;
     all target = unwind_target;
@@ -125,6 +143,7 @@ host {
         if not (unwind_string(i) >> starts("value")) {
             print("invalid-prefix" >> num);
         }
+        do(unwind_local_methods(i));
         do(unwind_pipe_trim(i));
         do(unwind_pipe_slice(i));
         do(unwind_pipe_char(i));

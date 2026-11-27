@@ -176,3 +176,11 @@ After adding signals, three self-builds of each version on macOS ARM64 gave medi
 5.531 s and 669.20 MiB before, and 5.514 s and 676.39 MiB after. Measured time was
 essentially unchanged and peak memory rose by about 1.1%; the machine was not isolated
 and the compiler sources differ between versions.
+
+Local strings used as receivers of `starts`, `ends`, `trim`, and `replace` are now
+released at scope exit when not stored in shared data. Tests also cover argument
+failure through `recover` and retained values in containers and records. For 50,000
+calls using roughly 1 KiB strings, peak `mem >> used` fell from 80,216,064 to
+1,835,008 bytes with the same checksum of 51,438,890. Three self-builds on macOS
+ARM64 gave medians of 5.171 s and 676.39 MiB before, and 5.229 s and 676.70 MiB
+after. The machine was not isolated and the sources differ.

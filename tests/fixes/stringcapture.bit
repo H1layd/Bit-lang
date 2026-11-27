@@ -20,9 +20,11 @@ fn capture_record(string value) {
 }
 fn capture_produce() {
     string array_value = capture_make(1);
+    if not (array_value >> starts("captured")) { print("unexpected-prefix"); }
     do(capture_array(array_value));
     do(array_value >> ch("changed"));
     string global_value = capture_make(2);
+    if not (global_value >> ends("2")) { print("unexpected-suffix"); }
     do(capture_global(global_value));
     do(global_value >> ch("changed"));
     string key = "k-{3}";
@@ -31,6 +33,7 @@ fn capture_produce() {
     do(key >> ch("changed"));
     do(map_value >> ch("changed"));
     string record_value = capture_make(4);
+    string unused = record_value >> trim;
     all record = capture_record(record_value);
     do(record_value >> ch("changed"));
     return record;
