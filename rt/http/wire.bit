@@ -3,12 +3,13 @@
 # State layout: phase, status, length (-1 absent), remaining, line length,
 # header bytes, transfer flag, then an 8192-byte line buffer. All numbers use
 # bytes' native i64 read/write; no global parser state is shared between threads.
+# After the line buffer: location length (-1 absent) and an 8192-byte value.
 # Phases: 0 status, 1 headers, 2 fixed body, 3 body to EOF, 4 chunk size,
 # 5 chunk data, 6 chunk CR, 7 chunk LF, 8 trailers, 9 done, 10 error.
 
 fn http_wire_new() {
-    bytes state = mem >> take(8248);
-    do(state >> write(16, -1));
+    bytes state = mem >> take(16448);
+    do(state >> write(16, -1) >> write(8248, -1));
     return state;
 }
 
@@ -49,6 +50,21 @@ fn http_wire_is_transfer(bytes state, num start, num length) {
         http_wire_char(state, start + 9) == 101 and http_wire_char(state, start + 10) == 110 and http_wire_char(state, start + 11) == 99 and
         http_wire_char(state, start + 12) == 111 and http_wire_char(state, start + 13) == 100 and http_wire_char(state, start + 14) == 105 and
         http_wire_char(state, start + 15) == 110 and http_wire_char(state, start + 16) == 103;
+}
+
+fn http_wire_is_location(bytes state, num start, num length) {
+    if length != 8 { return false; }
+    return http_wire_char(state, start) == 108 and http_wire_char(state, start + 1) == 111 and
+        http_wire_char(state, start + 2) == 99 and http_wire_char(state, start + 3) == 97 and
+        http_wire_char(state, start + 4) == 116 and http_wire_char(state, start + 5) == 105 and
+        http_wire_char(state, start + 6) == 111 and http_wire_char(state, start + 7) == 110;
+}
+
+fn http_wire_location(bytes state) {
+    num length = state >> read(8248);
+    mas value = (num);
+    for i in 0:length - 1 { do(value >> add(state >> get(8256 + i, -1))); }
+    return value >> text(0, value >> sz);
 }
 
 fn http_wire_is_chunked(bytes state, num start, num length) {
@@ -124,7 +140,7 @@ fn http_wire_line(bytes state) {
         bool chunked = (state >> read(48)) != 0;
         if chunked and content_length >= 0 { return false; }
         if status >= 100 and status < 200 {
-            do(state >> write(0, 0) >> write(8, 0) >> write(16, -1) >> write(48, 0));
+            do(state >> write(0, 0) >> write(8, 0) >> write(16, -1) >> write(48, 0) >> write(8248, -1));
         } else if status == 204 or status == 304 {
             do(state >> write(0, 9));
         } else if chunked {
@@ -171,6 +187,15 @@ fn http_wire_line(bytes state) {
         if phase == 8 or (state >> read(48)) != 0 or
            not http_wire_is_chunked(state, first, last - first) { return false; }
         do(state >> write(48, 1));
+    } else if phase == 1 and http_wire_is_location(state, 0, colon) {
+        if (state >> read(8248)) >= 0 { return false; }
+        num location_length = last - first;
+        do(state >> write(8248, location_length));
+        for i in 0:location_length - 1 {
+            num index = 8256 + i;
+            if index < 0 or index >= state >> sz { return false; }
+            do(state >> set(index, state >> get(56 + first + i, -1)));
+        }
     }
     return true;
 }

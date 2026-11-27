@@ -34,6 +34,8 @@ fn wire_test_case(string name, string raw, num stride, bool expected, num status
        (result >> text(0, result >> sz)) != body)) {
         print("FAIL {name}, stride {stride}, done {done}");
     }
+    if expected and name == "redirect" and http_wire_location(state) != "/next?x=1%2F2" { print("FAIL redirect location, stride {stride}"); }
+    if expected and name != "redirect" and http_wire_location(state) != "" { print("FAIL unexpected location, stride {stride}"); }
     do(http_wire_free(state));
     do(source >> free);
     do(input >> free);
@@ -51,6 +53,7 @@ host {
         do(wire_test_case("continue", "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx", stride, true, 200, "x"));
         do(wire_test_case("multiple interim", "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\n\r\nHTTP/1.1 200 OK\r\ncontent-length: \t1 \t\r\n\r\nx", stride, true, 200, "x"));
         do(wire_test_case("case insensitive chunked", "HTTP/1.1 200 OK\r\ntRaNsFeR-eNcOdInG: ChUnKeD\r\n\r\n1\r\nx\r\n0\r\n\r\n", stride, true, 200, "x"));
+        do(wire_test_case("redirect", "HTTP/1.1 100 Continue\r\nLocation: /ignored\r\n\r\nHTTP/1.1 302 Found\r\nLoCaTiOn:  /next?x=1%2F2  \r\nContent-Length: 0\r\n\r\n", stride, true, 302, ""));
         do(wire_test_case("not found", "HTTP/1.1 404 No\r\nContent-Length: 4\r\n\r\nnope", stride, true, 404, "nope"));
         do(wire_test_case("short fixed", "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhi", stride, false, 0, ""));
         do(wire_test_case("short chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabc", stride, false, 0, ""));
@@ -65,11 +68,21 @@ host {
         do(wire_test_case("bare newline", "HTTP/1.1 200 OK\n\nabc", stride, false, 0, ""));
         do(wire_test_case("bad status", "HTTP/1.1 9x0 OK\r\n\r\n", stride, false, 0, ""));
         do(wire_test_case("extra fixed bytes", "HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nxy", stride, false, 0, ""));
+        do(wire_test_case("duplicate location", "HTTP/1.1 302 Found\r\nLocation: /one\r\nlocation: /two\r\nContent-Length: 0\r\n\r\n", stride, false, 0, ""));
         do(wire_test_case("forbidden trailer", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nContent-Length: 0\r\n\r\n", stride, false, 0, ""));
         do(wire_test_case("overflow length", "HTTP/1.1 200 OK\r\nContent-Length: 9223372036854775808\r\n\r\n", stride, false, 0, ""));
         do(wire_test_case("invalid transfer", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, chunked\r\n\r\n", stride, false, 0, ""));
         do(wire_test_case("unsupported coding", "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\n\r\n", stride, false, 0, ""));
     }
+    bytes redirect_state = http_wire_new();
+    bytes redirect_source = wire_test_bytes("HTTP/1.1 100 Continue\r\nLocation: /ignored\r\n\r\nHTTP/1.1 302 Found\r\nLoCaTiOn:  /next?x=1%2F2  \r\nContent-Length: 0\r\n\r\n");
+    bytes redirect_output = mem >> take(redirect_source >> sz);
+    if http_wire_feed(redirect_state, redirect_source, redirect_source >> sz, redirect_output) != 0 or
+       not http_wire_eof(redirect_state) or (redirect_state >> read(8)) != 302 or
+       http_wire_location(redirect_state) != "/next?x=1%2F2" { print("FAIL redirect location"); }
+    do(redirect_state >> free);
+    do(redirect_source >> free);
+    do(redirect_output >> free);
     bytes bad_state = http_wire_new();
     bytes bad_reason = wire_test_bytes("HTTP/1.1 200 hi!\r\n\r\n");
     bytes bad_out = mem >> take(bad_reason >> sz);
