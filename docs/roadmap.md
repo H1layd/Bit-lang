@@ -129,8 +129,9 @@ wait.
 
 - [ ] Remove implicit utility processes from bit programs and the compiler; see
   [external-programs.md](external-programs.md) for the audit and remaining work.
-  Keep explicit `run` and `start`. `os >> cpus` now uses OS APIs; `os >> procs`,
-  HTTP on macOS/Linux, and building without `as`/`ld` still need work.
+  Keep explicit `run` and `start`. `os >> cpus` and `os >> procs` now use OS APIs;
+  HTTP on macOS/Linux, compiler helper commands and building without `as`/`ld`
+  still need work.
 
 ### Service capabilities and signals
 

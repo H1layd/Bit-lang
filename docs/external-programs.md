@@ -8,7 +8,7 @@ not external utility processes.
 | Area | Current behavior | Remaining work |
 |---|---|---|
 | `fetch`, `post`, `download` on macOS/Linux | Launch `curl` | Finish a native HTTP transport with certificate-verified TLS, redirects and safe downloads. Windows uses WinHTTP without `curl`. |
-| `os >> procs` | Runs `ps` through a shell on macOS/Linux, `tasklist` through a shell on Windows | Use operating-system interfaces and preserve the result format. |
+| `os >> procs` | No utility: operating-system interfaces on macOS, Linux and Windows | Keep the regression test for absence of `ps` and `tasklist`; output is `PID name` lines. |
 | `os >> cpus` | No utility: `sysconf` on macOS/Linux, `GetSystemInfo` on Windows | Keep the regression test for absence of `getconf`. |
 | `bitc asm` | A shell and `uname` detect the platform; a shell executes `pwd` for relative paths | Obtain the platform and working directory through OS interfaces. |
 | `bitc build` and `bitc run` | The above, plus a shell, `mktemp`, `as`, `ld`, `rm`, and on macOS `xcrun`; cross-compiling for Windows invokes `x86_64-w64-mingw32-gcc` | Replace helper commands with OS APIs, then implement native object and executable generation to remove the assembler and linker. |
@@ -25,7 +25,8 @@ variants, and ran probes using substitute utilities. On both macOS architectures
 and Linux under QEMU, the old `os >> cpus` returned the fake value `12345`, and
 `os >> procs` returned fake `ps` output. On real Windows, `os >> procs` ran a
 fake `tasklist`. After the fix, `os >> cpus` is checked against the system count
-with a `getconf` trap.
+with a `getconf` trap. `os >> procs` is checked with `ps` and `tasklist` traps
+and must include the current PID.
 
 Inspect actual calls rather than just assembly string constants: some unused
 command names remain in the runtime. For example, Windows HTTP does not call

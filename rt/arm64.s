@@ -6264,11 +6264,140 @@ _bit_os_cpus:                       // source line -> online logical processors
     mov x1, x19
     bl _bit_die
 
-_bit_os_procs:                      // x0 = строка -> список процессов (текст)
-    mov x1, x0
-    adrp x0, Lrt_pscmd@PAGE
-    add x0, x0, Lrt_pscmd@PAGEOFF
-    b _bit_run
+_bit_procs_add:                    // array, pid, name, source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+    mov x22, x3
+    mov x0, x20
+    bl _bit_num_str
+    mov x23, x0
+    adrp x1, Lrt_pspc@PAGE
+    add x1, x1, Lrt_pspc@PAGEOFF
+    bl _bit_cat
+    mov x24, x0
+    mov x0, x23
+    bl _free
+    mov x0, x24
+    mov x1, x21
+    bl _bit_cat
+    mov x23, x0
+    mov x0, x24
+    bl _free
+    mov x0, x19
+    mov x1, x23
+    mov x2, x22
+    bl _bit_mas_add
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_procs_finish:                 // array -> joined string; free temporary entries
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    mov x19, x0
+    adrp x1, Lrt_pnl@PAGE
+    add x1, x1, Lrt_pnl@PAGEOFF
+    bl _bit_mas_join
+    mov x20, x0
+    mov x21, #0
+1:  ldr x9, [x19, #8]
+    cmp x21, x9
+    b.ge 2f
+    ldr x9, [x19]
+    ldr x0, [x9, x21, lsl #3]
+    bl _free
+    add x21, x21, #1
+    b 1b
+2:  ldr x0, [x19]
+    bl _free
+    mov x0, x19
+    bl _free
+    mov x0, x20
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_os_procs:                     // source line -> PID and process name per line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
+    sub sp, sp, #256
+    mov x19, x0
+    mov x20, #4096
+    mov x0, x20
+    bl _bit_alloc
+    mov x21, x0
+1:  mov x0, x21
+    mov x1, x20
+    bl _proc_listallpids
+    cmp w0, #0
+    b.lt 8f
+    sxtw x22, w0
+    lsl x9, x22, #2
+    cmp x9, x20
+    b.lt 2f
+    mov x9, #16777216
+    cmp x20, x9
+    b.hs 8f
+    lsl x20, x20, #1
+    mov x0, x21
+    mov x1, x20
+    bl _realloc
+    cbz x0, _bit_oom
+    mov x21, x0
+    b 1b
+2:  mov x0, #-1
+    mov x1, #0
+    bl _bit_mas_new
+    mov x23, x0
+    mov x24, #0
+3:  cmp x24, x22
+    b.ge 6f
+    ldr w25, [x21, x24, lsl #2]
+    cbz w25, 5f
+    mov x0, x25
+    mov x1, sp
+    bl _bit_mac_pname
+    cmp w0, #0
+    b.le 5f
+    mov x0, x23
+    mov x1, x25
+    mov x2, sp
+    mov x3, x19
+    bl _bit_procs_add
+5:  add x24, x24, #1
+    b 3b
+6:  mov x0, x21
+    bl _free
+    mov x0, x23
+    bl _bit_procs_finish
+    add sp, sp, #256
+    ldp x25, x26, [sp], #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+8:  mov x0, x21
+    bl _free
+    adrp x0, Lrt_eprocs@PAGE
+    add x0, x0, Lrt_eprocs@PAGEOFF
+    mov x1, x19
+    bl _bit_die
 
 // ── mas >> run: программа напрямую массивом аргументов; stdout и stderr отдельно, stdin ──
 _bit_mas_argv:                      // x0 = mas строк → x0 = char** (NULL в конце)
@@ -6643,7 +6772,9 @@ Lrt_pingc: .asciz "-c"
 Lrt_devnull: .asciz "/dev/null"
 Lrt_userenv: .asciz "USER"
 Lrt_ecpus: .asciz "os >> cpus: cannot determine processor count"
-Lrt_pscmd: .asciz "ps -axo pid=,comm= 2>/dev/null"
+Lrt_pspc: .asciz " "
+Lrt_pnl: .asciz "\012"
+Lrt_eprocs: .asciz "os >> procs: cannot list processes"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
 Lrt_pingcmd: .asciz "ping -c 1 "
 Lrt_quiet: .asciz " >/dev/null 2>&1"

@@ -769,7 +769,11 @@ produce the same sequence across architectures.
 | `os >> cpus` | number of cores |
 | `os >> now` | time (seconds since 1970) |
 | `os >> clock` | monotonic milliseconds for measuring intervals |
-| `os >> procs` | list of processes (text) |
+| `os >> procs` | processes, one `PID name` line each |
+
+`os >> procs` uses OS interfaces without launching `ps` or `tasklist`. Process
+names and visibility depend on the OS and permissions; the format is consistent
+across systems and differs from the previous `tasklist` output.
 
 ### term (terminal)
 

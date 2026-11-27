@@ -37,6 +37,104 @@ def linux_cpu_selector(body):
 
 t = func_transform(t, "_bit_os_cpus", linux_cpu_selector)
 
+t = func_replace(t, "_bit_os_procs", """
+_bit_os_procs:                     // source line -> PID and process name per line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 408
+    mov rbx, rdi
+    lea rdi, [rip + Lrt_procdir]
+    call opendir@PLT
+    test rax, rax
+    jz 8f
+    mov r12, rax
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+1:  call __errno_location@PLT
+    mov dword ptr [rax], 0
+    mov rdi, r12
+    call readdir@PLT
+    test rax, rax
+    jz 7f
+    lea rdi, [rax + 19]
+    movzx eax, byte ptr [rdi]
+    sub eax, 48
+    cmp eax, 9
+    ja 1b
+    lea rsi, [rsp + 384]
+    mov edx, 10
+    call strtoll@PLT
+    cmp rax, 0
+    jle 1b
+    mov rdx, [rsp + 384]
+    cmp byte ptr [rdx], 0
+    jne 1b
+    mov r14, rax
+    mov rdi, rsp
+    mov esi, 128
+    lea rdx, [rip + Lrt_fcomm]
+    mov rcx, r14
+    xor eax, eax
+    call snprintf@PLT
+    mov rdi, rsp
+    lea rsi, [rip + Lrt_rb]
+    call fopen@PLT
+    test rax, rax
+    jz 1b
+    mov r15, rax
+    lea rdi, [rsp + 128]
+    mov esi, 256
+    mov rdx, r15
+    call fgets@PLT
+    mov [rsp + 392], rax
+    mov rdi, r15
+    call fclose@PLT
+    cmp qword ptr [rsp + 392], 0
+    je 1b
+    lea rdi, [rsp + 128]
+    lea rsi, [rip + Lrt_nl]
+    call strcspn@PLT
+    mov byte ptr [rsp + rax + 128], 0
+    mov rdi, r13
+    mov rsi, r14
+    lea rdx, [rsp + 128]
+    mov rcx, rbx
+    call _bit_procs_add
+    jmp 1b
+7:  call __errno_location@PLT
+    cmp dword ptr [rax], 0
+    je 6f
+    mov rdi, r12
+    call closedir@PLT
+    mov rdi, r13
+    call _bit_procs_finish
+    mov rdi, rax
+    call free@PLT
+    jmp 8f
+6:  mov rdi, r12
+    call closedir@PLT
+    mov rdi, r13
+    call _bit_procs_finish
+    add rsp, 408
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_eprocs]
+    mov rsi, rbx
+    call _bit_die
+""")
+
 # Linux glibc sigaction differs from Darwin: 128-byte mask, flags at 136.
 t = func_replace(t, "_bit_signal_init", """
 _bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART

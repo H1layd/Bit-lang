@@ -1,0 +1,5 @@
+host {
+    print(term >> pid);
+    string processes = os >> procs;
+    print(processes);
+}

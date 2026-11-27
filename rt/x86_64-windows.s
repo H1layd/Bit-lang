@@ -5496,6 +5496,78 @@ _bit_mas_argv:                      // rdi = mas строк → rax = char** (NU
     pop rbp
     ret
 
+_bit_procs_add:                    // array, pid, name, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    mov rdi, r12
+    call _bit_num_str
+    mov r15, rax
+    mov rdi, rax
+    lea rsi, [rip + Lrt_pspc]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, r15
+    call _w_free
+    mov rdi, r12
+    mov rsi, r13
+    call _bit_cat
+    mov r15, rax
+    mov rdi, r12
+    call _w_free
+    mov rdi, rbx
+    mov rsi, r15
+    mov rdx, r14
+    call _bit_mas_add
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_procs_finish:                 // array -> joined string; free temporary entries
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    lea rsi, [rip + Lrt_pnl]
+    call _bit_mas_join
+    mov r12, rax
+    xor r13d, r13d
+1:  cmp r13, [rbx + 8]
+    jge 2f
+    mov rax, [rbx]
+    mov rdi, [rax + r13*8]
+    call _w_free
+    inc r13
+    jmp 1b
+2:  mov rdi, [rbx]
+    call _w_free
+    mov rdi, rbx
+    call _w_free
+    mov rax, r12
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_term_stderr:                   // → копия stderr последнего mas >> run ("" если не было)
     push rbp
     mov rbp, rsp
@@ -8091,13 +8163,6 @@ _bit_os_now:                        // -> время (секунды)
     pop rbp
     ret
 
-_bit_os_procs:                      // rdi = строка -> список процессов
-    mov rsi, rdi
-    lea rdi, [rip + Lrt_pscmd]
-    jmp _bit_run
-
-// ── mas >> run: программа напрямую массивом аргументов; stdout и stderr отдельно, stdin ──
-
 _bit_run:                           // rdi = команда, rsi = строка → её вывод
     push rbp
     mov rbp, rsp
@@ -8384,6 +8449,65 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbx
     pop rbp
     ret
+
+_bit_os_procs:                     // source line -> PID and process name per line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 360
+    mov rbx, rdi
+    mov ecx, 2
+    xor edx, edx
+    call CreateToolhelp32Snapshot
+    cmp rax, -1
+    je 8f
+    mov r12, rax
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+    mov dword ptr [rsp + 32], 304
+    mov rcx, r12
+    lea rdx, [rsp + 32]
+    call Process32First
+1:  test eax, eax
+    jnz 11f
+    call GetLastError
+    cmp eax, 18                    # ERROR_NO_MORE_FILES
+    je 6f
+    mov rcx, r12
+    call CloseHandle
+    mov rdi, r13
+    call _bit_procs_finish
+    mov rdi, rax
+    call _w_free
+    jmp 8f
+11: mov esi, dword ptr [rsp + 40]
+    test esi, esi
+    jz 2f
+    mov rdi, r13
+    lea rdx, [rsp + 76]
+    mov rcx, rbx
+    call _bit_procs_add
+2:  mov rcx, r12
+    lea rdx, [rsp + 32]
+    call Process32Next
+    jmp 1b
+6:  mov rcx, r12
+    call CloseHandle
+    mov rdi, r13
+    call _bit_procs_finish
+    add rsp, 360
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_eprocs]
+    mov rsi, rbx
+    call _bit_die
 
 _bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем (с .exe или без) или -1
     push rbp
@@ -9155,7 +9279,9 @@ Lrt_wb: .asciz "wb"
 Lrt_r: .asciz "r"
 Lrt_star: .asciz "\134*"
 Lrt_userenv: .asciz "USERNAME"
-Lrt_pscmd: .asciz "tasklist"
+Lrt_pspc: .asciz " "
+Lrt_pnl: .asciz "\012"
+Lrt_eprocs: .asciz "os >> procs: cannot list processes"
 Lrt_eof: .asciz "\320\262\320\262\320\276\320\264 \320\267\320\260\320\272\320\276\320\275\321\207\320\270\320\273\321\201\321\217, \320\260 \320\277\321\200\320\276\320\263\321\200\320\260\320\274\320\274\320\260 \320\266\320\264\320\260\320\273\320\260 \320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265"
 Lrt_numr: .asciz "\320\275\321\203\320\266\320\275\320\276 \321\206\320\265\320\273\320\276\320\265 \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 %lld \320\264\320\276 %lld, \320\277\320\276\320\277\321\200\320\276\320\261\321\203\320\271 \320\265\321\211\321\221 \321\200\320\260\320\267: "
 Lrt_num: .asciz "\320\275\321\203\320\266\320\275\320\276 \321\206\320\265\320\273\320\276\320\265 \321\207\320\270\321\201\320\273\320\276, \320\277\320\276\320\277\321\200\320\276\320\261\321\203\320\271 \320\265\321\211\321\221 \321\200\320\260\320\267: "

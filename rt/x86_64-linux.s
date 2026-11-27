@@ -6490,12 +6490,174 @@ _bit_os_cpus:                       // source line -> online logical processors
     mov rsi, rbx
     call _bit_die
 
-_bit_os_procs:                      // rdi = строка -> список процессов
-    mov rsi, rdi
-    lea rdi, [rip + Lrt_pscmd]
-    jmp _bit_run
+_bit_procs_add:                    // array, pid, name, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    mov rdi, r12
+    call _bit_num_str
+    mov r15, rax
+    mov rdi, rax
+    lea rsi, [rip + Lrt_pspc]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, r15
+    call free@PLT
+    mov rdi, r12
+    mov rsi, r13
+    call _bit_cat
+    mov r15, rax
+    mov rdi, r12
+    call free@PLT
+    mov rdi, rbx
+    mov rsi, r15
+    mov rdx, r14
+    call _bit_mas_add
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
 
-// ── mas >> run: программа напрямую массивом аргументов; stdout и stderr отдельно, stdin ──
+_bit_procs_finish:                 // array -> joined string; free temporary entries
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    lea rsi, [rip + Lrt_pnl]
+    call _bit_mas_join
+    mov r12, rax
+    xor r13d, r13d
+1:  cmp r13, [rbx + 8]
+    jge 2f
+    mov rax, [rbx]
+    mov rdi, [rax + r13*8]
+    call free@PLT
+    inc r13
+    jmp 1b
+2:  mov rdi, [rbx]
+    call free@PLT
+    mov rdi, rbx
+    call free@PLT
+    mov rax, r12
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_os_procs:                     // source line -> PID and process name per line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 408
+    mov rbx, rdi
+    lea rdi, [rip + Lrt_procdir]
+    call opendir@PLT
+    test rax, rax
+    jz 8f
+    mov r12, rax
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+1:  call __errno_location@PLT
+    mov dword ptr [rax], 0
+    mov rdi, r12
+    call readdir@PLT
+    test rax, rax
+    jz 7f
+    lea rdi, [rax + 19]
+    movzx eax, byte ptr [rdi]
+    sub eax, 48
+    cmp eax, 9
+    ja 1b
+    lea rsi, [rsp + 384]
+    mov edx, 10
+    call strtoll@PLT
+    cmp rax, 0
+    jle 1b
+    mov rdx, [rsp + 384]
+    cmp byte ptr [rdx], 0
+    jne 1b
+    mov r14, rax
+    mov rdi, rsp
+    mov esi, 128
+    lea rdx, [rip + Lrt_fcomm]
+    mov rcx, r14
+    xor eax, eax
+    call snprintf@PLT
+    mov rdi, rsp
+    lea rsi, [rip + Lrt_rb]
+    call fopen@PLT
+    test rax, rax
+    jz 1b
+    mov r15, rax
+    lea rdi, [rsp + 128]
+    mov esi, 256
+    mov rdx, r15
+    call fgets@PLT
+    mov [rsp + 392], rax
+    mov rdi, r15
+    call fclose@PLT
+    cmp qword ptr [rsp + 392], 0
+    je 1b
+    lea rdi, [rsp + 128]
+    lea rsi, [rip + Lrt_nl]
+    call strcspn@PLT
+    mov byte ptr [rsp + rax + 128], 0
+    mov rdi, r13
+    mov rsi, r14
+    lea rdx, [rsp + 128]
+    mov rcx, rbx
+    call _bit_procs_add
+    jmp 1b
+7:  call __errno_location@PLT
+    cmp dword ptr [rax], 0
+    je 6f
+    mov rdi, r12
+    call closedir@PLT
+    mov rdi, r13
+    call _bit_procs_finish
+    mov rdi, rax
+    call free@PLT
+    jmp 8f
+6:  mov rdi, r12
+    call closedir@PLT
+    mov rdi, r13
+    call _bit_procs_finish
+    add rsp, 408
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_eprocs]
+    mov rsi, rbx
+    call _bit_die
+
 _bit_mas_argv:                      // rdi = mas строк → rax = char** (NULL в конце)
     push rbp
     mov rbp, rsp
@@ -7453,7 +7615,9 @@ Lrt_pingc: .asciz "-c"
 Lrt_devnull: .asciz "/dev/null"
 Lrt_userenv: .asciz "USER"
 Lrt_ecpus: .asciz "os >> cpus: cannot determine processor count"
-Lrt_pscmd: .asciz "ps -axo pid=,comm= 2>/dev/null"
+Lrt_pspc: .asciz " "
+Lrt_pnl: .asciz "\012"
+Lrt_eprocs: .asciz "os >> procs: cannot list processes"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
 Lrt_pingcmd: .asciz "ping -c 1 "
 Lrt_quiet: .asciz " >/dev/null 2>&1"

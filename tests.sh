@@ -59,8 +59,9 @@ if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_posix_signals.py; then pass; else fail "сигналы POSIX"; fi
     if python3 tools/test_ping_native.py; then pass; else fail "ping без внешней программы"; fi
     if python3 tools/test_os_cpus_native.py; then pass; else fail "число ядер без внешней программы"; fi
+    if python3 tools/test_os_procs_native.py; then pass; else fail "список процессов без внешней программы"; fi
 else
-    echo "проверки ссылок, потоков, стека x86, сигналов, ping и числа ядер пропущены: нужен python3"
+    echo "проверки ссылок, потоков, стека x86, сигналов, ping, числа ядер и списка процессов пропущены: нужен python3"
 fi
 echo "прошло: $ok, упало: $bad"
 [ "$bad" = 0 ]

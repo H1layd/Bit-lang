@@ -24,7 +24,7 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
         "_bit_substr", "_bit_str_split", "_bit_str_replace",
         "_bit_mas_join", "_bit_mas_text", "_bit_str_bytes", "_bit_hexval_ptr",
         "_bit_ipow", "_bit_str_find_raw",
-        "_bit_setjmp", "_bit_longjmp", "_bit_mas_argv",
+        "_bit_setjmp", "_bit_longjmp", "_bit_mas_argv", "_bit_procs_add", "_bit_procs_finish",
         "_bit_term_stderr", "_bit_args",
         "_bit_random_seed", "_bit_random_next", "_bit_random_range",
         "_bit_map_find", "_bit_map_set", "_bit_map_remove",
@@ -48,7 +48,7 @@ FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines
          "_bit_file_load_at", "_bit_file_save_at", "_bit_dir_walk", "_bit_walk_into",
          "_bit_errpath", "_bit_dir_walk_info", "_bit_remove_error",
          "_bit_input_num", "_bit_input_dec", "_bit_input_str", "_bit_input_bool",
-         "_bit_os_host", "_bit_os_user", "_bit_os_now", "_bit_os_procs",
+         "_bit_os_host", "_bit_os_user", "_bit_os_now",
          "_bit_run", "_bit_run_live", "_bit_status",
          "_bit_env", "_bit_str_hex", "_bit_str_num_checked"]
 
@@ -4300,6 +4300,65 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbp
     ret
 
+_bit_os_procs:                     // source line -> PID and process name per line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 360
+    mov rbx, rdi
+    mov ecx, 2
+    xor edx, edx
+    call CreateToolhelp32Snapshot
+    cmp rax, -1
+    je 8f
+    mov r12, rax
+    mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r13, rax
+    mov dword ptr [rsp + 32], 304
+    mov rcx, r12
+    lea rdx, [rsp + 32]
+    call Process32First
+1:  test eax, eax
+    jnz 11f
+    call GetLastError
+    cmp eax, 18                    # ERROR_NO_MORE_FILES
+    je 6f
+    mov rcx, r12
+    call CloseHandle
+    mov rdi, r13
+    call _bit_procs_finish
+    mov rdi, rax
+    call _w_free
+    jmp 8f
+11: mov esi, dword ptr [rsp + 40]
+    test esi, esi
+    jz 2f
+    mov rdi, r13
+    lea rdx, [rsp + 76]
+    mov rcx, rbx
+    call _bit_procs_add
+2:  mov rcx, r12
+    lea rdx, [rsp + 32]
+    call Process32Next
+    jmp 1b
+6:  mov rcx, r12
+    call CloseHandle
+    mov rdi, r13
+    call _bit_procs_finish
+    add rsp, 360
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  lea rdi, [rip + Lrt_eprocs]
+    mov rsi, rbx
+    call _bit_die
+
 _bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем (с .exe или без) или -1
     push rbp
     mov rbp, rsp
@@ -5067,7 +5126,8 @@ NEWSTR = {
     "Lrt_wp_ewrite": "не могу записать в память процесса ",
     "Lrt_wp_ekill": "не могу остановить процесс ", "Lrt_wp_espawn": "не могу запустить: ",
     "Lrt_rb": "rb", "Lrt_wb": "wb", "Lrt_r": "r", "Lrt_star": "\\*",
-    "Lrt_userenv": "USERNAME", "Lrt_pscmd": "tasklist",
+    "Lrt_userenv": "USERNAME", "Lrt_pspc": " ", "Lrt_pnl": "\n",
+    "Lrt_eprocs": "os >> procs: cannot list processes",
     "Lrt_eof": "vvod zakonchilsya",
     "Lrt_numr": "nuzhno chislo ot %lld do %lld\n", "Lrt_num": "nuzhno chislo\n",
     "Lrt_decr": "nuzhno drob ot %g do %g\n", "Lrt_dec": "nuzhno drob\n",

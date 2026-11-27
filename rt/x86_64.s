@@ -6747,10 +6747,151 @@ _bit_os_cpus:                       // source line -> online logical processors
     mov rsi, rbx
     call _bit_die
 
-_bit_os_procs:                      // rdi = строка -> список процессов
-    mov rsi, rdi
-    lea rdi, [rip + Lrt_pscmd]
-    jmp _bit_run
+_bit_procs_add:                    // array, pid, name, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    mov rdi, r12
+    call _bit_num_str
+    mov r15, rax
+    mov rdi, rax
+    lea rsi, [rip + Lrt_pspc]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, r15
+    call _free
+    mov rdi, r12
+    mov rsi, r13
+    call _bit_cat
+    mov r15, rax
+    mov rdi, r12
+    call _free
+    mov rdi, rbx
+    mov rsi, r15
+    mov rdx, r14
+    call _bit_mas_add
+    add rsp, 8
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_procs_finish:                 // array -> joined string; free temporary entries
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    sub rsp, 8
+    mov rbx, rdi
+    lea rsi, [rip + Lrt_pnl]
+    call _bit_mas_join
+    mov r12, rax
+    xor r13d, r13d
+1:  cmp r13, [rbx + 8]
+    jge 2f
+    mov rax, [rbx]
+    mov rdi, [rax + r13*8]
+    call _free
+    inc r13
+    jmp 1b
+2:  mov rdi, [rbx]
+    call _free
+    mov rdi, rbx
+    call _free
+    mov rax, r12
+    add rsp, 8
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+_bit_os_procs:                     // source line -> PID and process name per line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 280
+    mov rbx, rdi
+    mov r12d, 4096
+    mov rdi, r12
+    call _bit_alloc
+    mov r13, rax
+1:  mov rdi, r13
+    mov rsi, r12
+    call _proc_listallpids
+    test eax, eax
+    js 8f
+    movsxd r14, eax
+    lea rax, [r14*4]
+    cmp rax, r12
+    jb 2f
+    cmp r12, 16777216
+    jae 8f
+    shl r12, 1
+    mov rdi, r13
+    mov rsi, r12
+    call _realloc
+    test rax, rax
+    jz _bit_oom
+    mov r13, rax
+    jmp 1b
+2:  mov rdi, -1
+    xor esi, esi
+    call _bit_mas_new
+    mov r15, rax
+    mov qword ptr [rsp + 256], 0
+3:  mov rax, [rsp + 256]
+    cmp rax, r14
+    jge 6f
+    mov edi, dword ptr [r13 + rax*4]
+    test edi, edi
+    jz 5f
+    mov [rsp + 264], rdi
+    mov rsi, rsp
+    call _bit_mac_pname
+    test eax, eax
+    jle 5f
+    mov rdi, r15
+    mov rsi, [rsp + 264]
+    mov rdx, rsp
+    mov rcx, rbx
+    call _bit_procs_add
+5:  inc qword ptr [rsp + 256]
+    jmp 3b
+6:  mov rdi, r13
+    call _free
+    mov rdi, r15
+    call _bit_procs_finish
+    add rsp, 280
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+8:  mov rdi, r13
+    call _free
+    lea rdi, [rip + Lrt_eprocs]
+    mov rsi, rbx
+    call _bit_die
 
 // ── mas >> run: программа напрямую массивом аргументов; stdout и stderr отдельно, stdin ──
 _bit_mas_argv:                      // rdi = mas строк → rax = char** (NULL в конце)
@@ -7134,7 +7275,9 @@ Lrt_pingc: .asciz "-c"
 Lrt_devnull: .asciz "/dev/null"
 Lrt_userenv: .asciz "USER"
 Lrt_ecpus: .asciz "os >> cpus: cannot determine processor count"
-Lrt_pscmd: .asciz "ps -axo pid=,comm= 2>/dev/null"
+Lrt_pspc: .asciz " "
+Lrt_pnl: .asciz "\012"
+Lrt_eprocs: .asciz "os >> procs: cannot list processes"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
 Lrt_pingcmd: .asciz "ping -c 1 "
 Lrt_quiet: .asciz " >/dev/null 2>&1"

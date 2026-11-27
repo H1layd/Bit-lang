@@ -142,6 +142,8 @@ fn unwind_local_methods(num n) {
     return (trimmed >> sz) + (changed >> sz);
 }
 host {
+    string process_list = os >> procs;
+    if process_list >> sz == 0 { print("empty-process-list" >> num); }
     num caught = 0;
     all target = unwind_target;
     for n in 0:63 {
