@@ -2815,6 +2815,553 @@ _bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = с
     ret
 
 
+_bit_fetch:                         # rdi=url, rsi=source line
+    mov rcx, rsi
+    xor esi, esi
+    xor edx, edx
+    jmp _bit_http_native
+
+_bit_http_post:                     # rdi=url, rsi=body, rdx=source line
+    mov rcx, rdx
+    xor edx, edx
+    jmp _bit_http_native
+
+_bit_download:                      # rdi=url, rsi=path, rdx=source line
+    mov rcx, rdx
+    mov rdx, rsi
+    xor esi, esi
+    jmp _bit_http_native
+
+_bit_http_native:                   # url, post body or 0, file path or 0, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 488
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    xor r15d, r15d
+    pxor xmm0, xmm0
+    movdqu [rsp + 64], xmm0
+    movdqu [rsp + 80], xmm0
+    movdqu [rsp + 96], xmm0
+    movdqu [rsp + 112], xmm0
+    movdqu [rsp + 128], xmm0
+    movdqu [rsp + 144], xmm0
+    mov qword ptr [rsp + 160], 0
+    mov qword ptr [rsp + 176], 0  # wide URL
+    mov qword ptr [rsp + 184], 0  # wide host
+    mov qword ptr [rsp + 192], 0  # wide request target
+    mov qword ptr [rsp + 200], 0  # session
+    mov qword ptr [rsp + 208], 0  # connection
+    mov qword ptr [rsp + 216], 0  # request
+    mov qword ptr [rsp + 224], 0  # module
+    mov qword ptr [rsp + 232], 0  # output file
+    mov qword ptr [rsp + 240], 0  # result buffer
+    mov qword ptr [rsp + 248], 0  # bytes in result
+    mov qword ptr [rsp + 256], 0  # result capacity
+    mov qword ptr [rsp + 264], 1  # failure until complete
+    mov qword ptr [rsp + 376], 0  # read buffer
+    mov qword ptr [rsp + 424], 0  # sibling temporary path
+    mov dword ptr [rsp + 432], -1 # temporary file descriptor
+    mov dword ptr [rsp + 448], 0  # temporary file exists
+    test rbx, rbx
+    jz 90f
+    cmp byte ptr [rbx], 0
+    je 90f
+    lea rcx, [rip + Lrt_winhttp_dll]
+    xor edx, edx
+    mov r8d, 0x800                # LOAD_LIBRARY_SEARCH_SYSTEM32
+    call LoadLibraryExA
+    test rax, rax
+    jz 90f
+    mov [rsp + 224], rax
+    mov rcx, rax
+    lea rdx, [rip + Lrt_wh_close]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 288], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_crack]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 296], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_open]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 304], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_connect]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 312], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_openrequest]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 320], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_send]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 328], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_receive]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 336], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_read]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 344], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_query]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 384], rax
+    mov rcx, [rsp + 224]
+    lea rdx, [rip + Lrt_wh_setoption]
+    call GetProcAddress
+    test rax, rax
+    jz 90f
+    mov [rsp + 456], rax
+    # Convert the UTF-8 URL to UTF-16 without accepting invalid sequences.
+    mov ecx, 65001
+    mov edx, 8                     # MB_ERR_INVALID_CHARS
+    mov r8, rbx
+    mov r9d, -1
+    mov qword ptr [rsp + 32], 0
+    mov qword ptr [rsp + 40], 0
+    call MultiByteToWideChar
+    test eax, eax
+    jz 90f
+    mov [rsp + 280], eax
+    mov edi, eax
+    shl rdi, 1
+    call _bit_alloc
+    mov [rsp + 176], rax
+    mov ecx, 65001
+    mov edx, 8
+    mov r8, rbx
+    mov r9d, -1
+    mov [rsp + 32], rax
+    mov eax, [rsp + 280]
+    mov [rsp + 40], rax
+    call MultiByteToWideChar
+    test eax, eax
+    jz 90f
+    mov dword ptr [rsp + 64], 104  # sizeof URL_COMPONENTS
+    mov dword ptr [rsp + 80], -1   # scheme length
+    mov dword ptr [rsp + 96], -1   # host length
+    mov dword ptr [rsp + 112], -1  # user length
+    mov dword ptr [rsp + 128], -1  # password length
+    mov dword ptr [rsp + 144], -1  # path length
+    mov dword ptr [rsp + 160], -1  # extra length
+    mov rcx, [rsp + 176]
+    xor edx, edx
+    xor r8d, r8d
+    lea r9, [rsp + 64]
+    call qword ptr [rsp + 296]
+    test eax, eax
+    jz 90f
+    # Do not silently ignore URL credentials. Authentication is not supported yet.
+    cmp dword ptr [rsp + 112], 0
+    jne 90f
+    cmp dword ptr [rsp + 128], 0
+    jne 90f
+    mov eax, [rsp + 84]            # INTERNET_SCHEME_HTTP=1 / HTTPS=2
+    cmp eax, 1
+    je 1f
+    cmp eax, 2
+    jne 90f
+1:  mov eax, [rsp + 96]
+    test eax, eax
+    jz 90f
+    lea rdi, [rax * 2 + 2]
+    call _bit_alloc
+    mov [rsp + 184], rax
+    mov rdi, rax
+    mov rsi, [rsp + 88]
+    mov edx, [rsp + 96]
+    shl rdx, 1
+    call _w_memcpy
+    mov rax, [rsp + 184]
+    mov ecx, [rsp + 96]
+    mov word ptr [rax + rcx * 2], 0
+    # Trim URL fragment from the extra part; fragments are never sent to servers.
+    mov eax, [rsp + 160]
+    mov [rsp + 360], rax
+    mov rdx, [rsp + 152]
+    xor ecx, ecx
+2:  cmp rcx, [rsp + 360]
+    jae 3f
+    cmp word ptr [rdx + rcx * 2], 35
+    je 21f
+    inc rcx
+    jmp 2b
+21: mov [rsp + 360], rcx
+3:  mov eax, [rsp + 144]
+    mov [rsp + 352], rax
+    test eax, eax
+    jnz 31f
+    mov qword ptr [rsp + 352], 1
+31: mov rax, [rsp + 352]
+    add rax, [rsp + 360]
+    jc 90f
+    lea rdi, [rax * 2 + 2]
+    call _bit_alloc
+    mov [rsp + 192], rax
+    cmp dword ptr [rsp + 144], 0
+    jne 32f
+    mov word ptr [rax], 47
+    jmp 33f
+32: mov rdi, rax
+    mov rsi, [rsp + 136]
+    mov edx, [rsp + 144]
+    shl rdx, 1
+    call _w_memcpy
+33: mov rdi, [rsp + 192]
+    mov rax, [rsp + 352]
+    lea rdi, [rdi + rax * 2]
+    mov rsi, [rsp + 152]
+    mov rdx, [rsp + 360]
+    shl rdx, 1
+    test rdx, rdx
+    jz 34f
+    call _w_memcpy
+34: mov rax, [rsp + 352]
+    add rax, [rsp + 360]
+    mov rdx, [rsp + 192]
+    mov word ptr [rdx + rax * 2], 0
+    lea rcx, [rip + Lrt_wh_agent]
+    xor edx, edx                   # system default proxy
+    xor r8d, r8d
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 0
+    call qword ptr [rsp + 304]
+    test rax, rax
+    jz 90f
+    mov [rsp + 200], rax
+    mov rcx, rax
+    mov rdx, [rsp + 184]
+    movzx r8d, word ptr [rsp + 100] # port
+    xor r9d, r9d
+    call qword ptr [rsp + 312]
+    test rax, rax
+    jz 90f
+    mov [rsp + 208], rax
+    mov rcx, rax
+    lea rdx, [rip + Lrt_wh_get]
+    test r12, r12
+    jz 4f
+    lea rdx, [rip + Lrt_wh_post]
+4:  mov r8, [rsp + 192]
+    xor r9d, r9d
+    mov qword ptr [rsp + 32], 0
+    mov qword ptr [rsp + 40], 0
+    mov qword ptr [rsp + 48], 0
+    cmp dword ptr [rsp + 84], 2
+    jne 41f
+    mov qword ptr [rsp + 48], 0x00800000 # WINHTTP_FLAG_SECURE
+41: call qword ptr [rsp + 320]
+    test rax, rax
+    jz 90f
+    mov [rsp + 216], rax
+    # Never send the current Windows account's credentials implicitly.
+    mov dword ptr [rsp + 464], 2  # WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH
+    mov rcx, rax
+    mov edx, 77                   # WINHTTP_OPTION_AUTOLOGON_POLICY
+    lea r8, [rsp + 464]
+    mov r9d, 4
+    call qword ptr [rsp + 456]
+    test eax, eax
+    jz 90f
+    mov qword ptr [rsp + 280], 0  # POST size; r15 remains an owned result pointer
+    test r12, r12
+    jz 5f
+    mov rdi, r12
+    call _w_strlen
+    mov ecx, 0xffffffff
+    cmp rax, rcx
+    ja 90f
+    mov [rsp + 280], rax
+5:  mov rcx, [rsp + 216]
+    xor edx, edx
+    xor r8d, r8d
+    test r12, r12
+    jz 51f
+    lea rdx, [rip + Lrt_wh_content_type]
+    mov r8d, -1
+51: mov r9, r12
+    mov rax, [rsp + 280]
+    mov [rsp + 32], rax
+    mov [rsp + 40], rax
+    mov qword ptr [rsp + 48], 0
+    call qword ptr [rsp + 328]
+    test eax, eax
+    jz 90f
+    mov rcx, [rsp + 216]
+    xor edx, edx
+    call qword ptr [rsp + 336]
+    test eax, eax
+    jz 90f
+    # WinHttpReadData can report EOF without detecting a truncated response.
+    # Record the advertised length and verify it after reading the body.
+    mov dword ptr [rsp + 404], 0  # has content length
+    mov dword ptr [rsp + 416], 0  # has transfer encoding
+    mov dword ptr [rsp + 400], 4
+    mov rcx, [rsp + 216]
+    mov edx, 0x20000013          # STATUS_CODE | FLAG_NUMBER
+    xor r8d, r8d
+    lea r9, [rsp + 408]
+    lea rax, [rsp + 400]
+    mov [rsp + 32], rax
+    mov qword ptr [rsp + 40], 0
+    call qword ptr [rsp + 384]
+    test eax, eax
+    jz 90f
+    mov dword ptr [rsp + 420], 0  # bodyless status; still validate framing
+    cmp dword ptr [rsp + 408], 204
+    je 65f
+    cmp dword ptr [rsp + 408], 304
+    jne 66f
+65: mov dword ptr [rsp + 420], 1
+66: mov dword ptr [rsp + 400], 0
+    mov rcx, [rsp + 216]
+    mov edx, 63                  # TRANSFER_ENCODING
+    xor r8d, r8d
+    xor r9d, r9d
+    lea rax, [rsp + 400]
+    mov [rsp + 32], rax
+    mov qword ptr [rsp + 40], 0
+    call qword ptr [rsp + 384]
+    test eax, eax
+    jnz 62f
+    call GetLastError
+    cmp eax, 12150              # ERROR_WINHTTP_HEADER_NOT_FOUND
+    je 63f
+    cmp eax, 122                # ERROR_INSUFFICIENT_BUFFER => header present
+    jne 90f
+62: mov dword ptr [rsp + 416], 1
+63: mov dword ptr [rsp + 400], 8
+    mov dword ptr [rsp + 468], 0 # enumerate Content-Length headers
+    mov rcx, [rsp + 216]
+    mov edx, 0x08000005         # CONTENT_LENGTH | FLAG_NUMBER64
+    xor r8d, r8d
+    lea r9, [rsp + 392]
+    lea rax, [rsp + 400]
+    mov [rsp + 32], rax
+    lea rax, [rsp + 468]
+    mov [rsp + 40], rax
+    call qword ptr [rsp + 384]
+    test eax, eax
+    jnz 64f
+    call GetLastError
+    cmp eax, 12150
+    jne 90f
+    jmp 61f
+64: cmp dword ptr [rsp + 416], 0
+    jne 90f                     # reject ambiguous Transfer-Encoding + Content-Length
+    mov dword ptr [rsp + 400], 8
+    mov rcx, [rsp + 216]
+    mov edx, 0x08000005
+    xor r8d, r8d
+    lea r9, [rsp + 472]
+    lea rax, [rsp + 400]
+    mov [rsp + 32], rax
+    lea rax, [rsp + 468]
+    mov [rsp + 40], rax
+    call qword ptr [rsp + 384]
+    test eax, eax
+    jnz 90f                     # repeated Content-Length is ambiguous
+    call GetLastError
+    cmp eax, 12150              # no second header
+    jne 90f
+    cmp dword ptr [rsp + 420], 0
+    jne 61f                     # 204/304 never carry a body
+    mov dword ptr [rsp + 404], 1
+61: mov edi, 8192
+    call _bit_alloc
+    mov [rsp + 376], rax
+    test r13, r13
+    jz 6f
+    # Write to a fresh sibling; replace the destination only after complete receipt.
+    mov rdi, r13
+    call _bit_copy_temp
+    mov [rsp + 424], rax
+    mov rdi, rax
+    call _w_mkstemp
+    test eax, eax
+    js 90f
+    mov [rsp + 432], eax
+    mov dword ptr [rsp + 448], 1
+    mov edi, eax
+    lea rsi, [rip + Lrt_wb]
+    call _w_fdopen
+    test rax, rax
+    jz 90f
+    mov [rsp + 232], rax
+    mov dword ptr [rsp + 432], -1
+    jmp 7f
+6:  mov edi, 8192
+    call _bit_alloc
+    mov [rsp + 240], rax
+    mov qword ptr [rsp + 256], 8192
+7:  mov dword ptr [rsp + 272], 0
+    mov rcx, [rsp + 216]
+    mov rdx, [rsp + 376]
+    mov r8d, 8192
+    lea r9, [rsp + 272]
+    call qword ptr [rsp + 344]
+    test eax, eax
+    jz 90f
+    mov eax, [rsp + 272]
+    test eax, eax
+    jz 8f
+    test r13, r13
+    jz 71f
+    mov rdi, [rsp + 376]
+    mov esi, 1
+    mov edx, eax
+    mov rcx, [rsp + 232]
+    call _w_fwrite
+    mov ecx, [rsp + 272]
+    cmp rax, rcx
+    jne 90f
+    add [rsp + 248], rax
+    jc 90f
+    jmp 7b
+71: mov rax, [rsp + 248]
+    mov ecx, [rsp + 272]
+    add rax, rcx
+    jc 90f
+    inc rax
+    jz 90f
+    cmp rax, [rsp + 256]
+    jbe 73f
+    mov rsi, [rsp + 256]
+72: add rsi, rsi
+    jc 90f
+    cmp rsi, rax
+    jb 72b
+    mov [rsp + 256], rsi
+    mov rdi, [rsp + 240]
+    call _w_realloc
+    test rax, rax
+    jz 90f
+    mov [rsp + 240], rax
+73: mov rdi, [rsp + 240]
+    add rdi, [rsp + 248]
+    mov rsi, [rsp + 376]
+    mov edx, [rsp + 272]
+    call _w_memcpy
+    mov eax, [rsp + 272]
+    add [rsp + 248], rax
+    jmp 7b
+8:  cmp dword ptr [rsp + 404], 0
+    je 82f
+    mov rax, [rsp + 248]
+    cmp rax, [rsp + 392]
+    jne 90f
+82: test r13, r13
+    jz 83f
+    mov rdi, [rsp + 232]
+    mov qword ptr [rsp + 232], 0
+    call _w_fclose
+    test eax, eax
+    jnz 90f
+    mov rdi, [rsp + 424]
+    mov rsi, r13
+    call _w_rename
+    test eax, eax
+    jnz 90f
+    mov dword ptr [rsp + 448], 0
+    jmp 81f
+83: mov rax, [rsp + 240]
+    mov rcx, [rsp + 248]
+    mov byte ptr [rax + rcx], 0
+    mov r15, rax
+    mov qword ptr [rsp + 240], 0
+81: mov qword ptr [rsp + 264], 0
+90: mov rdi, [rsp + 232]
+    test rdi, rdi
+    jz 91f
+    call _w_fclose
+    test eax, eax
+    jz 91f
+    mov qword ptr [rsp + 264], 1
+91: mov edi, [rsp + 432]
+    test edi, edi
+    js 911f
+    call _w_close
+911: cmp dword ptr [rsp + 448], 0
+    je 912f
+    mov rdi, [rsp + 424]
+    call _w_unlink
+912: mov rcx, [rsp + 216]
+    test rcx, rcx
+    jz 92f
+    call qword ptr [rsp + 288]
+92: mov rcx, [rsp + 208]
+    test rcx, rcx
+    jz 93f
+    call qword ptr [rsp + 288]
+93: mov rcx, [rsp + 200]
+    test rcx, rcx
+    jz 94f
+    call qword ptr [rsp + 288]
+94: mov rcx, [rsp + 224]
+    test rcx, rcx
+    jz 95f
+    call FreeLibrary
+95: mov rdi, [rsp + 176]
+    call _w_free
+    mov rdi, [rsp + 184]
+    call _w_free
+    mov rdi, [rsp + 192]
+    call _w_free
+    mov rdi, [rsp + 240]
+    call _w_free
+    mov rdi, [rsp + 376]
+    call _w_free
+    mov rdi, [rsp + 424]
+    call _w_free
+    cmp qword ptr [rsp + 264], 0
+    jne 99f
+    mov qword ptr [rip + Lrt_status], 0
+    mov rax, r15
+    add rsp, 488
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+99: mov qword ptr [rip + Lrt_status], 1
+    mov rdi, r15                   # free result if close failed
+    call _w_free
+    # URLs can contain credentials or tokens; do not include them in an error.
+    lea rdi, [rip + Lrt_ehttp]
+    mov rsi, r14
+    call _bit_die
+
 _bit_ping:                          # host -> IPv4 ICMP echo; no subprocess
     push rbp
     mov rbp, rsp
@@ -7723,91 +8270,6 @@ _bit_str_num_checked:               // rdi = string, rsi = source line
     mov rsi, r12
     call _bit_die
 
-_bit_fetch:                         // rdi = url, rsi = строка -> тело
-    push rbp
-    mov rbp, rsp
-    push rbx
-    sub rsp, 56
-    mov rbx, rsi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rdi
-    mov qword ptr [rsp + 40], 0
-    mov rdi, rsp
-    mov rsi, rbx
-    call _bit_spawn_capture
-    add rsp, 56
-    pop rbx
-    pop rbp
-    ret
-
-_bit_http_post:                     // rdi = url, rsi = данные, rdx = строка -> ответ
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    sub rsp, 64
-    mov rbx, rdx
-    mov r12, rdi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_d]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rsi
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 40], rax
-    mov [rsp + 48], r12
-    mov qword ptr [rsp + 56], 0
-    mov rdi, rsp
-    mov rsi, rbx
-    call _bit_spawn_capture
-    add rsp, 64
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-_bit_download:                      // rdi = url, rsi = файл, rdx = строка
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    sub rsp, 64
-    mov rbx, rdx
-    mov r12, rdi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_o]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rsi
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 40], rax
-    mov [rsp + 48], r12
-    mov qword ptr [rsp + 56], 0
-    mov rdi, rsp
-    xor esi, esi
-    mov rdx, rbx
-    call _bit_spawn_status
-    add rsp, 64
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
 // ───── чужие процессы (Windows): WinAPI внутри рантайма, в языке — тот же proc, что на Linux ─────
 // Вход — System V (rdi, rsi, rdx, rcx), к WinAPI — Win64 (rcx, rdx, r8, r9, стек) с теневой областью.
 // proc — это pid; каждая операция открывает процесс по pid и закрывает его.
@@ -8622,6 +9084,22 @@ Lrt_oldicp: .quad 0
 
 .section .rdata
 Lrt_oom: .asciz "\320\275\320\265 \321\205\320\262\320\260\321\202\320\260\320\265\321\202 \320\277\320\260\320\274\321\217\321\202\320\270"
+Lrt_winhttp_dll: .asciz "winhttp.dll"
+Lrt_wh_crack: .asciz "WinHttpCrackUrl"
+Lrt_wh_open: .asciz "WinHttpOpen"
+Lrt_wh_connect: .asciz "WinHttpConnect"
+Lrt_wh_openrequest: .asciz "WinHttpOpenRequest"
+Lrt_wh_send: .asciz "WinHttpSendRequest"
+Lrt_wh_receive: .asciz "WinHttpReceiveResponse"
+Lrt_wh_read: .asciz "WinHttpReadData"
+Lrt_wh_query: .asciz "WinHttpQueryHeaders"
+Lrt_wh_setoption: .asciz "WinHttpSetOption"
+Lrt_wh_close: .asciz "WinHttpCloseHandle"
+.p2align 1
+Lrt_wh_agent: .short 98,105,116,47,49,46,48,0
+Lrt_wh_get: .short 71,69,84,0
+Lrt_wh_post: .short 80,79,83,84,0
+Lrt_wh_content_type: .short 67,111,110,116,101,110,116,45,84,121,112,101,58,32,97,112,112,108,105,99,97,116,105,111,110,47,120,45,119,119,119,45,102,111,114,109,45,117,114,108,101,110,99,111,100,101,100,13,10,0
 Lrt_iphlpapi: .asciz "iphlpapi.dll"
 Lrt_icmp_create: .asciz "IcmpCreateFile"
 Lrt_icmp_send: .asciz "IcmpSendEcho"
@@ -8649,6 +9127,7 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
+Lrt_ehttp: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 HTTP-\320\267\320\260\320\277\321\200\320\276\321\201\320\260"
 Lrt_esignal: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\276\320\261\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272 \321\201\320\270\320\263\320\275\320\260\320\273\320\276\320\262"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_ewait_thread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\264\320\276\320\266\320\264\320\260\321\202\321\214\321\201\321\217 \320\277\320\276\321\202\320\276\320\272\320\260"

@@ -1,0 +1,25 @@
+string http_base = "";
+num first = 0;
+num second = 0;
+num third = 0;
+num fourth = 0;
+fn count_responses() {
+    num count = 0;
+    for i in 0:9 {
+        string response = "{http_base}/plain" >> fetch;
+        if response == "hello-bit" { do(count >> ch(count + 1)); }
+    }
+    return count;
+}
+host {
+    do(http_base >> ch(term >> args >> get(0, "")));
+    thread a { do(first >> ch(count_responses())); }
+    thread b { do(second >> ch(count_responses())); }
+    thread c { do(third >> ch(count_responses())); }
+    thread d { do(fourth >> ch(count_responses())); }
+    do(a >> wait);
+    do(b >> wait);
+    do(c >> wait);
+    do(d >> wait);
+    print("{first} {second} {third} {fourth}");
+}

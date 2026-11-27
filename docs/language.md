@@ -870,7 +870,12 @@ On Windows two worker threads read the output streams.
 
 ### Network
 
-`fetch`, `post`, and `download` launch `curl` without a shell, passing arguments separately.
+On Windows, `fetch`, `post`, and `download` use system WinHTTP without launching another
+program; HTTPS verifies the certificate and server name. URLs with embedded usernames or
+passwords are not supported yet and fail. Downloads first write a temporary sibling file,
+replacing the destination only after the complete response. On macOS and Linux these three
+methods still launch `curl` without a shell, passing arguments separately.
+
 `ping` uses system ICMP facilities without launching a program: IPv4 and IPv6, with one
 wait of up to one second after name resolution. On macOS and Linux the system must permit
 ICMP sockets; if the request cannot be sent or there is no response, it returns `false`.

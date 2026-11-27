@@ -129,7 +129,11 @@ wait.
 
 - [x] **`ping` without an external program**: system ICMP for IPv4 and IPv6,
   tested with a fake executable on macOS, Windows, and Linux under QEMU.
-  HTTP/HTTPS still use `curl` and remain to be replaced.
+  HTTP/HTTPS on macOS and Linux still use `curl` and remain to be replaced.
+- [ ] **HTTP/HTTPS without `curl`**: on Windows `fetch`, `post`, and `download` use
+  WinHTTP, validate TLS, and preserve the destination on truncated downloads. URLs
+  with embedded credentials are not supported yet. Run `python3 tools/test_http_windows.py --stack-check host`
+  for local Windows tests (Python 3 on Windows and OpenSSL for a short-lived test certificate are required). macOS and Linux remain unfinished.
 
 - [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
   Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected
@@ -138,7 +142,7 @@ wait.
   and the error line. Address and port parsing is bounded. An end-to-end timeout test
   against a guaranteed nonresponding host remains outstanding.
 - [x] **x86-64 stack alignment**: a static traversal of 207 macOS, 215 Linux, and
-  268 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
+  269 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
   no issues remain in that check. On Windows,
   68 test programs passed with a trap before every call; 11 selected programs were
   checked on macOS and Linux. `python3 tools/test_x86_stack_audit.py` is part of the

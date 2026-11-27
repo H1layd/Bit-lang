@@ -1,0 +1,73 @@
+host {
+    string mode = term >> args >> get(0, "");
+    string url = term >> args >> get(1, "");
+    if mode == "fetch" {
+        print(url >> fetch);
+        return;
+    }
+    if mode == "fetch_size" {
+        string body = url >> fetch;
+        print(body >> sz);
+        return;
+    }
+    if mode == "post" {
+        print(url >> post("x=привет & y=2"));
+        return;
+    }
+    if mode == "fetch_error" {
+        recover {
+            string body = url >> fetch;
+            print("accepted");
+        } else {
+            print(term >> error);
+        }
+        return;
+    }
+    if mode == "tls_invalid" {
+        recover {
+            string body = url >> fetch;
+            if term >> status == 0 { print("accepted"); } else { print("rejected"); }
+        } else {
+            print("rejected");
+        }
+        return;
+    }
+    if mode == "post_invalid" {
+        recover {
+            string body = url >> post("data");
+            if term >> status == 0 { print("accepted"); } else { print("rejected"); }
+        } else {
+            print("rejected");
+        }
+        return;
+    }
+    if mode == "download_invalid" {
+        string target = term >> args >> get(2, "");
+        recover {
+            do(url >> download(target));
+            if term >> status == 0 { print("accepted"); } else { print("rejected"); }
+        } else {
+            print("rejected");
+        }
+        return;
+    }
+    if mode == "download_size" {
+        string target = term >> args >> get(2, "");
+        do(url >> download(target));
+        file saved = target;
+        bytes content = saved >> load;
+        print(content >> sz);
+        do(content >> free);
+        return;
+    }
+    if mode == "download" {
+        string target = term >> args >> get(2, "");
+        do(url >> download(target));
+        file saved = target;
+        bytes content = saved >> load;
+        print(content);
+        do(content >> free);
+        return;
+    }
+    print("unexpected test mode" >> num);
+}
