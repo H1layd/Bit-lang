@@ -184,3 +184,15 @@ calls using roughly 1 KiB strings, peak `mem >> used` fell from 80,216,064 to
 1,835,008 bytes with the same checksum of 51,438,890. Three self-builds on macOS
 ARM64 gave medians of 5.171 s and 676.39 MiB before, and 5.229 s and 676.70 MiB
 after. The machine was not isolated and the sources differ.
+
+`pad` and `pad_left` now release computed fill strings and the temporary string
+created for numeric receivers, including during `recover`. In 50,000 calls with a
+number and a computed approximately 1 KiB fill, peak `mem >> used` decreased from
+81,870,848 to 1,851,392 bytes with the same checksum of 600,000. For 300,000 calls
+with a number and the default fill, peak memory decreased from 11,436,032 to
+1,835,008 bytes with the same checksum of 3,600,000.
+
+Three self-builds per version on macOS ARM64 initially gave medians of 5.296 s and
+676.66 MiB before, and 5.596 s and 676.55 MiB after. Repeating in reverse order gave
+5.414 s and 676.56 MiB after, and 5.741 s and 676.53 MiB before. The machine was
+not isolated and the sources differ; these results do not establish a speed change.

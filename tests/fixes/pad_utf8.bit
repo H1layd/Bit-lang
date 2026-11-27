@@ -18,4 +18,9 @@ host {
     print(a >> bytes >> sz);
     print(b >> bytes >> sz);
     print(e >> bytes >> sz);
+    string fill = "щ{1}";
+    print("a" >> pad(3, fill));
+    print("a" >> pad_left(3, fill));
+    print(42 >> pad(4, fill));
+    print(fill);
 }

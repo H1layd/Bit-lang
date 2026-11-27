@@ -6773,6 +6773,7 @@ fn pad_method(num receiver, string ot, num n, string mn, num line) {
         do(f >> ch("_bit_str_pad_left"));
     }
     mas receiver_refs = (num);
+    mas fill_refs = (num);
     if ot == "string" {
         if RFRESH {
             do(hold_call_string(receiver, ot, receiver_refs));
@@ -6782,6 +6783,10 @@ fn pad_method(num receiver, string ot, num n, string mn, num line) {
         do(op_acc_to(0));
         do(op_imm(pr(1), kind_of(ot)));
         do(op_call("_bit_to_str"));
+        # Numeric formatting allocates a temporary string too.
+        do(op_rt1("_bit_str_adopt"));
+        do(RFRESH >> ch(true));
+        do(hold_call_string(receiver, "string", receiver_refs));
         do(push());
     }
     do(expr(arg(n, 0)));
@@ -6790,6 +6795,7 @@ fn pad_method(num receiver, string ot, num n, string mn, num line) {
     if c1(n) == 2 {
         do(expr(arg(n, 1)));
         do(coerce(RT, "string", line, "{mn}(...)"));
+        do(hold_call_string(arg(n, 1), "string", fill_refs));
         do(push());
     } else {
         do(op_lstr(acc(), ""));
@@ -6800,6 +6806,7 @@ fn pad_method(num receiver, string ot, num n, string mn, num line) {
     do(pop(pr(0)));
     do(op_imm(pr(3), source_line(line)));
     do(op_call(f));
+    do(drop_call_strings(fill_refs));
     do(drop_call_strings(receiver_refs));
     do(res("string"));
     do(op_rt1("_bit_str_adopt"));

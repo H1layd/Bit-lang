@@ -80,6 +80,12 @@ fn unwind_interpolate(num n) {
 fn unwind_method_replace(num n) {
     return "value-10" >> replace(unwind_string(n), unwind_string(2));
 }
+fn unwind_pad_fill(num n) {
+    return "x" >> pad(3, unwind_string(n));
+}
+fn unwind_pad_left_fill(num n) {
+    return unwind_string(n) >> pad_left(12, unwind_string(n + 1));
+}
 fn unwind_local_methods(num n) {
     string value = unwind_string(n);
     bool prefix = value >> starts("value");
@@ -142,6 +148,30 @@ host {
         }
         if not (unwind_string(i) >> starts("value")) {
             print("invalid-prefix" >> num);
+        }
+        do(unwind_pad_fill(i));
+        do(unwind_pad_left_fill(i));
+        if (i >> pad(12, unwind_string(i + 2))) >> sz < 1 { print("invalid-num-pad" >> num); }
+        if (2.5 >> pad_left(12, unwind_string(i + 3))) >> sz < 1 { print("invalid-dec-pad" >> num); }
+        recover {
+            print(i >> pad(-1, unwind_string(i + 4)));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(unwind_string(i) >> pad(-1, unwind_string(i + 1)));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(unwind_string(i) >> pad(12, unwind_fail_text()));
+        } else {
+            do(caught >> ch(caught + 1));
+        }
+        recover {
+            print(unwind_string(i) >> pad(unwind_failure(), "x"));
+        } else {
+            do(caught >> ch(caught + 1));
         }
         do(unwind_local_methods(i));
         do(unwind_pipe_trim(i));
