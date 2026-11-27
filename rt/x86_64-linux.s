@@ -4150,6 +4150,41 @@ _bit_env:                           # rdi = имя → значение или "
     pop rbp
     ret
 
+_bit_mkdtemp:                      # template, source line -> owned directory path
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    mov rbx, rsi
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, rax
+    call strlen@PLT
+    cmp rax, 6
+    jb 9f
+    lea rcx, [r12 + rax - 6]
+    xor edx, edx
+1:  cmp byte ptr [rcx + rdx], 88
+    jne 9f
+    inc rdx
+    cmp rdx, 6
+    jb 1b
+    mov rdi, r12
+    call mkdtemp@PLT
+    test rax, rax
+    jz 9f
+    mov rax, r12
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  mov rdi, r12
+    call free@PLT
+    lea rdi, [rip + Lrt_etmp]
+    mov rsi, rbx
+    call _bit_die
+
 _bit_term_folder:                   # rdi = строка программы → текущая папка (новая строка)
     push rbp
     mov rbp, rsp
@@ -7696,6 +7731,7 @@ Lrt_epermissions: .asciz "permissions: нужны ровно 9 символов 
 Lrt_epermread: .asciz "не могу узнать права доступа: "
 Lrt_epermwrite: .asciz "не могу изменить права доступа: "
 
+Lrt_etmp: .asciz "cannot create temporary directory"
 Lrt_ecwd: .asciz "не могу узнать текущую папку"
 Lrt_ego: .asciz "не могу сменить папку: "
 Lrt_eenv: .asciz "не могу задать переменную окружения: "

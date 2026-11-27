@@ -1,0 +1,9 @@
+host {
+    string template = term >> args >> get(0, "");
+    recover {
+        string path = _bitc_mkdtemp(template);
+        print(path);
+    } else {
+        print("recovered");
+    }
+}

@@ -2656,7 +2656,7 @@ fn string_escapes(num n, string name) {
             method == "upper" or method == "lower" or method == "get" or
             method == "repeat" or method == "pad" or method == "pad_left" or
             method == "contains" or method == "find" or method == "code" or
-            method == "num"));
+            method == "num" or method == "exists" or method == "remove_all"));
     }
     bool read_only = safe_receiver or k == "print" or copying;
     if not (read_only and kind(a) == "var") and string_escapes(a, name) {
@@ -5241,6 +5241,22 @@ fn e_call(num n) {
         else if IS_WINDOWS { do(value >> ch("windows")); }
         do(op_lstr(acc(), value));
         do(res("string"));
+        return;
+    }
+    if f < 0 and binding < 0 and name == "_bitc_mkdtemp" {
+        if c1(n) != 1 { do(fail("internal temp directory expects one path", line)); }
+        num a = arg(n, 0);
+        do(expr(a));
+        do(coerce(RT, "string", ln(a), "internal temp directory"));
+        mas strings = (num);
+        do(hold_call_string(a, "string", strings));
+        do(op_acc_to(0));
+        do(op_imm(pr(1), source_line(line)));
+        do(op_call("_bit_mkdtemp"));
+        do(drop_call_strings(strings));
+        do(res("string"));
+        do(op_rt1("_bit_str_adopt"));
+        do(RFRESH >> ch(true));
         return;
     }
     if f < 0 {
@@ -8066,6 +8082,9 @@ fn stop(string msg) {
 
 fn make_tmp() {
     string base = term >> env("TMPDIR");
+    if base == "" and _bitc_host_os() == "windows" {
+        do(base >> ch(term >> env("TEMP")));
+    }
     if base == "" {
         do(base >> ch("/tmp/"));
     }
@@ -8073,17 +8092,18 @@ fn make_tmp() {
         do(base >> ch(base + "/"));
     }
     string tpl = base + "bitc.XXXXXX";
-    string d = "mktemp -d {quote(tpl)}" >> run;
-    if term >> status != 0 or d == "" {
+    string d = "";
+    recover {
+        do(d >> ch(_bitc_mkdtemp(tpl)));
+    } else {
         do(stop("не могу создать временную папку в {base}"));
     }
     return d;
 }
 
-fn clean_tmp(string d) {
-    dir temporary = d;
+fn clean_tmp(dir d) {
     recover {
-        if temporary >> exists { do(temporary >> remove_all); }
+        if d >> exists { do(d >> remove_all); }
     } else { }
 }
 
@@ -12336,6 +12356,41 @@ fn rt_arm(mas o) {
     do(o >> add("    ldp x29, x30, [sp], #16"));
     do(o >> add("    ret"));
     do(o >> add(""));
+    do(o >> add("_bit_mkdtemp:                      // template, source line -> owned directory path"));
+    do(o >> add("    stp x29, x30, [sp, #-16]!"));
+    do(o >> add("    mov x29, sp"));
+    do(o >> add("    stp x19, x20, [sp, #-16]!"));
+    do(o >> add("    mov x19, x1"));
+    do(o >> add("    adrp x1, Lrt_empty@PAGE"));
+    do(o >> add("    add x1, x1, Lrt_empty@PAGEOFF"));
+    do(o >> add("    bl _bit_cat"));
+    do(o >> add("    mov x20, x0"));
+    do(o >> add("    bl _strlen"));
+    do(o >> add("    cmp x0, #6"));
+    do(o >> add("    b.lt 9f"));
+    do(o >> add("    add x9, x20, x0"));
+    do(o >> add("    sub x9, x9, #6"));
+    do(o >> add("    mov x10, #0"));
+    do(o >> add("1:  ldrb w11, [x9, x10]"));
+    do(o >> add("    cmp w11, #88"));
+    do(o >> add("    b.ne 9f"));
+    do(o >> add("    add x10, x10, #1"));
+    do(o >> add("    cmp x10, #6"));
+    do(o >> add("    b.lt 1b"));
+    do(o >> add("    mov x0, x20"));
+    do(o >> add("    bl _mkdtemp"));
+    do(o >> add("    cbz x0, 9f"));
+    do(o >> add("    mov x0, x20"));
+    do(o >> add("    ldp x19, x20, [sp], #16"));
+    do(o >> add("    ldp x29, x30, [sp], #16"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  mov x0, x20"));
+    do(o >> add("    bl _free"));
+    do(o >> add("    adrp x0, Lrt_etmp@PAGE"));
+    do(o >> add("    add x0, x0, Lrt_etmp@PAGEOFF"));
+    do(o >> add("    mov x1, x19"));
+    do(o >> add("    bl _bit_die"));
+    do(o >> add(""));
     do(o >> add("_bit_term_folder:                   // x0 = строка программы → текущая папка (новая строка)"));
     do(o >> add("    stp x29, x30, [sp, #-16]!"));
     do(o >> add("    mov x29, sp"));
@@ -15125,6 +15180,7 @@ fn rt_arm(mas o) {
     do(o >> add("Lrt_epermread: .asciz \"не могу узнать права доступа: \""));
     do(o >> add("Lrt_epermwrite: .asciz \"не могу изменить права доступа: \""));
     do(o >> add(""));
+    do(o >> add("Lrt_etmp: .asciz \"cannot create temporary directory\""));
     do(o >> add("Lrt_ecwd: .asciz \"не могу узнать текущую папку\""));
     do(o >> add("Lrt_ego: .asciz \"не могу сменить папку: \""));
     do(o >> add("Lrt_eenv: .asciz \"не могу задать переменную окружения: \""));
@@ -19531,6 +19587,41 @@ fn rt_x86(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
+    do(o >> add("_bit_mkdtemp:                      // template, source line -> owned directory path"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    lea rsi, [rip + Lrt_empty]"));
+    do(o >> add("    call _bit_cat"));
+    do(o >> add("    mov r12, rax"));
+    do(o >> add("    mov rdi, rax"));
+    do(o >> add("    call _strlen"));
+    do(o >> add("    cmp rax, 6"));
+    do(o >> add("    jb 9f"));
+    do(o >> add("    lea rcx, [r12 + rax - 6]"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("1:  cmp byte ptr [rcx + rdx], 88"));
+    do(o >> add("    jne 9f"));
+    do(o >> add("    inc rdx"));
+    do(o >> add("    cmp rdx, 6"));
+    do(o >> add("    jb 1b"));
+    do(o >> add("    mov rdi, r12"));
+    do(o >> add("    call _mkdtemp"));
+    do(o >> add("    test rax, rax"));
+    do(o >> add("    jz 9f"));
+    do(o >> add("    mov rax, r12"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  mov rdi, r12"));
+    do(o >> add("    call _free"));
+    do(o >> add("    lea rdi, [rip + Lrt_etmp]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    call _bit_die"));
+    do(o >> add(""));
     do(o >> add("_bit_term_folder:                   // rdi = строка программы → текущая папка (новая строка)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
@@ -22505,6 +22596,7 @@ fn rt_x86(mas o) {
     do(o >> add("Lrt_epermread: .asciz \"не могу узнать права доступа: \""));
     do(o >> add("Lrt_epermwrite: .asciz \"не могу изменить права доступа: \""));
     do(o >> add(""));
+    do(o >> add("Lrt_etmp: .asciz \"cannot create temporary directory\""));
     do(o >> add("Lrt_ecwd: .asciz \"не могу узнать текущую папку\""));
     do(o >> add("Lrt_ego: .asciz \"не могу сменить папку: \""));
     do(o >> add("Lrt_eenv: .asciz \"не могу задать переменную окружения: \""));
@@ -26679,6 +26771,41 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
+    do(o >> add("_bit_mkdtemp:                      # template, source line -> owned directory path"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    lea rsi, [rip + Lrt_empty]"));
+    do(o >> add("    call _bit_cat"));
+    do(o >> add("    mov r12, rax"));
+    do(o >> add("    mov rdi, rax"));
+    do(o >> add("    call strlen@PLT"));
+    do(o >> add("    cmp rax, 6"));
+    do(o >> add("    jb 9f"));
+    do(o >> add("    lea rcx, [r12 + rax - 6]"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("1:  cmp byte ptr [rcx + rdx], 88"));
+    do(o >> add("    jne 9f"));
+    do(o >> add("    inc rdx"));
+    do(o >> add("    cmp rdx, 6"));
+    do(o >> add("    jb 1b"));
+    do(o >> add("    mov rdi, r12"));
+    do(o >> add("    call mkdtemp@PLT"));
+    do(o >> add("    test rax, rax"));
+    do(o >> add("    jz 9f"));
+    do(o >> add("    mov rax, r12"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add("9:  mov rdi, r12"));
+    do(o >> add("    call free@PLT"));
+    do(o >> add("    lea rdi, [rip + Lrt_etmp]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    call _bit_die"));
+    do(o >> add(""));
     do(o >> add("_bit_term_folder:                   # rdi = строка программы → текущая папка (новая строка)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
@@ -30225,6 +30352,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("Lrt_epermread: .asciz \"не могу узнать права доступа: \""));
     do(o >> add("Lrt_epermwrite: .asciz \"не могу изменить права доступа: \""));
     do(o >> add(""));
+    do(o >> add("Lrt_etmp: .asciz \"cannot create temporary directory\""));
     do(o >> add("Lrt_ecwd: .asciz \"не могу узнать текущую папку\""));
     do(o >> add("Lrt_ego: .asciz \"не могу сменить папку: \""));
     do(o >> add("Lrt_eenv: .asciz \"не могу задать переменную окружения: \""));
@@ -38701,6 +38829,71 @@ fn rt_x86_windows(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
+    do(o >> add("_bit_mkdtemp:                      # template, source line -> owned directory path"));
+    do(o >> add("    push rbp"));
+    do(o >> add("    mov rbp, rsp"));
+    do(o >> add("    push rbx"));
+    do(o >> add("    push r12"));
+    do(o >> add("    push r13"));
+    do(o >> add("    push r14"));
+    do(o >> add("    push r15"));
+    do(o >> add("    sub rsp, 56"));
+    do(o >> add("    mov rbx, rsi"));
+    do(o >> add("    lea rsi, [rip + Lrt_empty]"));
+    do(o >> add("    call _bit_cat"));
+    do(o >> add("    mov r12, rax"));
+    do(o >> add("    mov rdi, rax"));
+    do(o >> add("    call _w_strlen"));
+    do(o >> add("    cmp rax, 6"));
+    do(o >> add("    jb 9f"));
+    do(o >> add("    lea r13, [r12 + rax - 6]"));
+    do(o >> add("    xor r15d, r15d"));
+    do(o >> add("1:  cmp byte ptr [r13 + r15], 88"));
+    do(o >> add("    jne 9f"));
+    do(o >> add("    inc r15"));
+    do(o >> add("    cmp r15, 6"));
+    do(o >> add("    jb 1b"));
+    do(o >> add("    xor r14d, r14d"));
+    do(o >> add("2:  lea rdi, [rsp + 32]"));
+    do(o >> add("    mov esi, 6"));
+    do(o >> add("    call _w_getentropy"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 9f"));
+    do(o >> add("    xor r15d, r15d"));
+    do(o >> add("    lea rdx, [rip + Lrt_tmpalphabet]"));
+    do(o >> add("3:  movzx eax, byte ptr [rsp + r15 + 32]"));
+    do(o >> add("    and eax, 63"));
+    do(o >> add("    mov al, byte ptr [rdx + rax]"));
+    do(o >> add("    mov byte ptr [r13 + r15], al"));
+    do(o >> add("    inc r15"));
+    do(o >> add("    cmp r15, 6"));
+    do(o >> add("    jb 3b"));
+    do(o >> add("    mov rcx, r12"));
+    do(o >> add("    xor edx, edx"));
+    do(o >> add("    call CreateDirectoryA"));
+    do(o >> add("    test eax, eax"));
+    do(o >> add("    jnz 6f"));
+    do(o >> add("    call GetLastError"));
+    do(o >> add("    cmp eax, 183                  # ERROR_ALREADY_EXISTS"));
+    do(o >> add("    jne 9f"));
+    do(o >> add("    inc r14"));
+    do(o >> add("    cmp r14, 128"));
+    do(o >> add("    jb 2b"));
+    do(o >> add("9:  mov rdi, r12"));
+    do(o >> add("    call _w_free"));
+    do(o >> add("    lea rdi, [rip + Lrt_etmp]"));
+    do(o >> add("    mov rsi, rbx"));
+    do(o >> add("    call _bit_die"));
+    do(o >> add("6:  mov rax, r12"));
+    do(o >> add("    add rsp, 56"));
+    do(o >> add("    pop r15"));
+    do(o >> add("    pop r14"));
+    do(o >> add("    pop r13"));
+    do(o >> add("    pop r12"));
+    do(o >> add("    pop rbx"));
+    do(o >> add("    pop rbp"));
+    do(o >> add("    ret"));
+    do(o >> add(""));
     do(o >> add("_bit_os_procs:                     // source line -> PID and process name per line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
@@ -39533,6 +39726,8 @@ fn rt_x86_windows(mas o) {
     do(o >> add("Lrt_pspc: .asciz \" \""));
     do(o >> add("Lrt_pnl: .asciz \"\\012\""));
     do(o >> add("Lrt_eprocs: .asciz \"os >> procs: cannot list processes\""));
+    do(o >> add("Lrt_etmp: .asciz \"cannot create temporary directory\""));
+    do(o >> add("Lrt_tmpalphabet: .asciz \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_\""));
     do(o >> add("Lrt_eof: .asciz \"\\320\\262\\320\\262\\320\\276\\320\\264 \\320\\267\\320\\260\\320\\272\\320\\276\\320\\275\\321\\207\\320\\270\\320\\273\\321\\201\\321\\217, \\320\\260 \\320\\277\\321\\200\\320\\276\\320\\263\\321\\200\\320\\260\\320\\274\\320\\274\\320\\260 \\320\\266\\320\\264\\320\\260\\320\\273\\320\\260 \\320\\267\\320\\275\\320\\260\\321\\207\\320\\265\\320\\275\\320\\270\\320\\265\""));
     do(o >> add("Lrt_numr: .asciz \"\\320\\275\\321\\203\\320\\266\\320\\275\\320\\276 \\321\\206\\320\\265\\320\\273\\320\\276\\320\\265 \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276 \\320\\276\\321\\202 %lld \\320\\264\\320\\276 %lld, \\320\\277\\320\\276\\320\\277\\321\\200\\320\\276\\320\\261\\321\\203\\320\\271 \\320\\265\\321\\211\\321\\221 \\321\\200\\320\\260\\320\\267: \""));
     do(o >> add("Lrt_num: .asciz \"\\320\\275\\321\\203\\320\\266\\320\\275\\320\\276 \\321\\206\\320\\265\\320\\273\\320\\276\\320\\265 \\321\\207\\320\\270\\321\\201\\320\\273\\320\\276, \\320\\277\\320\\276\\320\\277\\321\\200\\320\\276\\320\\261\\321\\203\\320\\271 \\320\\265\\321\\211\\321\\221 \\321\\200\\320\\260\\320\\267: \""));

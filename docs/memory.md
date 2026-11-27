@@ -3,6 +3,18 @@
 Reference counting is not fully integrated yet. This document distinguishes the agreed
 contract from behavior already available in ordinary programs.
 
+An unresolved leak occurs when a fresh `string` is assigned to a `dir` variable:
+the string may remain in the registry after the scope ends. For example,
+`string p = "missing-{term >> pid}"; dir d = p;` followed by `d >> exists`
+reproduces it. Conservative escape analysis treats the alias declaration as a
+transfer of ownership. The registry probe confirmed this on macOS ARM64; general
+alias ownership still needs a fix.
+
+After changing path ownership for `exists` and `remove_all`, three self-builds
+on macOS ARM64 had median times of 5.503 s before and 5.517 s after; peak
+`mem >> used` was 710.75 MiB and 713.97 MiB respectively. The machine was not
+isolated and the sources differ; this measurement shows no notable slowdown.
+
 ## Author decisions
 
 - Ordinary reference counts without atomic operations.

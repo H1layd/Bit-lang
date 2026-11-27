@@ -21,13 +21,18 @@ def main():
         tmpdir = work / 'temporary files'
         tmpdir.mkdir()
         marker = work / 'ran-rm'
+        mktemp_marker = work / 'ran-mktemp'
         rm = trapdir / 'rm'
         rm.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_RM_MARKER"\nexec /bin/rm "$@"\n')
         rm.chmod(0o755)
+        mktemp = trapdir / 'mktemp'
+        mktemp.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_MKTEMP_MARKER"\nexit 97\n')
+        mktemp.chmod(0o755)
         (work / 'lib файл.bit').write_text('fn helper() { return "работает https://example.test/a//b"; }\n', encoding='utf-8')
         (work / 'main.bit').write_text('use "lib файл.bit";\nhost { print(helper()); }\n', encoding='utf-8')
         env = dict(os.environ, PATH=str(trapdir) + os.pathsep + os.environ.get('PATH', ''),
-                   TMPDIR=str(tmpdir), BIT_COMPILER_RM_MARKER=str(marker))
+                   TMPDIR=str(tmpdir), BIT_COMPILER_RM_MARKER=str(marker),
+                   BIT_COMPILER_MKTEMP_MARKER=str(mktemp_marker))
         uname_marker = work / 'ran-uname'
         uname = trapdir / 'uname'
         uname.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_UNAME_MARKER"\nexit 97\n')
@@ -42,9 +47,10 @@ def main():
         binary = work / 'built program'
         result = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
                                 cwd=work, env=env, capture_output=True, text=True, timeout=60)
-        if result.returncode or marker.exists() or list(tmpdir.iterdir()):
+        if result.returncode or marker.exists() or mktemp_marker.exists() or list(tmpdir.iterdir()):
             raise RuntimeError(f'normal build: exit={result.returncode}, stdout={result.stdout!r}, '
                                f'stderr={result.stderr!r}, rm={marker.exists()}, '
+                               f'mktemp={mktemp_marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
         actual = subprocess.run([str(binary)], cwd=work, env=env, capture_output=True,
                                 text=True, timeout=10, check=True)
@@ -55,11 +61,11 @@ def main():
         fake_as.chmod(0o755)
         failure = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
                                  cwd=work, env=env, capture_output=True, text=True, timeout=60)
-        if not failure.returncode or marker.exists() or list(tmpdir.iterdir()):
+        if not failure.returncode or marker.exists() or mktemp_marker.exists() or list(tmpdir.iterdir()):
             raise RuntimeError(f'failed build cleanup: exit={failure.returncode}, '
                                f'output={failure.stdout!r}, rm={marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
-        print('compiler: relative modules and operation without uname/rm passed')
+        print('compiler: relative modules and operation without uname/mktemp/rm passed')
 
 
 if __name__ == '__main__':

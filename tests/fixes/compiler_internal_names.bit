@@ -1,6 +1,8 @@
 fn _bitc_host_arch() { return "user architecture"; }
 fn _bitc_host_os() { return "user system"; }
+fn _bitc_mkdtemp(string template) { return "user temp " + template; }
 host {
     print(_bitc_host_arch());
     print(_bitc_host_os());
+    print(_bitc_mkdtemp("path"));
 }

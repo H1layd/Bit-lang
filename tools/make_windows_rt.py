@@ -4300,6 +4300,71 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbp
     ret
 
+_bit_mkdtemp:                      # template, source line -> owned directory path
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56
+    mov rbx, rsi
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, rax
+    call _w_strlen
+    cmp rax, 6
+    jb 9f
+    lea r13, [r12 + rax - 6]
+    xor r15d, r15d
+1:  cmp byte ptr [r13 + r15], 88
+    jne 9f
+    inc r15
+    cmp r15, 6
+    jb 1b
+    xor r14d, r14d
+2:  lea rdi, [rsp + 32]
+    mov esi, 6
+    call _w_getentropy
+    test eax, eax
+    jnz 9f
+    xor r15d, r15d
+    lea rdx, [rip + Lrt_tmpalphabet]
+3:  movzx eax, byte ptr [rsp + r15 + 32]
+    and eax, 63
+    mov al, byte ptr [rdx + rax]
+    mov byte ptr [r13 + r15], al
+    inc r15
+    cmp r15, 6
+    jb 3b
+    mov rcx, r12
+    xor edx, edx
+    call CreateDirectoryA
+    test eax, eax
+    jnz 6f
+    call GetLastError
+    cmp eax, 183                  # ERROR_ALREADY_EXISTS
+    jne 9f
+    inc r14
+    cmp r14, 128
+    jb 2b
+9:  mov rdi, r12
+    call _w_free
+    lea rdi, [rip + Lrt_etmp]
+    mov rsi, rbx
+    call _bit_die
+6:  mov rax, r12
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_os_procs:                     // source line -> PID and process name per line
     push rbp
     mov rbp, rsp
@@ -5128,6 +5193,8 @@ NEWSTR = {
     "Lrt_rb": "rb", "Lrt_wb": "wb", "Lrt_r": "r", "Lrt_star": "\\*",
     "Lrt_userenv": "USERNAME", "Lrt_pspc": " ", "Lrt_pnl": "\n",
     "Lrt_eprocs": "os >> procs: cannot list processes",
+    "Lrt_etmp": "cannot create temporary directory",
+    "Lrt_tmpalphabet": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
     "Lrt_eof": "vvod zakonchilsya",
     "Lrt_numr": "nuzhno chislo ot %lld do %lld\n", "Lrt_num": "nuzhno chislo\n",
     "Lrt_decr": "nuzhno drob ot %g do %g\n", "Lrt_dec": "nuzhno drob\n",

@@ -8450,6 +8450,71 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbp
     ret
 
+_bit_mkdtemp:                      # template, source line -> owned directory path
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 56
+    mov rbx, rsi
+    lea rsi, [rip + Lrt_empty]
+    call _bit_cat
+    mov r12, rax
+    mov rdi, rax
+    call _w_strlen
+    cmp rax, 6
+    jb 9f
+    lea r13, [r12 + rax - 6]
+    xor r15d, r15d
+1:  cmp byte ptr [r13 + r15], 88
+    jne 9f
+    inc r15
+    cmp r15, 6
+    jb 1b
+    xor r14d, r14d
+2:  lea rdi, [rsp + 32]
+    mov esi, 6
+    call _w_getentropy
+    test eax, eax
+    jnz 9f
+    xor r15d, r15d
+    lea rdx, [rip + Lrt_tmpalphabet]
+3:  movzx eax, byte ptr [rsp + r15 + 32]
+    and eax, 63
+    mov al, byte ptr [rdx + rax]
+    mov byte ptr [r13 + r15], al
+    inc r15
+    cmp r15, 6
+    jb 3b
+    mov rcx, r12
+    xor edx, edx
+    call CreateDirectoryA
+    test eax, eax
+    jnz 6f
+    call GetLastError
+    cmp eax, 183                  # ERROR_ALREADY_EXISTS
+    jne 9f
+    inc r14
+    cmp r14, 128
+    jb 2b
+9:  mov rdi, r12
+    call _w_free
+    lea rdi, [rip + Lrt_etmp]
+    mov rsi, rbx
+    call _bit_die
+6:  mov rax, r12
+    add rsp, 56
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_os_procs:                     // source line -> PID and process name per line
     push rbp
     mov rbp, rsp
@@ -9282,6 +9347,8 @@ Lrt_userenv: .asciz "USERNAME"
 Lrt_pspc: .asciz " "
 Lrt_pnl: .asciz "\012"
 Lrt_eprocs: .asciz "os >> procs: cannot list processes"
+Lrt_etmp: .asciz "cannot create temporary directory"
+Lrt_tmpalphabet: .asciz "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
 Lrt_eof: .asciz "\320\262\320\262\320\276\320\264 \320\267\320\260\320\272\320\276\320\275\321\207\320\270\320\273\321\201\321\217, \320\260 \320\277\321\200\320\276\320\263\321\200\320\260\320\274\320\274\320\260 \320\266\320\264\320\260\320\273\320\260 \320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265"
 Lrt_numr: .asciz "\320\275\321\203\320\266\320\275\320\276 \321\206\320\265\320\273\320\276\320\265 \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 %lld \320\264\320\276 %lld, \320\277\320\276\320\277\321\200\320\276\320\261\321\203\320\271 \320\265\321\211\321\221 \321\200\320\260\320\267: "
 Lrt_num: .asciz "\320\275\321\203\320\266\320\275\320\276 \321\206\320\265\320\273\320\276\320\265 \321\207\320\270\321\201\320\273\320\276, \320\277\320\276\320\277\321\200\320\276\320\261\321\203\320\271 \320\265\321\211\321\221 \321\200\320\260\320\267: "

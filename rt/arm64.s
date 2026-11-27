@@ -4064,6 +4064,41 @@ _bit_env:                           // x0 = имя → значение или "
     ldp x29, x30, [sp], #16
     ret
 
+_bit_mkdtemp:                      // template, source line -> owned directory path
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    mov x19, x1
+    adrp x1, Lrt_empty@PAGE
+    add x1, x1, Lrt_empty@PAGEOFF
+    bl _bit_cat
+    mov x20, x0
+    bl _strlen
+    cmp x0, #6
+    b.lt 9f
+    add x9, x20, x0
+    sub x9, x9, #6
+    mov x10, #0
+1:  ldrb w11, [x9, x10]
+    cmp w11, #88
+    b.ne 9f
+    add x10, x10, #1
+    cmp x10, #6
+    b.lt 1b
+    mov x0, x20
+    bl _mkdtemp
+    cbz x0, 9f
+    mov x0, x20
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  mov x0, x20
+    bl _free
+    adrp x0, Lrt_etmp@PAGE
+    add x0, x0, Lrt_etmp@PAGEOFF
+    mov x1, x19
+    bl _bit_die
+
 _bit_term_folder:                   // x0 = строка программы → текущая папка (новая строка)
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -6853,6 +6888,7 @@ Lrt_epermissions: .asciz "permissions: нужны ровно 9 символов 
 Lrt_epermread: .asciz "не могу узнать права доступа: "
 Lrt_epermwrite: .asciz "не могу изменить права доступа: "
 
+Lrt_etmp: .asciz "cannot create temporary directory"
 Lrt_ecwd: .asciz "не могу узнать текущую папку"
 Lrt_ego: .asciz "не могу сменить папку: "
 Lrt_eenv: .asciz "не могу задать переменную окружения: "

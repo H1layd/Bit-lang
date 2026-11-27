@@ -144,6 +144,15 @@ fn unwind_local_methods(num n) {
 host {
     string process_list = os >> procs;
     if process_list >> sz == 0 { print("empty-process-list" >> num); }
+    string temp_base = term >> env("TMPDIR");
+    if temp_base == "" { do(temp_base >> ch(term >> env("TEMP"))); }
+    if temp_base == "" { do(temp_base >> ch("/tmp")); }
+    dir temp_directory = _bitc_mkdtemp(temp_base + "/bit-unwind.XXXXXX");
+    do(temp_directory >> remove_all);
+    recover {
+        dir invalid_directory = _bitc_mkdtemp(temp_base + "/bit-invalid");
+        print("unexpected-temp" >> num);
+    } else { }
     num caught = 0;
     all target = unwind_target;
     for n in 0:63 {
