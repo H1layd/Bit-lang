@@ -1,8 +1,11 @@
 fn _bitc_host_arch() { return "user architecture"; }
 fn _bitc_host_os() { return "user system"; }
 fn _bitc_mkdtemp(string template) { return "user temp " + template; }
+fn _bitc_run_direct(mas args) { return "user direct"; }
 host {
     print(_bitc_host_arch());
     print(_bitc_host_os());
     print(_bitc_mkdtemp("path"));
+    mas values = ("arg", "two");
+    print(_bitc_run_direct(values));
 }

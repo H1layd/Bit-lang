@@ -3,8 +3,10 @@
 import argparse
 import os
 from pathlib import Path
+import signal
 import subprocess
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -56,6 +58,43 @@ def main():
                                 text=True, timeout=10, check=True)
         if actual.stdout.strip() != 'работает https://example.test/a//b':
             raise RuntimeError(f'relative module: {actual.stdout!r} {actual.stderr!r}')
+        (work / 'arguments.bit').write_text(
+            'host { string line >> input; print("input:{line}"); '
+            'for a in term >> args { print("arg:{a}"); } do(term >> exit(37)); }\n',
+            encoding='utf-8')
+        values = ['', 'привет мир', "a'b", 'a"b', '$HOME', '$(echo not-a-command)',
+                  '--looks-like-flag', 'line one\nline two']
+        run = subprocess.run([str(compiler), 'run', 'arguments.bit', '--', *values],
+                             cwd=work, env=env, input='вход\n', capture_output=True,
+                             text=True, timeout=60)
+        expected = 'input:вход\n' + ''.join('arg:' + value + '\n' for value in values)
+        if (run.returncode != 37 or run.stdout != expected or run.stderr or marker.exists()
+                or mktemp_marker.exists() or list(tmpdir.iterdir())):
+            raise RuntimeError(f'direct run: exit={run.returncode}, output={run.stdout!r}, '
+                               f'expected={expected!r}, stderr={run.stderr!r}')
+        (work / 'interrupt.bit').write_text(
+            'host { file f = term >> args >> get(0, ""); do(f >> write("ready")); '
+            'do(term >> wait(30000)); }\n', encoding='utf-8')
+        ready = work / 'child-ready'
+        child = subprocess.Popen([str(compiler), 'run', 'interrupt.bit', '--', str(ready)],
+                                 cwd=work, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            deadline = time.monotonic() + 30
+            while not ready.exists() and child.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            if not ready.exists():
+                raise RuntimeError('compiled program did not start for interrupt test')
+            os.killpg(child.pid, signal.SIGINT)
+            stdout, stderr = child.communicate(timeout=20)
+            if child.returncode != 130 or list(tmpdir.iterdir()):
+                raise RuntimeError(f'interrupted run: exit={child.returncode}, '
+                                   f'stdout={stdout!r}, stderr={stderr!r}, '
+                                   f'temporary files={list(tmpdir.iterdir())}')
+        finally:
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGKILL)
+                child.communicate()
         fake_as = trapdir / 'as'
         fake_as.write_text('#!/bin/sh\nprintf "intentional assembler failure\\n" >&2\nexit 1\n')
         fake_as.chmod(0o755)
@@ -65,7 +104,7 @@ def main():
             raise RuntimeError(f'failed build cleanup: exit={failure.returncode}, '
                                f'output={failure.stdout!r}, rm={marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
-        print('compiler: relative modules and operation without uname/mktemp/rm passed')
+        print('compiler: helper-free paths, direct run and interrupt cleanup passed')
 
 
 if __name__ == '__main__':

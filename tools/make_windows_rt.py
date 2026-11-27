@@ -4300,6 +4300,34 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbp
     ret
 
+_bit_compiler_run_direct:                  # argv array -> status
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    sub rsp, 32
+    mov rbx, rsi
+    cmp qword ptr [rdi + 8], 0
+    je 1f
+    call _bit_mas_argv
+    mov r12, rax
+    mov rdi, rax
+    xor esi, esi
+    mov rdx, rbx
+    call _bit_spawn_status
+    mov rbx, rax
+    mov rdi, r12
+    call _w_free
+    mov rax, rbx
+    jmp 2f
+1:  mov edi, -1
+    call _bit_wstatus
+2:  add rsp, 32
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_mkdtemp:                      # template, source line -> owned directory path
     push rbp
     mov rbp, rsp

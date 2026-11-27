@@ -1,0 +1,4 @@
+host {
+    print("child:{term >> args >> get(0, '')}");
+    do(term >> exit(37));
+}

@@ -5750,6 +5750,88 @@ _bit_spawn_capture:                 // x0 = argv (char**, NULL-терм), x1 = �
     mov x1, x20
     bl _bit_die
 
+_bit_compiler_run_direct:                  // argv array -> status, preserving Ctrl+C cleanup
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    sub sp, sp, #16
+    ldr x9, [x0, #8]
+    cbz x9, 8f
+    bl _bit_mas_argv
+    mov x20, x0
+    mov w0, #2
+    mov x1, #1                    // SIG_IGN in the compiler
+    bl _signal
+    cmn x0, #1
+    b.eq 7f
+    mov x21, x0
+    mov w0, #3
+    mov x1, #1
+    bl _signal
+    cmn x0, #1
+    b.eq 6f
+    mov x22, x0
+    mov x0, #0
+    bl _fflush
+    bl _fork
+    cmp w0, #0
+    b.lt 5f
+    b.ne 2f
+    mov w0, #2
+    mov x1, x21
+    bl _signal
+    mov w0, #3
+    mov x1, x22
+    bl _signal
+    ldr x0, [x20]
+    mov x1, x20
+    bl _execvp
+    mov w0, #127
+    bl _exit
+2:  sxtw x23, w0
+3:  mov x0, x23
+    mov x1, sp
+    mov x2, #0
+    bl _waitpid
+    cmp w0, #0
+    b.ge 4f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                    // EINTR
+    b.eq 3b
+5:  mov w0, #-1
+    bl _bit_wstatus
+    mov x24, x0
+    b 9f
+4:  ldr w0, [sp]
+    bl _bit_wstatus
+    mov x24, x0
+9:  mov w0, #3
+    mov x1, x22
+    bl _signal
+    mov w0, #2
+    mov x1, x21
+    bl _signal
+    mov x0, x20
+    bl _free
+    mov x0, x24
+    b 10f
+6:  mov w0, #2
+    mov x1, x21
+    bl _signal
+7:  mov x0, x20
+    bl _free
+8:  mov w0, #-1
+    bl _bit_wstatus
+10: add sp, sp, #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+
 _bit_spawn_status:                  // x0 = argv, x1 = тихо(0/1), x2 = строка -> код выхода
     stp x29, x30, [sp, #-16]!
     mov x29, sp

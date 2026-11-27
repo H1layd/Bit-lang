@@ -14,7 +14,8 @@ not external utility processes.
 | `bitc build` and `bitc run` | A shell, `as`, `ld`, and on macOS `xcrun`; cross-compiling for Windows invokes `x86_64-w64-mingw32-gcc`. Temporary directories are created and removed without `mktemp` or `rm`. | Replace helper commands with OS APIs, then implement native object and executable generation to remove the assembler and linker. |
 | `bootstrap.sh` | Shell, `uname`, `mkdir`, `as`, `ld`, `xcrun` on macOS, then compiler and `cmp` | Provide a self-contained initial installation path; the current script requires development tools. |
 
-`bitc run` intentionally starts the compiled program selected by the user.
+`bitc run` intentionally starts the compiled program selected by the user,
+directly without a shell.
 Similarly, `string >> run`, `mas >> run`, and `start` start programs explicitly
 requested by bit code. String commands use a shell; argument arrays start a
 program directly. Runtime generators, Python tests and developer build scripts

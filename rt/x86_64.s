@@ -6234,6 +6234,91 @@ _bit_spawn_capture:                 // rdi = argv (char**, NULL-терм), rsi =
     mov rsi, r12
     call _bit_die
 
+_bit_compiler_run_direct:                  // argv array -> status, preserving Ctrl+C cleanup
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 24
+    cmp qword ptr [rdi + 8], 0
+    je 8f
+    call _bit_mas_argv
+    mov r12, rax
+    mov edi, 2
+    mov esi, 1                    // SIG_IGN in the compiler
+    call _signal
+    cmp rax, -1
+    je 7f
+    mov r13, rax
+    mov edi, 3
+    mov esi, 1
+    call _signal
+    cmp rax, -1
+    je 6f
+    mov r14, rax
+    xor edi, edi
+    call _fflush
+    call _fork
+    test eax, eax
+    js 5f
+    jnz 2f
+    mov edi, 2
+    mov rsi, r13
+    call _signal
+    mov edi, 3
+    mov rsi, r14
+    call _signal
+    mov rdi, [r12]
+    mov rsi, r12
+    call _execvp
+    mov edi, 127
+    call _exit
+2:  movsxd r15, eax
+3:  mov rdi, r15
+    mov rsi, rsp
+    xor edx, edx
+    call _waitpid
+    test eax, eax
+    jns 4f
+    call ___error
+    cmp dword ptr [rax], 4        // EINTR
+    je 3b
+5:  mov edi, -1
+    call _bit_wstatus
+    mov r15, rax
+    jmp 9f
+4:  mov edi, dword ptr [rsp]
+    call _bit_wstatus
+    mov r15, rax
+9:  mov edi, 3
+    mov rsi, r14
+    call _signal
+    mov edi, 2
+    mov rsi, r13
+    call _signal
+    mov rdi, r12
+    call _free
+    mov rax, r15
+    jmp 10f
+6:  mov edi, 2
+    mov rsi, r13
+    call _signal
+7:  mov rdi, r12
+    call _free
+8:  mov edi, -1
+    call _bit_wstatus
+10: add rsp, 24
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 _bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = строка → код выхода
     push rbp
     mov rbp, rsp

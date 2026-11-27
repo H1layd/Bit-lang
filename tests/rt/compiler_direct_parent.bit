@@ -1,0 +1,7 @@
+host {
+    mas command = (string);
+    do(command >> add(term >> args >> get(0, "")));
+    do(command >> add("with spaces"));
+    num code = _bitc_run_direct(command);
+    print("code:{code}");
+}
