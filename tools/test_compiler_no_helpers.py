@@ -28,6 +28,17 @@ def main():
         (work / 'main.bit').write_text('use "lib файл.bit";\nhost { print(helper()); }\n', encoding='utf-8')
         env = dict(os.environ, PATH=str(trapdir) + os.pathsep + os.environ.get('PATH', ''),
                    TMPDIR=str(tmpdir), BIT_COMPILER_RM_MARKER=str(marker))
+        uname_marker = work / 'ran-uname'
+        uname = trapdir / 'uname'
+        uname.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_UNAME_MARKER"\nexit 97\n')
+        uname.chmod(0o755)
+        asm_env = dict(env, BIT_COMPILER_UNAME_MARKER=str(uname_marker))
+        asm = subprocess.run([str(compiler), 'asm', 'main.bit'], cwd=work, env=asm_env,
+                             capture_output=True, text=True, timeout=60)
+        if asm.returncode or uname_marker.exists():
+            raise RuntimeError(f'asm without uname: exit={asm.returncode}, '
+                               f'error={asm.stderr!r}, uname={uname_marker.exists()}')
+        uname.unlink()
         binary = work / 'built program'
         result = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
                                 cwd=work, env=env, capture_output=True, text=True, timeout=60)
@@ -48,7 +59,7 @@ def main():
             raise RuntimeError(f'failed build cleanup: exit={failure.returncode}, '
                                f'output={failure.stdout!r}, rm={marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
-        print('compiler: relative modules and temporary cleanup without rm passed')
+        print('compiler: relative modules and operation without uname/rm passed')
 
 
 if __name__ == '__main__':

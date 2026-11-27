@@ -10,7 +10,7 @@ not external utility processes.
 | `fetch`, `post`, `download` on macOS/Linux | Launch `curl` | Finish a native HTTP transport with certificate-verified TLS, redirects and safe downloads. Windows uses WinHTTP without `curl`. |
 | `os >> procs` | No utility: operating-system interfaces on macOS, Linux and Windows | Keep the regression test for absence of `ps` and `tasklist`; output is `PID name` lines. |
 | `os >> cpus` | No utility: `sysconf` on macOS/Linux, `GetSystemInfo` on Windows | Keep the regression test for absence of `getconf`. |
-| `bitc asm` | A shell and `uname` detect the platform; the working directory comes from an OS API | Obtain the platform through OS interfaces. |
+| `bitc asm` | The compiler's platform and architecture are embedded at build time; the working directory comes from an OS API | Keep checking that no external commands are started. |
 | `bitc build` and `bitc run` | The above, plus a shell, `mktemp`, `as`, `ld`, and on macOS `xcrun`; cross-compiling for Windows invokes `x86_64-w64-mingw32-gcc`. Temporary files are removed without `rm`. | Replace helper commands with OS APIs, then implement native object and executable generation to remove the assembler and linker. |
 | `bootstrap.sh` | Shell, `uname`, `mkdir`, `as`, `ld`, `xcrun` on macOS, then compiler and `cmp` | Provide a self-contained initial installation path; the current script requires development tools. |
 

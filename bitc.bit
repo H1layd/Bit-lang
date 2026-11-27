@@ -5229,6 +5229,20 @@ fn e_call(num n) {
         return;
     }
     num f = fn_by_name(name);
+    # Internal constants describe the platform of the generated program.
+    # A user-defined function of the same name keeps normal precedence.
+    if f < 0 and binding < 0 and (name == "_bitc_host_arch" or name == "_bitc_host_os") {
+        if c1(n) != 0 { do(fail("internal host constant expects no arguments", line)); }
+        string value = "macos";
+        if name == "_bitc_host_arch" {
+            do(value >> ch("x86_64"));
+            if IS_ARM { do(value >> ch("arm64")); }
+        } else if IS_LINUX { do(value >> ch("linux")); }
+        else if IS_WINDOWS { do(value >> ch("windows")); }
+        do(op_lstr(acc(), value));
+        do(res("string"));
+        return;
+    }
     if f < 0 {
         string h = hint_for(name);
         if h != "" {
@@ -8142,11 +8156,8 @@ host {
     }
     do(PATH >> ch(args >> get(1, "")));
     string out = "";
-    string arch = "uname -m" >> run;
-    string os = "macos";
-    if "uname -s" >> run == "Linux" {
-        do(os >> ch("linux"));
-    }
+    string arch = _bitc_host_arch();
+    string os = _bitc_host_os();
     mas extra = (string);
     bool rest = false;
     num k = 2;

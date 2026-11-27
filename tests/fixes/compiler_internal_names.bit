@@ -1,0 +1,6 @@
+fn _bitc_host_arch() { return "user architecture"; }
+fn _bitc_host_os() { return "user system"; }
+host {
+    print(_bitc_host_arch());
+    print(_bitc_host_os());
+}
