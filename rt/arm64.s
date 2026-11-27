@@ -5895,30 +5895,181 @@ _bit_resolve:                       // x0 = имя хоста, x1 = строка
     ldp x29, x30, [sp], #16
     b _bit_die
 
-_bit_ping:                          // x0 = хост -> 1 если отвечает
+_bit_ping_clock:                    // monotonic milliseconds, -1 on failure
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    sub sp, sp, #16
+    mov w0, #6                      // CLOCK_MONOTONIC on Darwin
+    mov x1, sp
+    bl _clock_gettime
+    cbnz w0, 1f
+    ldr x0, [sp]
+    mov x1, #1000
+    mul x0, x0, x1
+    ldr x1, [sp, #8]
+    mov x2, #0x4240
+    movk x2, #15, lsl #16
+    udiv x1, x1, x2
+    add x0, x0, x1
+    b 2f
+1:  mov x0, #-1
+2:  add sp, sp, #16
+    ldp x29, x30, [sp], #16
+    ret
+
+_bit_ping:                          // host -> ICMP echo reply, without a subprocess
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
-    sub sp, sp, #48
-    mov x19, x0
-    adrp x2, Lrt_pingp@PAGE
-    add x2, x2, Lrt_pingp@PAGEOFF
-    str x2, [sp]
-    adrp x2, Lrt_pingc@PAGE
-    add x2, x2, Lrt_pingc@PAGEOFF
-    str x2, [sp, #8]
-    adrp x2, Lrt_1@PAGE
-    add x2, x2, Lrt_1@PAGEOFF
-    str x2, [sp, #16]
-    str x19, [sp, #24]
-    str xzr, [sp, #32]
-    mov x0, sp
-    mov x1, #1
-    mov x2, #0
-    bl _bit_spawn_status
-    cmp x0, #0
-    cset x0, eq
-    add sp, sp, #48
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #336
+    mov x19, #-1                    // socket
+    mov x20, #0                     // addrinfo list
+    cbz x0, 9f
+    ldrb w9, [x0]
+    cbz w9, 9f
+    stp xzr, xzr, [sp]
+    stp xzr, xzr, [sp, #16]
+    stp xzr, xzr, [sp, #32]
+    mov w9, #2                      // SOCK_DGRAM, any IP family
+    str w9, [sp, #8]
+    mov x1, #0
+    mov x2, sp
+    add x3, sp, #48
+    bl _getaddrinfo
+    cbnz w0, 9f
+    ldr x20, [sp, #48]
+    cbz x20, 9f
+    mov x21, x20
+11: ldr w9, [x21, #4]               // ai_family
+    cmp w9, #2
+    b.eq 12f
+    cmp w9, #30                     // AF_INET6 on Darwin
+    b.eq 12f
+    ldr x21, [x21, #40]
+    cbnz x21, 11b
+    b 9f
+12: str w9, [sp, #4]                // retain family after freeaddrinfo
+    ldr w22, [x21, #16]             // ai_addrlen
+    ldr x21, [x21, #32]             // ai_addr on Darwin
+    cbz x21, 9f
+    mov w0, w9
+    mov w1, #2                      // SOCK_DGRAM
+    mov w2, #1                      // IPPROTO_ICMP
+    cmp w9, #2
+    b.eq 13f
+    mov w2, #58                     // IPPROTO_ICMPV6
+13: bl _socket
+    tbnz w0, #31, 9f
+    mov w19, w0
+    mov x1, x21
+    mov w2, w22
+    bl _connect
+    mov w21, w0
+    mov x0, x20
+    bl _freeaddrinfo
+    mov x20, #0
+    cbnz w21, 9f
+    // Echo request: type 8, code 0, checksum f135, id 0, sequence 5162,
+    // and payload "bit-ping". The OS supplies the socket's ICMP identifier.
+    movz x9, #0x0008
+    movk x9, #0x35f1, lsl #16
+    movk x9, #0x6251, lsl #48
+    ldr w10, [sp, #4]
+    cmp w10, #2
+    b.eq 14f
+    movz x9, #0x0080                // ICMPv6 echo, checksum supplied by OS
+    movk x9, #0x6251, lsl #48
+14: str x9, [sp, #56]
+    movz x9, #0x6962
+    movk x9, #0x2d74, lsl #16
+    movk x9, #0x6970, lsl #32
+    movk x9, #0x676e, lsl #48
+    str x9, [sp, #64]
+    mov w0, w19
+    add x1, sp, #56
+    mov w2, #16
+    mov w3, #0
+    bl _send
+    cmp x0, #16
+    b.ne 9f
+    bl _bit_ping_clock
+    tbnz x0, #63, 9f
+    add x22, x0, #1000              // one-second deadline
+    mov x21, #1000
+1:  str w19, [sp, #72]
+    mov w9, #1                      // POLLIN; clear revents
+    str w9, [sp, #76]
+    add x0, sp, #72
+    mov w1, #1
+    mov x2, x21
+    bl _poll
+    cbz w0, 9f
+    tbnz w0, #31, 6f
+    mov w0, w19
+    add x1, sp, #80
+    mov w2, #256
+    mov w3, #0
+    bl _recv
+    tbnz x0, #63, 6f
+    cmp x0, #16
+    b.lt 7f
+    mov x10, #0
+    ldrb w9, [sp, #80]
+    lsr w11, w9, #4
+    cmp w11, #4
+    b.ne 2f
+    and x10, x9, #15                // Darwin includes IPv4 header
+    lsl x10, x10, #2
+    cmp x10, #20
+    b.lo 7f
+2:  add x11, x10, #16
+    cmp x0, x11
+    b.lo 7f
+    add x11, sp, #80
+    add x11, x11, x10
+    ldrb w9, [x11]
+    ldrb w10, [x11, #1]
+    cbnz w10, 7f                    // code must be zero
+    ldr w10, [sp, #4]
+    cmp w10, #2
+    b.ne 15f
+    cbnz w9, 7f                     // ICMP echo reply type 0
+    b 16f
+15: cmp w9, #129                    // ICMPv6 echo reply type 129
+    b.ne 7f
+16: ldrh w9, [x11, #6]
+    mov w10, #0x6251                // network bytes 51 62
+    cmp w9, w10
+    b.ne 7f
+    ldr x9, [x11, #8]
+    movz x10, #0x6962
+    movk x10, #0x2d74, lsl #16
+    movk x10, #0x6970, lsl #32
+    movk x10, #0x676e, lsl #48
+    cmp x9, x10
+    b.ne 7f
+    mov x21, #1
+    b 8f
+6:  bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                      // EINTR
+    b.ne 9f
+7:  bl _bit_ping_clock
+    tbnz x0, #63, 9f
+    subs x21, x22, x0
+    b.gt 1b
+9:  mov x21, #0
+8:  cmn w19, #1
+    b.eq 3f
+    mov w0, w19
+    bl _close
+3:  cbz x20, 4f
+    mov x0, x20
+    bl _freeaddrinfo
+4:  mov x0, x21
+    add sp, sp, #336
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret

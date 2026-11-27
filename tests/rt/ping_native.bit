@@ -1,0 +1,4 @@
+host {
+    string address = term >> args >> get(0, "");
+    print(address >> ping);
+}

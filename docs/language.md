@@ -870,9 +870,10 @@ On Windows two worker threads read the output streams.
 
 ### Network
 
-Network calls that start external programs (`fetch`, `ping`, `post`, `download`) work **without a
-shell**: arguments are passed as an array, so a URL may safely contain any characters. HTTP uses
-`curl` and `ping` uses the system `ping`.
+`fetch`, `post`, and `download` launch `curl` without a shell, passing arguments separately.
+`ping` uses system ICMP facilities without launching a program: IPv4 and IPv6, with one
+wait of up to one second after name resolution. On macOS and Linux the system must permit
+ICMP sockets; if the request cannot be sent or there is no response, it returns `false`.
 
 **HTTP:**
 

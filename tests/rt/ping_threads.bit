@@ -1,0 +1,23 @@
+num first = 0;
+num second = 0;
+num third = 0;
+num fourth = 0;
+fn count_replies() {
+    num count = 0;
+    for i in 0:31 {
+        if "127.0.0.1" >> ping { do(count >> ch(count + 1)); }
+        if "::1" >> ping { do(count >> ch(count + 1)); }
+    }
+    return count;
+}
+host {
+    thread a { do(first >> ch(count_replies())); }
+    thread b { do(second >> ch(count_replies())); }
+    thread c { do(third >> ch(count_replies())); }
+    thread d { do(fourth >> ch(count_replies())); }
+    do(a >> wait);
+    do(b >> wait);
+    do(c >> wait);
+    do(d >> wait);
+    print("{first} {second} {third} {fourth}");
+}

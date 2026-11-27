@@ -57,8 +57,9 @@ if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_thread_lifecycle.py; then pass; else fail "ожидание потоков"; fi
     if python3 tools/test_x86_stack_audit.py; then pass; else fail "выравнивание стека x86"; fi
     if python3 tools/test_posix_signals.py; then pass; else fail "сигналы POSIX"; fi
+    if python3 tools/test_ping_native.py; then pass; else fail "ping без внешней программы"; fi
 else
-    echo "проверки ссылок, потоков, стека x86 и сигналов пропущены: нужен python3"
+    echo "проверки ссылок, потоков, стека x86, сигналов и ping пропущены: нужен python3"
 fi
 echo "прошло: $ok, упало: $bad"
 [ "$bad" = 0 ]

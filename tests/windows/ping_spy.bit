@@ -1,0 +1,4 @@
+host {
+    file marker = term >> env("BIT_PING_MARKER");
+    do(marker >> write("external ping was run"));
+}

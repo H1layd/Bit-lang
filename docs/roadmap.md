@@ -127,13 +127,17 @@ wait.
 
 ### Service capabilities and signals
 
+- [x] **`ping` without an external program**: system ICMP for IPv4 and IPv6,
+  tested with a fake executable on macOS, Windows, and Linux under QEMU.
+  HTTP/HTTPS still use `curl` and remain to be replaced.
+
 - [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
   Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected
   compile errors), and Linux under QEMU (109/109 plus the new error-line check).
   Fixed Linux `SO_ERROR` in `connect(ms)`, macOS `O_NONBLOCK`, its `fcntl` argument,
   and the error line. Address and port parsing is bounded. An end-to-end timeout test
   against a guaranteed nonresponding host remains outstanding.
-- [x] **x86-64 stack alignment**: a static traversal of 206 macOS, 214 Linux, and
+- [x] **x86-64 stack alignment**: a static traversal of 207 macOS, 215 Linux, and
   268 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
   no issues remain in that check. On Windows,
   68 test programs passed with a trap before every call; 11 selected programs were

@@ -51,7 +51,7 @@ FILES = ["_bit_file_read", "_bit_file_size", "_bit_file_write", "_bit_file_lines
          "_bit_os_host", "_bit_os_user", "_bit_os_now", "_bit_os_procs",
          "_bit_run", "_bit_run_live", "_bit_status",
          "_bit_env", "_bit_str_hex", "_bit_str_num_checked",
-         "_bit_fetch", "_bit_http_post", "_bit_download", "_bit_ping"]
+         "_bit_fetch", "_bit_http_post", "_bit_download"]
 
 # ── подмена libc-вызовов на обёртки _w_* ──
 #   символ-в-исходнике : (имя обёртки, настоящая функция libc, число аргументов)
@@ -2825,7 +2825,174 @@ _bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = с
 """
 
 NET_WRAPPERS = r"""
-// ── Winsock: обёртки сокетов (вход по-нашему, внутри Windows ABI + ленивый старт) ──
+_bit_ping:                          # host -> IPv4 ICMP echo; no subprocess
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 936                   # 64 bytes call area, hints, reply, WSADATA
+    mov rbx, rdi
+    xor r12d, r12d                 # resolved IPv4
+    xor r13d, r13d                 # iphlpapi module
+    mov r14, -1                    # ICMP handle
+    xor r15d, r15d                 # result
+    mov dword ptr [rsp + 832], 0   # WSAStartup succeeded
+    test rbx, rbx
+    jz 9f
+    cmp byte ptr [rbx], 0
+    je 9f
+    mov ecx, 0x0202
+    lea rdx, [rsp + 384]
+    call WSAStartup
+    test eax, eax
+    jnz 9f
+    mov dword ptr [rsp + 832], 1
+    pxor xmm0, xmm0
+    movdqu [rsp + 64], xmm0
+    movdqu [rsp + 80], xmm0
+    movdqu [rsp + 96], xmm0
+    mov dword ptr [rsp + 72], 2    # SOCK_DGRAM; any IP family
+    mov rcx, rbx
+    xor edx, edx
+    lea r8, [rsp + 64]
+    lea r9, [rsp + 112]
+    call getaddrinfo
+    test eax, eax
+    jnz 9f
+    mov rbx, [rsp + 112]
+    test rbx, rbx
+    jz 9f
+    mov eax, [rbx + 4]             # ai_family
+    mov [rsp + 836], eax
+    mov rax, [rbx + 32]            # ai_addr on Windows x64
+    test rax, rax
+    jz 1f
+    cmp dword ptr [rsp + 836], 2
+    jne 11f
+    mov r12d, [rax + 4]            # sockaddr_in address (network order)
+    jmp 1f
+11: cmp dword ptr [rsp + 836], 23  # AF_INET6 on Windows
+    jne 1f
+    mov rcx, [rax]
+    mov [rsp + 864], rcx
+    mov rcx, [rax + 8]
+    mov [rsp + 872], rcx
+    mov rcx, [rax + 16]
+    mov [rsp + 880], rcx
+    mov ecx, [rax + 24]
+    mov [rsp + 888], ecx           # sockaddr_in6: 28 bytes including scope
+    xor ecx, ecx
+    mov [rsp + 896], rcx
+    mov [rsp + 904], rcx
+    mov [rsp + 912], rcx
+    mov [rsp + 920], rcx
+    mov word ptr [rsp + 896], 23  # unspecified source, AF_INET6
+    mov r12d, 1
+1:  mov rcx, rbx
+    call freeaddrinfo
+    test r12d, r12d
+    jz 9f
+    lea rcx, [rip + Lrt_iphlpapi]
+    xor edx, edx
+    mov r8d, 0x800                 # LOAD_LIBRARY_SEARCH_SYSTEM32
+    call LoadLibraryExA
+    test rax, rax
+    jz 9f
+    mov r13, rax
+    mov rcx, r13
+    lea rdx, [rip + Lrt_icmp_create]
+    cmp dword ptr [rsp + 836], 2
+    je 12f
+    lea rdx, [rip + Lrt_icmp6_create]
+12: call GetProcAddress
+    test rax, rax
+    jz 9f
+    mov [rsp + 800], rax
+    mov rcx, r13
+    lea rdx, [rip + Lrt_icmp_send]
+    cmp dword ptr [rsp + 836], 2
+    je 13f
+    lea rdx, [rip + Lrt_icmp6_send]
+13: call GetProcAddress
+    test rax, rax
+    jz 9f
+    mov [rsp + 808], rax
+    mov rcx, r13
+    lea rdx, [rip + Lrt_icmp_close]
+    call GetProcAddress
+    test rax, rax
+    jz 9f
+    mov [rsp + 816], rax
+    call qword ptr [rsp + 800]
+    cmp rax, -1
+    je 9f
+    mov r14, rax
+    movabs rax, 0x676e69702d746962 # "bit-ping"
+    mov [rsp + 120], rax
+    cmp dword ptr [rsp + 836], 2
+    jne 14f
+    mov rcx, r14
+    mov edx, r12d
+    lea r8, [rsp + 120]
+    mov r9d, 8
+    mov qword ptr [rsp + 32], 0
+    lea rax, [rsp + 128]
+    mov [rsp + 40], rax
+    mov qword ptr [rsp + 48], 256
+    mov qword ptr [rsp + 56], 1000
+    call qword ptr [rsp + 808]
+    test eax, eax
+    jz 9f
+    cmp dword ptr [rsp + 132], 0   # ICMP_ECHO_REPLY.Status
+    jne 9f
+    jmp 15f
+14: mov rcx, r14                   # Icmp6SendEcho2 (synchronous)
+    xor edx, edx
+    xor r8d, r8d
+    xor r9d, r9d
+    lea rax, [rsp + 896]
+    mov [rsp + 32], rax
+    lea rax, [rsp + 864]
+    mov [rsp + 40], rax
+    lea rax, [rsp + 120]
+    mov [rsp + 48], rax
+    mov qword ptr [rsp + 56], 8
+    mov qword ptr [rsp + 64], 0
+    lea rax, [rsp + 128]
+    mov [rsp + 72], rax
+    mov qword ptr [rsp + 80], 256
+    mov qword ptr [rsp + 88], 1000
+    call qword ptr [rsp + 808]
+    test eax, eax
+    jz 9f
+    cmp dword ptr [rsp + 156], 0   # ICMPV6_ECHO_REPLY.Status
+    jne 9f
+15: mov r15d, 1
+9:  cmp r14, -1
+    je 2f
+    mov rcx, r14
+    call qword ptr [rsp + 816]
+2:  test r13, r13
+    jz 3f
+    mov rcx, r13
+    call FreeLibrary
+3:  cmp dword ptr [rsp + 832], 0
+    je 4f
+    call WSACleanup
+4:  mov rax, r15
+    add rsp, 936
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+# ── Winsock: обёртки сокетов (вход по-нашему, внутри Windows ABI + ленивый старт) ──
 _bit_wsa_init:
     mov rax, [rip + Lrt_wsa]
     test rax, rax
@@ -4288,6 +4455,12 @@ Lrt_oldicp: .quad 0
 
 .section .rdata
 Lrt_oom: .asciz "ne hvataet pamyati"
+Lrt_iphlpapi: .asciz "iphlpapi.dll"
+Lrt_icmp_create: .asciz "IcmpCreateFile"
+Lrt_icmp_send: .asciz "IcmpSendEcho"
+Lrt_icmp_close: .asciz "IcmpCloseHandle"
+Lrt_icmp6_create: .asciz "Icmp6CreateFile"
+Lrt_icmp6_send: .asciz "Icmp6SendEcho2"
 Lrt_die: .asciz "\nOshibka vypolneniya (stroka %lld): %s\n"
 Lrt_lld: .asciz "%lld"
 Lrt_g: .asciz "%.17g"

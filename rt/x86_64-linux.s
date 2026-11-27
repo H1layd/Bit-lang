@@ -6110,26 +6110,183 @@ _bit_resolve:                       // rdi = имя хоста, rsi = строк
     pop rbp
     jmp _bit_die
 
-_bit_ping:                          // rdi = хост -> 1 если отвечает
+_bit_ping_clock:                    // monotonic milliseconds, -1 on failure
+    sub rsp, 24
+    mov edi, 1                      # CLOCK_MONOTONIC on Linux
+    mov rsi, rsp
+    call clock_gettime@PLT
+    test eax, eax
+    jnz 1f
+    imul rcx, qword ptr [rsp], 1000
+    mov rax, [rsp + 8]
+    xor edx, edx
+    mov esi, 1000000
+    div rsi
+    add rax, rcx
+    jmp 2f
+1:  mov rax, -1
+2:  add rsp, 24
+    ret
+
+_bit_ping:                          // host -> ICMP echo reply, without a subprocess
     push rbp
     mov rbp, rsp
-    sub rsp, 48
-    lea rax, [rip + Lrt_pingp]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_pingc]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_1]
-    mov [rsp + 16], rax
-    mov [rsp + 24], rdi
-    mov qword ptr [rsp + 32], 0
-    mov rdi, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 344
+    mov rbx, rdi
+    mov r12, -1                    // socket
+    xor r13d, r13d                 // addrinfo list
+    test rbx, rbx
+    jz 9f
+    cmp byte ptr [rbx], 0
+    je 9f
+    pxor xmm0, xmm0
+    movdqu [rsp], xmm0
+    movdqu [rsp + 16], xmm0
+    movdqu [rsp + 32], xmm0
+    mov dword ptr [rsp + 8], 2     // SOCK_DGRAM, any IP family
+    mov rdi, rbx
+    xor esi, esi
+    mov rdx, rsp
+    lea rcx, [rsp + 48]
+    call getaddrinfo@PLT
+    test eax, eax
+    jnz 9f
+    mov r13, [rsp + 48]
+    test r13, r13
+    jz 9f
+    mov r14, r13
+11: mov eax, [r14 + 4]            // ai_family
+    cmp eax, 2
+    je 12f
+    cmp eax, 10                   # AF_INET6 on Linux
+    je 12f
+    mov r14, [r14 + 40]
+    test r14, r14
+    jnz 11b
+    jmp 9f
+12: mov [rsp + 4], eax            // retain family after freeaddrinfo
+    mov r15d, [r14 + 16]          // ai_addrlen
+    mov r14, [r14 + 24]           // ai_addr on Linux
+    test r14, r14
+    jz 9f
+    mov edi, eax
+    mov esi, 2                    // SOCK_DGRAM
+    mov edx, 1                    // IPPROTO_ICMP
+    cmp eax, 2
+    je 13f
+    mov edx, 58                   // IPPROTO_ICMPV6
+13: call socket@PLT
+    test eax, eax
+    js 9f
+    mov r12d, eax
+    mov edi, eax
+    mov rsi, r14
+    mov edx, r15d
+    call connect@PLT
+    mov r14d, eax
+    mov rdi, r13
+    call freeaddrinfo@PLT
+    xor r13d, r13d
+    test r14d, r14d
+    jnz 9f
+    movabs rax, 0x6251000035f10008
+    cmp dword ptr [rsp + 4], 2
+    je 14f
+    movabs rax, 0x6251000000000080 // ICMPv6 echo; OS supplies checksum
+14: mov [rsp + 56], rax
+    movabs rax, 0x676e69702d746962
+    mov [rsp + 64], rax
+    mov edi, r12d
+    lea rsi, [rsp + 56]
+    mov edx, 16
+    xor ecx, ecx
+    call send@PLT
+    cmp rax, 16
+    jne 9f
+    call _bit_ping_clock
+    test rax, rax
+    js 9f
+    lea r15, [rax + 1000]         // one-second deadline
+    mov r14, 1000
+1:  mov [rsp + 72], r12d
+    mov dword ptr [rsp + 76], 1  // POLLIN; clear revents
+    lea rdi, [rsp + 72]
     mov esi, 1
-    xor edx, edx
-    call _bit_spawn_status
-    cmp rax, 0
-    sete al
-    movzx eax, al
-    add rsp, 48
+    mov edx, r14d
+    call poll@PLT
+    test eax, eax
+    jz 9f
+    js 6f
+    mov edi, r12d
+    lea rsi, [rsp + 80]
+    mov edx, 256
+    xor ecx, ecx
+    call recv@PLT
+    test rax, rax
+    js 6f
+    cmp rax, 16
+    jl 7f
+    xor ecx, ecx
+    movzx edx, byte ptr [rsp + 80]
+    mov r8d, edx
+    shr r8d, 4
+    cmp r8d, 4
+    jne 2f
+    and edx, 15                   // Darwin includes IPv4 header
+    lea rcx, [rdx * 4]
+    cmp rcx, 20
+    jb 7f
+2:  lea rdx, [rcx + 16]
+    cmp rax, rdx
+    jb 7f
+    lea rdx, [rsp + 80]
+    add rdx, rcx
+    cmp byte ptr [rdx + 1], 0
+    jne 7f
+    cmp dword ptr [rsp + 4], 2
+    jne 15f
+    cmp byte ptr [rdx], 0          // ICMP echo reply
+    jne 7f
+    jmp 16f
+15: cmp byte ptr [rdx], 129        // ICMPv6 echo reply
+    jne 7f
+16: cmp word ptr [rdx + 6], 0x6251
+    jne 7f
+    movabs rax, 0x676e69702d746962
+    cmp qword ptr [rdx + 8], rax
+    jne 7f
+    mov r14d, 1
+    jmp 8f
+6:  call __errno_location@PLT
+    cmp dword ptr [rax], 4       // EINTR
+    jne 9f
+7:  call _bit_ping_clock
+    test rax, rax
+    js 9f
+    mov r14, r15
+    sub r14, rax
+    jg 1b
+9:  xor r14d, r14d
+8:  cmp r12, -1
+    je 3f
+    mov edi, r12d
+    call close@PLT
+3:  test r13, r13
+    jz 4f
+    mov rdi, r13
+    call freeaddrinfo@PLT
+4:  mov rax, r14
+    add rsp, 344
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
     pop rbp
     ret
 

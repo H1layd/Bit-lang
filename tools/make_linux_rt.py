@@ -63,6 +63,16 @@ _bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART
     jmp _bit_die
 """)
 
+# ICMP addrinfo layout and clock IDs differ between Darwin and Linux.
+t = func_transform(t, "_bit_ping", lambda body: body
+    .replace("mov r14, [r14 + 32]           // ai_addr on Darwin",
+             "mov r14, [r14 + 24]           // ai_addr on Linux")
+    .replace("cmp eax, 30                   // AF_INET6 on Darwin",
+             "cmp eax, 10                   # AF_INET6 on Linux"))
+t = func_transform(t, "_bit_ping_clock", lambda body: body.replace(
+    "mov edi, 6                      // CLOCK_MONOTONIC on Darwin",
+    "mov edi, 1                      # CLOCK_MONOTONIC on Linux"))
+
 # CLOCK_MONOTONIC differs between Darwin and Linux.
 t = func_transform(t, "_bit_os_clock", lambda body: body.replace(
     "mov edi, 6                       // CLOCK_MONOTONIC on Darwin",
