@@ -13,6 +13,11 @@ fn url_bad(string source) {
     if http_url_parse(source) >> sz != 0 { print("FAIL invalid URL {source}"); }
 }
 
+fn url_redirect(string base, string location, string expected) {
+    string actual = http_url_resolve(base, location);
+    if actual != expected { print("FAIL redirect {location}: {actual}"); }
+}
+
 host {
     do(url_test("http://example.com", "http", "example.com", "80", "/", "example.com"));
     do(url_test("HTTPS://Example.com:8443/a%2Fb?x=1#fragment", "https", "Example.com", "8443", "/a%2Fb?x=1", "Example.com:8443"));
@@ -39,5 +44,26 @@ host {
     do(url_bad("http://example.com/\r\nInjected: yes"));
     do(url_bad("http://[::1]:/"));
     do(url_bad("http://example.com\\evil/"));
+    string base = "http://a/b/c/d;p?q";
+    do(url_redirect(base, "g", "http://a/b/c/g"));
+    do(url_redirect(base, "./g", "http://a/b/c/g"));
+    do(url_redirect(base, "../g", "http://a/b/g"));
+    do(url_redirect(base, "../../g", "http://a/g"));
+    do(url_redirect(base, "/g", "http://a/g"));
+    do(url_redirect(base, "//other/g", "http://other/g"));
+    do(url_redirect(base, "?y", "http://a/b/c/d;p?y"));
+    do(url_redirect(base, "#s", "http://a/b/c/d;p?q"));
+    do(url_redirect(base, "", "http://a/b/c/d;p?q"));
+    do(url_redirect(base, "g?y#s", "http://a/b/c/g?y"));
+    do(url_redirect(base, "./", "http://a/b/c/"));
+    do(url_redirect(base, "..", "http://a/b/"));
+    do(url_redirect(base, "../../../g", "http://a/g"));
+    do(url_redirect(base, "https://b/a/../c", "https://b/c"));
+    do(url_redirect(base, "ftp://b/g", ""));
+    do(url_redirect(base, "javascript:evil", ""));
+    do(url_redirect("https://a/привет/мир?x", "?y", "https://a/привет/мир?y"));
+    do(url_redirect("https://a/привет/мир?x", "../новый", "https://a/новый"));
+    do(url_redirect(base, "//user:pass@b/g", ""));
+    do(url_redirect(base, "/a//b/../c", "http://a/a//c"));
     print("http url tests complete");
 }

@@ -96,3 +96,84 @@ fn http_url_parse(string url) {
     do(result >> add(chars >> text(begin, end)));
     return result;
 }
+
+# Remove RFC 3986 dot segments from an absolute path, preserving empty segments.
+fn http_url_path(string path) {
+    mas input = path >> split("/");
+    mas output = (string);
+    for i in 1:(input >> sz) - 1 {
+        string part = input >> get(i, "");
+        bool last = i == (input >> sz) - 1;
+        if part == "." {
+            if last { do(output >> add("")); }
+        } else if part == ".." {
+            if output >> sz > 0 { do(output >> pop); }
+            if last { do(output >> add("")); }
+        } else { do(output >> add(part)); }
+    }
+    return "/" + (output >> join("/"));
+}
+
+# Resolve an HTTP(S) Location against an absolute base URL. Empty return means
+# invalid or unsupported. The caller must cap the number of redirects.
+fn http_url_resolve(string base, string location) {
+    mas b = http_url_parse(base);
+    if b >> sz != 5 { return ""; }
+    string scheme = b >> get(0, "");
+    string authority = b >> get(4, "");
+    string base_target = b >> get(3, "");
+    mas refbytes = location >> bytes;
+    num end = 0;
+    while end < refbytes >> sz and (refbytes >> get(end, -1)) != 35 {
+        do(end >> ch(end + 1));
+    }
+    string reference = refbytes >> text(0, end);
+    string candidate = "";
+    string ref_lower = reference >> lower;
+    if (ref_lower >> starts("http://")) or (ref_lower >> starts("https://")) {
+        do(candidate >> ch(reference));
+    } else if reference >> starts("//") {
+        do(candidate >> ch(scheme + ":" + reference));
+    } else if reference == "" {
+        do(candidate >> ch(scheme + "://" + authority + base_target));
+    } else if reference >> starts("?") {
+        mas raw = base_target >> bytes;
+        num q = 0;
+        while q < raw >> sz and (raw >> get(q, -1)) != 63 { do(q >> ch(q + 1)); }
+        string base_path = raw >> text(0, q);
+        do(candidate >> ch(scheme + "://" + authority + base_path + reference));
+    } else {
+        # A colon before the first slash or query introduces a different URI
+        # scheme, which this HTTP-only implementation does not support.
+        num first = 0;
+        while first < end {
+            num c = refbytes >> get(first, -1);
+            if c == 47 or c == 63 { break; }
+            if c == 58 { return ""; }
+            do(first >> ch(first + 1));
+        }
+        string merged = reference;
+        if not (reference >> starts("/")) {
+            mas raw = base_target >> bytes;
+            num limit = raw >> sz;
+            num k = 0;
+            while k < (raw >> sz) {
+                if (raw >> get(k, -1)) == 63 { do(limit >> ch(k)); break; }
+                do(k >> ch(k + 1));
+            }
+            num slash = 0;
+            for i in 0:limit - 1 { if (raw >> get(i, -1)) == 47 { do(slash >> ch(i)); } }
+            do(merged >> ch((raw >> text(0, slash + 1)) + reference));
+        }
+        do(candidate >> ch(scheme + "://" + authority + merged));
+    }
+    mas parsed = http_url_parse(candidate);
+    if parsed >> sz != 5 { return ""; }
+    string target = parsed >> get(3, "");
+    mas chars = target >> bytes;
+    num query = 0;
+    while query < chars >> sz and (chars >> get(query, -1)) != 63 { do(query >> ch(query + 1)); }
+    string path = chars >> text(0, query);
+    string suffix = chars >> text(query, chars >> sz);
+    return (parsed >> get(0, "")) + "://" + (parsed >> get(4, "")) + http_url_path(path) + suffix;
+}
