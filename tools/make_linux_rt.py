@@ -28,6 +28,15 @@ def func_transform(text, name, transform):
     end = start + match.start() if match else len(text)
     return text[:start] + transform(text[start:end]) + text[end:]
 
+# sysconf selectors differ across Darwin and glibc; scope this to CPU count.
+def linux_cpu_selector(body):
+    old = "mov edi, 58                    // Darwin _SC_NPROCESSORS_ONLN"
+    if body.count(old) != 1:
+        raise ValueError("expected one Darwin CPU selector in _bit_os_cpus")
+    return body.replace(old, "mov edi, 84                    // glibc _SC_NPROCESSORS_ONLN")
+
+t = func_transform(t, "_bit_os_cpus", linux_cpu_selector)
+
 # Linux glibc sigaction differs from Darwin: 128-byte mask, flags at 136.
 t = func_replace(t, "_bit_signal_init", """
 _bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART

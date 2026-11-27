@@ -6247,16 +6247,22 @@ _bit_os_now:                        // -> время (секунды с 1970)
     ldp x29, x30, [sp], #16
     ret
 
-_bit_os_cpus:                       // x0 = строка -> число ядер
+_bit_os_cpus:                       // source line -> online logical processors
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-    mov x1, x0
-    adrp x0, Lrt_cpucmd@PAGE
-    add x0, x0, Lrt_cpucmd@PAGEOFF
-    bl _bit_run
-    bl _bit_str_num
+    stp x19, x20, [sp, #-16]!
+    mov x19, x0
+    mov x0, #58                    // Darwin _SC_NPROCESSORS_ONLN
+    bl _sysconf
+    cmp x0, #1
+    b.lt 9f
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
+9:  adrp x0, Lrt_ecpus@PAGE
+    add x0, x0, Lrt_ecpus@PAGEOFF
+    mov x1, x19
+    bl _bit_die
 
 _bit_os_procs:                      // x0 = строка -> список процессов (текст)
     mov x1, x0
@@ -6636,7 +6642,7 @@ Lrt_pingp: .asciz "ping"
 Lrt_pingc: .asciz "-c"
 Lrt_devnull: .asciz "/dev/null"
 Lrt_userenv: .asciz "USER"
-Lrt_cpucmd: .asciz "getconf _NPROCESSORS_ONLN 2>/dev/null"
+Lrt_ecpus: .asciz "os >> cpus: cannot determine processor count"
 Lrt_pscmd: .asciz "ps -axo pid=,comm= 2>/dev/null"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
 Lrt_pingcmd: .asciz "ping -c 1 "

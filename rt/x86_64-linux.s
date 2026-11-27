@@ -6472,16 +6472,23 @@ _bit_os_now:                        // -> время (секунды)
     pop rbp
     ret
 
-_bit_os_cpus:                       // rdi = строка -> число ядер
+_bit_os_cpus:                       // source line -> online logical processors
     push rbp
     mov rbp, rsp
-    mov rsi, rdi
-    lea rdi, [rip + Lrt_cpucmd]
-    call _bit_run
-    mov rdi, rax
-    call _bit_str_num
+    push rbx
+    sub rsp, 8
+    mov rbx, rdi
+    mov edi, 84                    // glibc _SC_NPROCESSORS_ONLN
+    call sysconf@PLT
+    cmp rax, 1
+    jl 9f
+    add rsp, 8
+    pop rbx
     pop rbp
     ret
+9:  lea rdi, [rip + Lrt_ecpus]
+    mov rsi, rbx
+    call _bit_die
 
 _bit_os_procs:                      // rdi = строка -> список процессов
     mov rsi, rdi
@@ -7445,7 +7452,7 @@ Lrt_pingp: .asciz "ping"
 Lrt_pingc: .asciz "-c"
 Lrt_devnull: .asciz "/dev/null"
 Lrt_userenv: .asciz "USER"
-Lrt_cpucmd: .asciz "getconf _NPROCESSORS_ONLN 2>/dev/null"
+Lrt_ecpus: .asciz "os >> cpus: cannot determine processor count"
 Lrt_pscmd: .asciz "ps -axo pid=,comm= 2>/dev/null"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
 Lrt_pingcmd: .asciz "ping -c 1 "

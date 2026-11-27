@@ -125,6 +125,13 @@ wait.
   (1 refused, 2 wait ended, 3 no route, 0 no code) on macOS, Linux and Windows;
   a plain `connect` and a timed-out `recv` also fill it.
 
+### Independence from external utilities
+
+- [ ] Remove implicit utility processes from bit programs and the compiler; see
+  [external-programs.md](external-programs.md) for the audit and remaining work.
+  Keep explicit `run` and `start`. `os >> cpus` now uses OS APIs; `os >> procs`,
+  HTTP on macOS/Linux, and building without `as`/`ld` still need work.
+
 ### Service capabilities and signals
 
 - [x] **`ping` without an external program**: system ICMP for IPv4 and IPv6,
@@ -262,9 +269,11 @@ configuration. These details do not override the checkpoint before package-manag
   linked into the compiler; a unified `bit` command preserving `bitc` compatibility.
   Proposed subcommands: `add`, `remove`, `update`, `search`, `publish`; `build` / `run`
   automatically fetch missing dependencies recorded in the lockfile.
-- [ ] A local offline test index: adding packages, locking, rebuilding from cache,
-  mismatched SHAs, invalid names, and missing `git`. Then system-git downloads, caching,
-  and checks on macOS, Windows, and Linux. Pass git arguments as an array, without a shell.
+- [ ] Local offline index tests: adding packages, lock-file reproducibility,
+  cache reuse, incorrect hashes and invalid names. Package downloads and verification
+  must work without system `git` or other utilities. Define how package content is
+  verified, including its relationship to a commit SHA or a separate archive hash,
+  before implementation; test on all three systems.
 - [ ] HTTPS only; no installation scripts. Package names contain 1–64 characters from
   `a-z`, `0-9`, `-`, with no paths. Verify full downloaded commit SHAs and report the index
   revision used. A mismatch produces a clear error and stops the build.
