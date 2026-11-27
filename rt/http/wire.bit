@@ -1,0 +1,255 @@
+# Internal incremental HTTP/1 response framing parser. This module is not yet
+# connected to fetch/post/download. The caller owns all bytes and frees the state.
+# State layout: phase, status, length (-1 absent), remaining, line length,
+# header bytes, transfer flag, then an 8192-byte line buffer. All numbers use
+# bytes' native i64 read/write; no global parser state is shared between threads.
+# Phases: 0 status, 1 headers, 2 fixed body, 3 body to EOF, 4 chunk size,
+# 5 chunk data, 6 chunk CR, 7 chunk LF, 8 trailers, 9 done, 10 error.
+
+fn http_wire_new() {
+    bytes state = mem >> take(8248);
+    do(state >> write(16, -1));
+    return state;
+}
+
+fn http_wire_free(bytes state) { do(state >> free); }
+
+fn http_wire_lower(num c) {
+    if c >= 65 and c <= 90 { return c + 32; }
+    return c;
+}
+
+fn http_wire_char(bytes state, num pos) {
+    return http_wire_lower(state >> get(56 + pos, -1));
+}
+
+fn http_wire_token(num c) {
+    if c >= 48 and c <= 57 { return true; }
+    if c >= 65 and c <= 90 { return true; }
+    if c >= 97 and c <= 122 { return true; }
+    return c == 33 or c == 35 or c == 36 or c == 37 or c == 38 or c == 39 or
+        c == 42 or c == 43 or c == 45 or c == 46 or c == 94 or c == 95 or
+        c == 96 or c == 124 or c == 126;
+}
+
+fn http_wire_is_length(bytes state, num start, num length) {
+    if length != 14 { return false; }
+    return http_wire_char(state, start + 0) == 99 and http_wire_char(state, start + 1) == 111 and http_wire_char(state, start + 2) == 110 and
+        http_wire_char(state, start + 3) == 116 and http_wire_char(state, start + 4) == 101 and http_wire_char(state, start + 5) == 110 and
+        http_wire_char(state, start + 6) == 116 and http_wire_char(state, start + 7) == 45 and http_wire_char(state, start + 8) == 108 and
+        http_wire_char(state, start + 9) == 101 and http_wire_char(state, start + 10) == 110 and http_wire_char(state, start + 11) == 103 and
+        http_wire_char(state, start + 12) == 116 and http_wire_char(state, start + 13) == 104;
+}
+
+fn http_wire_is_transfer(bytes state, num start, num length) {
+    if length != 17 { return false; }
+    return http_wire_char(state, start + 0) == 116 and http_wire_char(state, start + 1) == 114 and http_wire_char(state, start + 2) == 97 and
+        http_wire_char(state, start + 3) == 110 and http_wire_char(state, start + 4) == 115 and http_wire_char(state, start + 5) == 102 and
+        http_wire_char(state, start + 6) == 101 and http_wire_char(state, start + 7) == 114 and http_wire_char(state, start + 8) == 45 and
+        http_wire_char(state, start + 9) == 101 and http_wire_char(state, start + 10) == 110 and http_wire_char(state, start + 11) == 99 and
+        http_wire_char(state, start + 12) == 111 and http_wire_char(state, start + 13) == 100 and http_wire_char(state, start + 14) == 105 and
+        http_wire_char(state, start + 15) == 110 and http_wire_char(state, start + 16) == 103;
+}
+
+fn http_wire_is_chunked(bytes state, num start, num length) {
+    if length != 7 { return false; }
+    return http_wire_char(state, start + 0) == 99 and http_wire_char(state, start + 1) == 104 and http_wire_char(state, start + 2) == 117 and
+        http_wire_char(state, start + 3) == 110 and http_wire_char(state, start + 4) == 107 and http_wire_char(state, start + 5) == 101 and
+        http_wire_char(state, start + 6) == 100;
+}
+
+# Process one complete line. The line excludes its terminating CRLF.
+fn http_wire_line(bytes state) {
+    num phase = state >> read(0);
+    num length = state >> read(32);
+    if phase == 0 {
+        if length < 12 { return false; }
+        if (state >> get(56, -1)) != 72 or (state >> get(57, -1)) != 84 or
+           (state >> get(58, -1)) != 84 or (state >> get(59, -1)) != 80 or
+           (state >> get(60, -1)) != 47 or (state >> get(61, -1)) != 49 or
+           (state >> get(62, -1)) != 46 or
+           ((state >> get(63, -1)) != 48 and (state >> get(63, -1)) != 49) or
+           (state >> get(64, -1)) != 32 { return false; }
+        num a = (state >> get(65, -1)) - 48;
+        num b = (state >> get(66, -1)) - 48;
+        num c = (state >> get(67, -1)) - 48;
+        if a < 1 or a > 5 or b < 0 or b > 9 or c < 0 or c > 9 { return false; }
+        if length > 12 and (state >> get(68, -1)) != 32 { return false; }
+        for i in 13:length - 1 {
+            num reason_byte = state >> get(56 + i, -1);
+            if (reason_byte < 32 and reason_byte != 9) or reason_byte == 127 { return false; }
+        }
+        num status = a * 100 + b * 10 + c;
+        if status == 101 { return false; }
+        do(state >> write(8, status) >> write(0, 1));
+        return true;
+    }
+    if phase == 4 {
+        if length < 1 { return false; }
+        num size = 0;
+        num i = 0;
+        bool digit_seen = false;
+        while i < length {
+            num c = http_wire_char(state, i);
+            if c == 59 { break; }
+            num digit = -1;
+            if c >= 48 and c <= 57 { do(digit >> ch(c - 48)); }
+            if c >= 97 and c <= 102 { do(digit >> ch(c - 87)); }
+            if digit < 0 or size > (9223372036854775807 - digit) / 16 { return false; }
+            do(size >> ch(size * 16 + digit));
+            do(digit_seen >> ch(true));
+            do(i >> ch(i + 1));
+        }
+        if not digit_seen { return false; }
+        while i < length {
+            num c = state >> get(56 + i, -1);
+            if c < 32 or c == 127 { return false; }
+            do(i >> ch(i + 1));
+        }
+        if size == 0 {
+            do(state >> write(0, 8) >> write(40, 0));
+        } else {
+            do(state >> write(24, size) >> write(0, 5));
+        }
+        return true;
+    }
+    if phase != 1 and phase != 8 { return false; }
+    if length == 0 {
+        if phase == 8 {
+            do(state >> write(0, 9));
+            return true;
+        }
+        num status = state >> read(8);
+        num content_length = state >> read(16);
+        bool chunked = (state >> read(48)) != 0;
+        if chunked and content_length >= 0 { return false; }
+        if status >= 100 and status < 200 {
+            do(state >> write(0, 0) >> write(8, 0) >> write(16, -1) >> write(48, 0));
+        } else if status == 204 or status == 304 {
+            do(state >> write(0, 9));
+        } else if chunked {
+            do(state >> write(0, 4));
+        } else if content_length < 0 {
+            do(state >> write(0, 3));
+        } else if content_length == 0 {
+            do(state >> write(0, 9));
+        } else {
+            do(state >> write(0, 2) >> write(24, content_length));
+        }
+        return true;
+    }
+    num colon = 0;
+    while colon < length and (state >> get(56 + colon, -1)) != 58 {
+        if not http_wire_token(state >> get(56 + colon, -1)) { return false; }
+        do(colon >> ch(colon + 1));
+    }
+    if colon == 0 or colon == length { return false; }
+    num first = colon + 1;
+    while first < length and ((state >> get(56 + first, -1)) == 32 or
+                              (state >> get(56 + first, -1)) == 9) {
+        do(first >> ch(first + 1));
+    }
+    num last = length;
+    while last > first and ((state >> get(55 + last, -1)) == 32 or
+                            (state >> get(55 + last, -1)) == 9) {
+        do(last >> ch(last - 1));
+    }
+    for i in first:last - 1 {
+        num c = state >> get(56 + i, -1);
+        if (c < 32 and c != 9) or c == 127 { return false; }
+    }
+    if http_wire_is_length(state, 0, colon) {
+        if phase == 8 or (state >> read(16)) >= 0 or first == last { return false; }
+        num size = 0;
+        for i in first:last - 1 {
+            num digit = (state >> get(56 + i, -1)) - 48;
+            if digit < 0 or digit > 9 or size > (9223372036854775807 - digit) / 10 { return false; }
+            do(size >> ch(size * 10 + digit));
+        }
+        do(state >> write(16, size));
+    } else if http_wire_is_transfer(state, 0, colon) {
+        if phase == 8 or (state >> read(48)) != 0 or
+           not http_wire_is_chunked(state, first, last - first) { return false; }
+        do(state >> write(48, 1));
+    }
+    return true;
+}
+
+# Returns output bytes written, or -1 on malformed input. `output` must have
+# at least count bytes. The caller consumes exactly count input bytes per call.
+fn http_wire_feed(bytes state, bytes input, num count, bytes output) {
+    if count < 0 or count > (input >> sz) or count > (output >> sz) {
+        do(state >> write(0, 10));
+        return -1;
+    }
+    num written = 0;
+    for i in 0:count - 1 {
+        num c = input >> get(i, -1);
+        num phase = state >> read(0);
+        if phase == 9 or phase == 10 {
+            do(state >> write(0, 10));
+            return -1;
+        }
+        if phase == 2 or phase == 3 or phase == 5 {
+            if written < 0 or written >= (output >> sz) {
+                do(state >> write(0, 10));
+                return -1;
+            }
+            do(output >> set(written, c));
+            do(written >> ch(written + 1));
+            if phase != 3 {
+                num remaining = (state >> read(24)) - 1;
+                do(state >> write(24, remaining));
+                if remaining == 0 {
+                    if phase == 2 { do(state >> write(0, 9)); }
+                    else { do(state >> write(0, 6)); }
+                }
+            }
+        } else if phase == 6 {
+            if c != 13 { do(state >> write(0, 10)); return -1; }
+            do(state >> write(0, 7));
+        } else if phase == 7 {
+            if c != 10 { do(state >> write(0, 10)); return -1; }
+            do(state >> write(0, 4));
+        } else {
+            num line_len = state >> read(32);
+            if phase != 4 {
+                num total = (state >> read(40)) + 1;
+                if total > 65536 { do(state >> write(0, 10)); return -1; }
+                do(state >> write(40, total));
+            }
+            if c == 10 {
+                if line_len < 1 or (state >> get(55 + line_len, -1)) != 13 {
+                    do(state >> write(0, 10));
+                    return -1;
+                }
+                do(state >> write(32, line_len - 1));
+                if not http_wire_line(state) {
+                    do(state >> write(0, 10));
+                    return -1;
+                }
+                do(state >> write(32, 0));
+            } else {
+                if line_len >= 8192 or (line_len > 0 and (state >> get(55 + line_len, -1)) == 13) {
+                    do(state >> write(0, 10));
+                    return -1;
+                }
+                num index = 56 + line_len;
+                if index < 0 or index >= (state >> sz) {
+                    do(state >> write(0, 10));
+                    return -1;
+                }
+                do(state >> set(index, c) >> write(32, line_len + 1));
+            }
+        }
+    }
+    return written;
+}
+
+# The transport must call this once after a clean EOF. It returns false for an
+# incomplete status/header/fixed/chunked response and true only when complete.
+fn http_wire_eof(bytes state) {
+    num phase = state >> read(0);
+    if phase == 3 { do(state >> write(0, 9)); return true; }
+    return phase == 9;
+}

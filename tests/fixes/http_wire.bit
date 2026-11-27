@@ -1,0 +1,96 @@
+use "../../rt/http/wire.bit";
+
+fn wire_test_bytes(string text) {
+    mas chars = text >> bytes;
+    bytes data = mem >> take(chars >> sz);
+    for i in 0:(chars >> sz) - 1 {
+        if i < data >> sz { do(data >> set(i, chars >> get(i, 0))); }
+    }
+    return data;
+}
+
+fn wire_test_case(string name, string raw, num stride, bool expected, num status, string body) {
+    bytes state = http_wire_new();
+    bytes source = wire_test_bytes(raw);
+    bytes input = mem >> take(stride);
+    bytes output = mem >> take(stride);
+    mas result = (num);
+    num pos = 0;
+    bool valid = true;
+    while pos < (source >> sz) {
+        num count = (source >> sz) - pos;
+        if count > stride { do(count >> ch(stride)); }
+        for i in 0:count - 1 {
+            if i < input >> sz { do(input >> set(i, source >> get(pos + i, 0))); }
+        }
+        num got = http_wire_feed(state, input, count, output);
+        if got < 0 { do(valid >> ch(false)); break; }
+        for i in 0:got - 1 { do(result >> add(output >> get(i, 0))); }
+        do(pos >> ch(pos + count));
+    }
+    bool done = false;
+    if valid { do(done >> ch(http_wire_eof(state))); }
+    if done != expected or (expected and ((state >> read(8)) != status or
+       (result >> text(0, result >> sz)) != body)) {
+        print("FAIL {name}, stride {stride}, done {done}");
+    }
+    do(http_wire_free(state));
+    do(source >> free);
+    do(input >> free);
+    do(output >> free);
+}
+
+host {
+    mas strides = (1, 2, 3, 7, 4096);
+    for stride in strides {
+        do(wire_test_case("fixed", "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello", stride, true, 200, "hello"));
+        do(wire_test_case("empty", "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n", stride, true, 200, ""));
+        do(wire_test_case("chunked", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\none\r\n1\r\n-\r\n3;v=1\r\ntwo\r\n0\r\nX-T: done\r\n\r\n", stride, true, 200, "one-two"));
+        do(wire_test_case("until close", "HTTP/1.0 200 OK\r\nX-Test: yes\r\n\r\nbody", stride, true, 200, "body"));
+        do(wire_test_case("no body", "HTTP/1.1 304 Not Modified\r\nContent-Length: 50\r\n\r\n", stride, true, 304, ""));
+        do(wire_test_case("continue", "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx", stride, true, 200, "x"));
+        do(wire_test_case("multiple interim", "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\n\r\nHTTP/1.1 200 OK\r\ncontent-length: \t1 \t\r\n\r\nx", stride, true, 200, "x"));
+        do(wire_test_case("case insensitive chunked", "HTTP/1.1 200 OK\r\ntRaNsFeR-eNcOdInG: ChUnKeD\r\n\r\n1\r\nx\r\n0\r\n\r\n", stride, true, 200, "x"));
+        do(wire_test_case("not found", "HTTP/1.1 404 No\r\nContent-Length: 4\r\n\r\nnope", stride, true, 404, "nope"));
+        do(wire_test_case("short fixed", "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhi", stride, false, 0, ""));
+        do(wire_test_case("short chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabc", stride, false, 0, ""));
+        do(wire_test_case("missing last chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n", stride, false, 0, ""));
+        do(wire_test_case("bad chunk delimiter", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\naXX", stride, false, 0, ""));
+        do(wire_test_case("bad chunk size", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\ng\r\n", stride, false, 0, ""));
+        do(wire_test_case("huge chunk size", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nfffffffffffffffff\r\n", stride, false, 0, ""));
+        do(wire_test_case("ambiguous framing", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("duplicate length", "HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 4\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("bad field", "HTTP/1.1 200 OK\r\nContent-Length : 3\r\n\r\nabc", stride, false, 0, ""));
+        do(wire_test_case("short header", "HTTP/1.1 200 OK\r\nContent-Length: 3", stride, false, 0, ""));
+        do(wire_test_case("bare newline", "HTTP/1.1 200 OK\n\nabc", stride, false, 0, ""));
+        do(wire_test_case("bad status", "HTTP/1.1 9x0 OK\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("extra fixed bytes", "HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nxy", stride, false, 0, ""));
+        do(wire_test_case("forbidden trailer", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nContent-Length: 0\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("overflow length", "HTTP/1.1 200 OK\r\nContent-Length: 9223372036854775808\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("invalid transfer", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, chunked\r\n\r\n", stride, false, 0, ""));
+        do(wire_test_case("unsupported coding", "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\n\r\n", stride, false, 0, ""));
+    }
+    bytes bad_state = http_wire_new();
+    bytes bad_reason = wire_test_bytes("HTTP/1.1 200 hi!\r\n\r\n");
+    bytes bad_out = mem >> take(bad_reason >> sz);
+    if 15 < bad_reason >> sz { do(bad_reason >> set(15, 127)); }
+    if http_wire_feed(bad_state, bad_reason, bad_reason >> sz, bad_out) != -1 { print("FAIL bad reason"); }
+    do(bad_state >> free);
+    do(bad_reason >> free);
+    do(bad_out >> free);
+    bytes state = http_wire_new();
+    bytes header = wire_test_bytes("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n");
+    bytes scratch = mem >> take(header >> sz);
+    if http_wire_feed(state, header, header >> sz, scratch) != 0 { print("FAIL binary header"); }
+    bytes data = mem >> take(5);
+    do(data >> set(0, 0) >> set(1, 1) >> set(2, 127) >> set(3, 128) >> set(4, 255));
+    if http_wire_feed(state, data, 5, scratch) != 5 or not http_wire_eof(state) { print("FAIL binary body"); }
+    for i in 0:4 {
+        if (data >> get(i, -1)) != (scratch >> get(i, -1)) { print("FAIL binary byte {i}"); }
+    }
+    do(state >> free);
+    do(header >> free);
+    do(scratch >> free);
+    do(data >> free);
+    print("http wire tests complete");
+}
