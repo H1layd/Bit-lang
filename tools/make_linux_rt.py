@@ -28,6 +28,41 @@ def func_transform(text, name, transform):
     end = start + match.start() if match else len(text)
     return text[:start] + transform(text[start:end]) + text[end:]
 
+# Linux glibc sigaction differs from Darwin: 128-byte mask, flags at 136.
+t = func_replace(t, "_bit_signal_init", """
+_bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART
+    push rbp
+    mov rbp, rsp
+    sub rsp, 160
+    mov rdi, rsp
+    xor esi, esi
+    mov edx, 152
+    call memset@PLT
+    lea rax, [rip + _bit_signal_handler]
+    mov [rsp], rax
+    mov dword ptr [rsp + 136], 0x10000000
+    mov edi, 2                       # SIGINT
+    mov rsi, rsp
+    xor edx, edx
+    call sigaction@PLT
+    test eax, eax
+    jnz 9f
+    mov edi, 15                      # SIGTERM
+    mov rsi, rsp
+    xor edx, edx
+    call sigaction@PLT
+    test eax, eax
+    jnz 9f
+    add rsp, 160
+    pop rbp
+    ret
+9:  add rsp, 160
+    pop rbp
+    lea rdi, [rip + Lrt_esignal]
+    xor esi, esi
+    jmp _bit_die
+""")
+
 # CLOCK_MONOTONIC differs between Darwin and Linux.
 t = func_transform(t, "_bit_os_clock", lambda body: body.replace(
     "mov edi, 6                       // CLOCK_MONOTONIC on Darwin",

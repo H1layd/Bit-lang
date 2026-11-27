@@ -1,6 +1,51 @@
 
 // ─────────── среда выполнения bit ───────────
 .p2align 2
+_bit_signal_handler:                 // async-signal-safe: set one aligned flag
+    adrp x9, Lrt_signalled@PAGE
+    add x9, x9, Lrt_signalled@PAGEOFF
+    mov w10, #1
+    stlr w10, [x9]
+    ret
+
+_bit_signalled:
+    adrp x9, Lrt_signalled@PAGE
+    add x9, x9, Lrt_signalled@PAGEOFF
+    ldar w0, [x9]
+    cmp w0, #0
+    cset w0, ne
+    ret
+
+_bit_signal_init:                    // Darwin sigaction: handler, mask, flags
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    sub sp, sp, #16
+    adrp x9, _bit_signal_handler@PAGE
+    add x9, x9, _bit_signal_handler@PAGEOFF
+    str x9, [sp]
+    str wzr, [sp, #8]
+    mov w9, #2                       // SA_RESTART
+    str w9, [sp, #12]
+    mov w0, #2                       // SIGINT
+    mov x1, sp
+    mov x2, #0
+    bl _sigaction
+    cbnz w0, 9f
+    mov w0, #15                      // SIGTERM
+    mov x1, sp
+    mov x2, #0
+    bl _sigaction
+    cbnz w0, 9f
+    add sp, sp, #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  add sp, sp, #16
+    ldp x29, x30, [sp], #16
+    adrp x0, Lrt_esignal@PAGE
+    add x0, x0, Lrt_esignal@PAGEOFF
+    mov x1, #0
+    b _bit_die
+
 _bit_rt_ensure:                     // однократная подготовка ключа потока и замка строк
     adrp x9, Lrt_ready@PAGE
     ldrb w10, [x9, Lrt_ready@PAGEOFF]
@@ -4082,10 +4127,11 @@ _bit_clear:
     ldp x29, x30, [sp], #16
     ret
 
-_bit_wait:                          // x0 = миллисекунды
+_bit_wait:                          // x0 = milliseconds
     stp x29, x30, [sp, #-16]!
     mov x29, sp
     stp x19, x20, [sp, #-16]!
+    sub sp, sp, #32                 // timespec request and remainder
     mov x19, x0
     mov x0, #0
     bl _fflush
@@ -4095,11 +4141,27 @@ _bit_wait:                          // x0 = миллисекунды
     cmp x19, x20
     csel x20, x19, x20, lt
     sub x19, x19, x20
-    mov x1, #1000
-    mul x0, x20, x1
-    bl _usleep
-    b 1b
-3:  ldp x19, x20, [sp], #16
+    mov x2, #1000
+    udiv x3, x20, x2
+    msub x4, x3, x2, x20
+    str x3, [sp]
+    mov x2, #0x4240
+    movk x2, #15, lsl #16
+    mul x4, x4, x2
+    str x4, [sp, #8]
+2:  mov x0, sp
+    add x1, sp, #16
+    bl _nanosleep
+    cbz w0, 1b
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                     // EINTR
+    b.ne 3f
+    ldp x2, x3, [sp, #16]
+    stp x2, x3, [sp]
+    b 2b
+3:  add sp, sp, #32
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
@@ -5455,6 +5517,7 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
     sub sp, sp, #16
     mov x19, x0
     mov x20, x1
@@ -5467,14 +5530,29 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
     tbnz x2, #63, 9f
     cmp x2, x4
     b.gt 9f
+    mov x24, x2
+    mov x0, x21
+    bl _bit_os_clock
+    add x23, x0, x24              // absolute deadline
     str w19, [sp]
-    mov w4, #1                     // POLLIN; clear revents
+1:  mov w4, #1                     // POLLIN; clear revents
     str w4, [sp, #4]
     mov x0, sp
     mov w1, #1
+    mov x2, x24
     bl _poll
     cbz w0, 8f
-    tbnz w0, #31, 7f
+    tbz w0, #31, 2f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4                     // EINTR
+    b.ne 7f
+    mov x0, x21
+    bl _bit_os_clock
+    subs x24, x23, x0
+    b.le 8f
+    b 1b
+2:
     add x0, x20, #1
     bl _bit_alloc
     mov x22, x0
@@ -5487,6 +5565,7 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
     strb wzr, [x22, x0]
     mov x0, x22
     add sp, sp, #16
+    ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
@@ -6372,6 +6451,8 @@ Lrt_argv: .quad 0
 Lrt_status: .quad 0
 Lrt_random_state: .quad 0
 Lrt_random_ready: .quad 0
+.p2align 2
+Lrt_signalled: .long 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
@@ -6438,6 +6519,7 @@ Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
 Lrt_elock: .asciz "lock operation failed"
 Lrt_ewait_thread: .asciz "thread wait failed"
+Lrt_esignal: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\276\320\261\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272 \321\201\320\270\320\263\320\275\320\260\320\273\320\276\320\262"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

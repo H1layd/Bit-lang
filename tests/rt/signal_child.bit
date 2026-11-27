@@ -1,0 +1,8 @@
+host {
+    file ready = term >> args >> get(0, "signal-ready");
+    do(ready >> write("ready"));
+    # The signal arrives while this read is blocked and before the first read
+    # of signalled. SA_RESTART must allow the key to be read afterwards.
+    string key = term >> key;
+    print("{term >> signalled} {key} {term >> signalled}");
+}

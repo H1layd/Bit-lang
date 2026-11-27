@@ -121,6 +121,59 @@ _bit_oom:
     mov ecx, 1
     call exit
 
+_bit_signal_handler:                 # Windows console control callback
+    cmp ecx, 0                       # CTRL_C_EVENT
+    je 1f
+    cmp ecx, 1                       # CTRL_BREAK_EVENT
+    je 1f
+    cmp ecx, 2                       # CTRL_CLOSE_EVENT
+    je 2f
+    xor eax, eax
+    ret
+1:  mov dword ptr [rip + Lrt_signalled], 1
+    mov eax, 1
+    ret
+2:  mov dword ptr [rip + Lrt_signalled], 1
+    # Returning from a close handler ends the process immediately. Keep this
+    # handler alive while the main thread performs cleanup; Windows may still
+    # terminate the process when its console-close timeout expires.
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+3:  mov ecx, 500
+    call Sleep
+    jmp 3b
+
+_bit_signalled:
+    xor eax, eax
+    cmp dword ptr [rip + Lrt_signalled], 0
+    setne al
+    ret
+
+_bit_signal_init:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    # Explicit opt-in also enables CTRL+C inherited as ignored from a parent.
+    xor ecx, ecx
+    xor edx, edx
+    call SetConsoleCtrlHandler
+    lea rcx, [rip + _bit_signal_handler]
+    mov edx, 1
+    call SetConsoleCtrlHandler
+    test eax, eax
+    jz 9f
+    mov rsp, rbp
+    pop rbp
+    ret
+9:  mov rsp, rbp
+    pop rbp
+    lea rdi, [rip + Lrt_esignal]
+    xor esi, esi
+    jmp _bit_die
+
 _bit_rt_ensure:                      # подготовка ключа потока и замка строк
     cmp byte ptr [rip + Lrt_ready], 0
     jne 9f
@@ -8402,6 +8455,8 @@ Lrt_argv: .quad 0
 Lrt_status: .quad 0
 Lrt_random_state: .quad 0
 Lrt_random_ready: .quad 0
+.p2align 2
+Lrt_signalled: .long 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
@@ -8444,6 +8499,7 @@ Lrt_eaccept: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\3
 Lrt_esend: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\276\321\202\320\277\321\200\320\260\320\262\320\272\320\270"
 Lrt_erecv: .asciz "\320\276\321\210\320\270\320\261\320\272\320\260 \320\277\321\200\320\270\321\221\320\274\320\260"
 Lrt_edns: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\275\320\260\320\271\321\202\320\270 \320\260\320\264\321\200\320\265\321\201 \321\205\320\276\321\201\321\202\320\260"
+Lrt_esignal: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\276\320\261\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272 \321\201\320\270\320\263\320\275\320\260\320\273\320\276\320\262"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_ewait_thread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\264\320\276\320\266\320\264\320\260\321\202\321\214\321\201\321\217 \320\277\320\276\321\202\320\276\320\272\320\260"
 Lrt_elisten_addr: .asciz "listen: \320\275\320\265\320\262\320\265\321\200\320\275\321\213\320\271 IPv4-\320\260\320\264\321\200\320\265\321\201"

@@ -133,16 +133,19 @@ wait.
   Fixed Linux `SO_ERROR` in `connect(ms)`, macOS `O_NONBLOCK`, its `fcntl` argument,
   and the error line. Address and port parsing is bounded. An end-to-end timeout test
   against a guaranteed nonresponding host remains outstanding.
-- [x] **x86-64 stack alignment**: a static traversal of 203 macOS, 211 Linux, and
-  265 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
+- [x] **x86-64 stack alignment**: a static traversal of 206 macOS, 214 Linux, and
+  268 Windows runtime functions found 24 call sites in Windows and 11 in macOS/Linux;
   no issues remain in that check. On Windows,
   68 test programs passed with a trap before every call; 11 selected programs were
   checked on macOS and Linux. `python3 tools/test_x86_stack_audit.py` is part of the
   regular suite; Windows also supports
   `./tests_win.sh --stack-check host`. The check analyzes RSP alignment, not shadow-space
   size, register preservation, or the correctness of external libraries.
-- [ ] Signals through `term >> signalled`: test with a separate child bit program
-  receiving a signal or console event from an external process.
+- [x] Signals through `term >> signalled`: separate child programs test SIGINT and
+  SIGTERM on both macOS architectures and Linux under QEMU; Ctrl+C, Ctrl+Break and
+  console close were tested on real Windows. Tests cover default behavior without
+  opt-in, access from a thread and uninterrupted waits and network timeouts.
+  Native Linux remains a separate check.
 
 ## System capability milestones
 
@@ -171,8 +174,8 @@ Status of the milestones already started. Each change ends with checks and docum
 Before implementing the package manager, stop, report progress, and wait for the author.
 Do not start the package manager or subsequent milestones until instructed.
 
-**Current work:** the agreed Windows-wrapper stack-alignment audit is complete; signals
-are next. Continue the unfinished memory work:
+**Current work:** the Windows-wrapper stack-alignment audit and agreed signals are
+complete. Continue the unfinished memory work:
 strings first, followed by `mas`, `map`, and records. The items below are directions,
 not a commitment to a strictly sequential order; the package-manager checkpoint still
 applies. The author chooses the license and new language decisions.

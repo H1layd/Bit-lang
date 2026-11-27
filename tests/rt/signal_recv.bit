@@ -1,0 +1,9 @@
+host {
+    string address = term >> args >> get(0, "");
+    file ready = term >> args >> get(1, "signal-ready");
+    conn c = address >> connect;
+    do(ready >> write("ready"));
+    string data = c >> recv(1, 2500);
+    print("{term >> signalled} {data}");
+    do(c >> close);
+}

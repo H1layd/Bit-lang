@@ -1,0 +1,6 @@
+host {
+    file ready = term >> args >> get(0, "signal-ready");
+    do(ready >> write("ready"));
+    string key = term >> key;
+    print(key);
+}

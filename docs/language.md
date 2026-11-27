@@ -784,6 +784,7 @@ produce the same sequence across architectures.
 | `term >> error_code` | numeric code of the last caught failure |
 | `term >> stderr` | stderr of the last `mas >> run` |
 | `term >> key` | one character from the keyboard, without waiting for Enter |
+| `term >> signalled` | whether a termination signal was received (`bool`) |
 
 | Action | What it does |
 |---|---|
@@ -793,6 +794,13 @@ produce the same sequence across architectures.
 | `term >> go(path)` | change the current directory; accepts `string` or `dir` |
 | `term >> raw(true)` / `raw(false)` | turn the immediate keyboard mode on or off |
 | `term >> env("NAME", "value")` | set an environment variable in the current program |
+
+When a program uses `term >> signalled`, SIGINT or SIGTERM on macOS and Linux makes
+the value `true` until the program exits. On Windows, Ctrl+C, Ctrl+Break, and console close
+are handled. The flag is shared across threads; the program decides when to exit. Programs
+that do not use `signalled` keep the default signal behavior. Windows allows only limited
+time to finish after the console is closed. `term >> wait` and a timed network `recv`
+continue waiting after a signal without extending their requested timeout.
 
 `go` changes the base for all subsequent relative paths. Future `string >> run`,
 `mas >> run`, and `string >> start` inherit the current directory and environment;

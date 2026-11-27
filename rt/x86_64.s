@@ -4,6 +4,45 @@
 // ─────────── среда выполнения bit (x86_64) ───────────
 // аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax
 .p2align 4
+_bit_signal_handler:                 // async-signal-safe: set one aligned flag
+    mov dword ptr [rip + Lrt_signalled], 1
+    ret
+
+_bit_signalled:
+    xor eax, eax
+    cmp dword ptr [rip + Lrt_signalled], 0
+    setne al
+    ret
+
+_bit_signal_init:                    // Darwin sigaction: handler, mask, flags
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    lea rax, [rip + _bit_signal_handler]
+    mov [rsp], rax
+    mov dword ptr [rsp + 8], 0
+    mov dword ptr [rsp + 12], 2      // SA_RESTART
+    mov edi, 2                       // SIGINT
+    mov rsi, rsp
+    xor edx, edx
+    call _sigaction
+    test eax, eax
+    jnz 9f
+    mov edi, 15                      // SIGTERM
+    mov rsi, rsp
+    xor edx, edx
+    call _sigaction
+    test eax, eax
+    jnz 9f
+    add rsp, 16
+    pop rbp
+    ret
+9:  add rsp, 16
+    pop rbp
+    lea rdi, [rip + Lrt_esignal]
+    xor esi, esi
+    jmp _bit_die
+
 _bit_rt_ensure:                     // однократная подготовка ключа потока и замка строк
     cmp byte ptr [rip + Lrt_ready], 0
     jne 9f
@@ -4412,11 +4451,12 @@ _bit_clear:
     pop rbp
     ret
 
-_bit_wait:                          // rdi = миллисекунды
+_bit_wait:                          // rdi = milliseconds
     push rbp
     mov rbp, rsp
     push rbx
     push r12
+    sub rsp, 32                    // timespec request and remainder
     mov rbx, rdi
     xor edi, edi
     call _fflush
@@ -4426,10 +4466,28 @@ _bit_wait:                          // rdi = миллисекунды
     cmp rbx, r12
     cmovl r12, rbx
     sub rbx, r12
-    imul rdi, r12, 1000
-    call _usleep
-    jmp 1b
-3:  pop r12
+    mov rax, r12
+    xor edx, edx
+    mov ecx, 1000
+    div rcx
+    mov [rsp], rax
+    imul rdx, rdx, 1000000
+    mov [rsp + 8], rdx
+2:  mov rdi, rsp
+    lea rsi, [rsp + 16]
+    call _nanosleep
+    test eax, eax
+    jz 1b
+    call ___error
+    cmp dword ptr [rax], 4         // EINTR
+    jne 3f
+    mov rax, [rsp + 16]
+    mov rdx, [rsp + 24]
+    mov [rsp], rax
+    mov [rsp + 8], rdx
+    jmp 2b
+3:  add rsp, 32
+    pop r12
     pop rbx
     pop rbp
     ret
@@ -5907,15 +5965,43 @@ _bit_sock_recv:                     // rdi = conn, rsi = строка -> стр�
     jmp _bit_die
 
 _bit_socket_wait:                   // socket, timeout in ms -> poll result
-    sub rsp, 24
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 16
     mov dword ptr [rsp], edi
-    // POLLIN; clear revents
-    mov dword ptr [rsp + 4], 1
-    mov edx, esi
-    mov esi, 1
+    mov r12d, esi
+    xor edi, edi
+    call _bit_os_clock
+    lea r13, [rax + r12]           // absolute deadline
+    mov r14, r12
+1:  mov dword ptr [rsp + 4], 1     // POLLIN; clear revents
     mov rdi, rsp
+    mov esi, 1
+    mov edx, r14d
     call _poll
-    add rsp, 24
+    test eax, eax
+    jns 3f
+    call ___error
+    cmp dword ptr [rax], 4         // EINTR
+    jne 2f
+    xor edi, edi
+    call _bit_os_clock
+    mov r14, r13
+    sub r14, rax
+    jg 1b
+    xor eax, eax
+    jmp 3f
+2:  mov eax, -1
+3:  add rsp, 16
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
     ret
 
 _bit_sock_recv_timed:               // socket, count, timeout in ms, source line -> string
@@ -6857,6 +6943,8 @@ Lrt_recover: .quad 0
 Lrt_owned: .quad 0
 Lrt_errmsg: .quad 0
 Lrt_errline: .quad 0
+.p2align 2
+Lrt_signalled: .long 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
@@ -6915,6 +7003,7 @@ Lrt_ecode_empty: .asciz "\320\272\320\276\320\264: \320\277\321\203\321\201\321\
 Lrt_echar_range: .asciz "char: \320\272\320\276\320\264 \321\201\320\270\320\274\320\262\320\276\320\273\320\260 \320\276\321\202 0 \320\264\320\276 1114111"
 Lrt_elock: .asciz "lock operation failed"
 Lrt_ewait_thread: .asciz "thread wait failed"
+Lrt_esignal: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\203\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\214 \320\276\320\261\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272 \321\201\320\270\320\263\320\275\320\260\320\273\320\276\320\262"
 Lrt_ethread: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\276\320\267\320\264\320\260\321\202\321\214 \320\277\320\276\321\202\320\276\320\272"
 Lrt_epad_width: .asciz "pad: \321\210\320\270\321\200\320\270\320\275\320\260 \320\276\321\202 0 \320\264\320\276 1000000"
 Lrt_epad_count: .asciz "repeat: \321\207\320\270\321\201\320\273\320\276 \320\276\321\202 0 \320\264\320\276 100000000"

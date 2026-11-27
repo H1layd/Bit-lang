@@ -1,0 +1,17 @@
+host {
+    string address = term >> args >> get(0, "");
+    file ready = term >> args >> get(1, "signal-ready");
+    conn c = address >> connect;
+    num start = os >> clock;
+    do(ready >> write("ready"));
+    recover {
+        string data = c >> recv(1, 1000);
+        print("unexpected: {data}");
+    } else {
+        num elapsed = (os >> clock) - start;
+        print("{term >> signalled} {term >> error_code}");
+        print(elapsed >= 900);
+        print(elapsed < 1600);
+    }
+    do(c >> close);
+}

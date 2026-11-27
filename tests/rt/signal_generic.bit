@@ -1,0 +1,7 @@
+fn current_signal(all ignored) { return term >> signalled; }
+host {
+    file ready = term >> args >> get(0, "signal-ready");
+    do(ready >> write("ready"));
+    string key = term >> key;
+    print("{current_signal(1)} {key} {current_signal(2)}");
+}

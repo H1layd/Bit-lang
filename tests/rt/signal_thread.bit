@@ -1,0 +1,11 @@
+bool seen = false;
+host {
+    thread worker {
+        while not (term >> signalled) { do(term >> wait(5)); }
+        do(seen >> ch(true));
+    }
+    file ready = term >> args >> get(0, "signal-ready");
+    do(ready >> write("ready"));
+    do(worker >> wait);
+    print(seen);
+}

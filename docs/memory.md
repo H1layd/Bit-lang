@@ -171,3 +171,8 @@ After the stack-alignment fixes, three self-builds per version on macOS ARM64 ga
 medians of 5.123 s and 668.30 MiB before, and 5.153 s and 669.20 MiB after. Compiler
 sources differ slightly and the machine was not isolated; the difference below 1% is
 not evidence of a slowdown.
+
+After adding signals, three self-builds of each version on macOS ARM64 gave medians of
+5.531 s and 669.20 MiB before, and 5.514 s and 676.39 MiB after. Measured time was
+essentially unchanged and peak memory rose by about 1.1%; the machine was not isolated
+and the compiler sources differ between versions.

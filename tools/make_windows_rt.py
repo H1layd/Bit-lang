@@ -296,6 +296,59 @@ _bit_oom:
     mov ecx, 1
     call exit
 
+_bit_signal_handler:                 # Windows console control callback
+    cmp ecx, 0                       # CTRL_C_EVENT
+    je 1f
+    cmp ecx, 1                       # CTRL_BREAK_EVENT
+    je 1f
+    cmp ecx, 2                       # CTRL_CLOSE_EVENT
+    je 2f
+    xor eax, eax
+    ret
+1:  mov dword ptr [rip + Lrt_signalled], 1
+    mov eax, 1
+    ret
+2:  mov dword ptr [rip + Lrt_signalled], 1
+    # Returning from a close handler ends the process immediately. Keep this
+    # handler alive while the main thread performs cleanup; Windows may still
+    # terminate the process when its console-close timeout expires.
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+3:  mov ecx, 500
+    call Sleep
+    jmp 3b
+
+_bit_signalled:
+    xor eax, eax
+    cmp dword ptr [rip + Lrt_signalled], 0
+    setne al
+    ret
+
+_bit_signal_init:
+    push rbp
+    mov rbp, rsp
+    and rsp, -16
+    sub rsp, 32
+    # Explicit opt-in also enables CTRL+C inherited as ignored from a parent.
+    xor ecx, ecx
+    xor edx, edx
+    call SetConsoleCtrlHandler
+    lea rcx, [rip + _bit_signal_handler]
+    mov edx, 1
+    call SetConsoleCtrlHandler
+    test eax, eax
+    jz 9f
+    mov rsp, rbp
+    pop rbp
+    ret
+9:  mov rsp, rbp
+    pop rbp
+    lea rdi, [rip + Lrt_esignal]
+    xor esi, esi
+    jmp _bit_die
+
 _bit_rt_ensure:                      # подготовка ключа потока и замка строк
     cmp byte ptr [rip + Lrt_ready], 0
     jne 9f
@@ -4212,6 +4265,8 @@ Lrt_argv: .quad 0
 Lrt_status: .quad 0
 Lrt_random_state: .quad 0
 Lrt_random_ready: .quad 0
+.p2align 2
+Lrt_signalled: .long 0
 Lrt_ready: .byte 0
 .p2align 3
 Lrt_tkey: .quad 0
@@ -4257,6 +4312,7 @@ Lrt_edns: .asciz "ne mogu najti adres hosta"
 """
 
 NEWSTR = {
+    "Lrt_esignal": "не могу установить обработчик сигналов",
     "Lrt_ethread": "не могу создать поток",
     "Lrt_ewait_thread": "не могу дождаться потока",
     "Lrt_elisten_addr": "listen: неверный IPv4-адрес",

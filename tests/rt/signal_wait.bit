@@ -1,0 +1,8 @@
+host {
+    file ready = term >> args >> get(0, "signal-ready");
+    num start = os >> clock;
+    do(ready >> write("ready"));
+    do(term >> wait(600));
+    print(term >> signalled);
+    print((os >> clock) - start >= 500);
+}
