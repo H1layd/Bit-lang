@@ -860,6 +860,31 @@ strs = {"Lrt_colon": ": ", "Lrt_sh": "sh", "Lrt_dashc": "-c", "Lrt_binsh": "/bin
         "Lrt_epwrite": "не могу записать в память ", "Lrt_ekill": "не могу остановить "}
 t = t.replace(".section .rodata\n", ".section .rodata\n" + "".join(f"{k}: .asciz {octal(v)}\n" for k, v in strs.items()), 1)
 t += '\n.section .note.GNU-stack,"",@progbits\n'
+
+# Darwin's assembler accepts // comments. GNU as treats inline // as a
+# division expression, so translate comments while preserving string literals.
+def gas_comments(source):
+    result = []
+    for line in source.splitlines(keepends=True):
+        quoted = False
+        escaped = False
+        for i, ch in enumerate(line):
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    quoted = False
+            elif ch == '"':
+                quoted = True
+            elif line[i:i + 2] == "//":
+                line = line[:i] + "#" + line[i + 2:]
+                break
+        result.append(line)
+    return "".join(result)
+
+t = gas_comments(t)
 open("rt/x86_64-linux.s", "w").write(t)
 left = sorted(set(re.findall(r"call (_[a-z][a-z_0-9]*)", t)) - set(re.findall(r"^(_bit_[a-z_0-9]+):", t, re.M)))
 print("ok; неразрешённые вызовы:", left)

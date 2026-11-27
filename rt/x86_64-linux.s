@@ -1,10 +1,10 @@
 .intel_syntax noprefix
 .text
 
-// ─────────── среда выполнения bit (x86_64) ───────────
-// аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax
+# ─────────── среда выполнения bit (x86_64) ───────────
+# аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax
 .p2align 4
-_bit_signal_handler:                 // async-signal-safe: set one aligned flag
+_bit_signal_handler:                 # async-signal-safe: set one aligned flag
     mov dword ptr [rip + Lrt_signalled], 1
     ret
 
@@ -46,7 +46,7 @@ _bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART
     xor esi, esi
     jmp _bit_die
 
-_bit_rt_ensure:                     // однократная подготовка ключа потока и замка строк
+_bit_rt_ensure:                     # однократная подготовка ключа потока и замка строк
     cmp byte ptr [rip + Lrt_ready], 0
     jne 9f
     push rbp
@@ -80,7 +80,7 @@ _bit_unlock:
     pop rbp
     ret
 
-_bit_tstate:                        // → блок состояния этого потока
+_bit_tstate:                        # → блок состояния этого потока
     push rbp
     mov rbp, rsp
     push rbx
@@ -106,7 +106,7 @@ _bit_tstate:                        // → блок состояния этог�
     pop rbp
     ret
 
-_bit_recover_enter:                 // rdi = frame allocated by the compiler
+_bit_recover_enter:                 # rdi = frame allocated by the compiler
     push rbp
     mov rbp, rsp
     push rbx
@@ -141,7 +141,7 @@ _bit_recover_leave:
     pop rbp
     ret
 
-_bit_own_str:                       // rdi = stack record with string and previous pointer
+_bit_own_str:                       # rdi = stack record with string and previous pointer
     push rbp
     mov rbp, rsp
     push rbx
@@ -172,7 +172,7 @@ _bit_drop_owned:
     pop rbp
     jmp _bit_drop_str
 
-_bit_setjmp:                        // rdi = буфер → 0; сохраняет callee-saved, sp и адрес возврата
+_bit_setjmp:                        # rdi = буфер → 0; сохраняет callee-saved, sp и адрес возврата
     mov [rdi], rbx
     mov [rdi + 8], rbp
     mov [rdi + 16], r12
@@ -186,7 +186,7 @@ _bit_setjmp:                        // rdi = буфер → 0; сохраняе�
     xor eax, eax
     ret
 
-_bit_longjmp:                       // rdi = буфер, rsi = значение → возврат из _bit_setjmp
+_bit_longjmp:                       # rdi = буфер, rsi = значение → возврат из _bit_setjmp
     mov rbx, [rdi]
     mov rbp, [rdi + 8]
     mov r12, [rdi + 16]
@@ -197,7 +197,7 @@ _bit_longjmp:                       // rdi = буфер, rsi = значение 
     mov rax, rsi
     jmp qword ptr [rdi + 56]
 
-_bit_set_errcode:                   // rdi = код → запомнить для этого потока
+_bit_set_errcode:                   # rdi = код → запомнить для этого потока
     push rbp
     mov rbp, rsp
     push rbx
@@ -210,7 +210,7 @@ _bit_set_errcode:                   // rdi = код → запомнить дл�
     pop rbp
     ret
 
-_bit_term_errcode:                  // → код последней пойманной ошибки (0 = без кода)
+_bit_term_errcode:                  # → код последней пойманной ошибки (0 = без кода)
     push rbp
     mov rbp, rsp
     call _bit_tstate
@@ -218,7 +218,7 @@ _bit_term_errcode:                  // → код последней пойма�
     pop rbp
     ret
 
-_bit_errno_map:                     // edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
+_bit_errno_map:                     # edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода
     cmp edi, 111                     # ECONNREFUSED (Linux)
     je 1f
     cmp edi, 110                     # ETIMEDOUT (Linux)
@@ -236,7 +236,7 @@ _bit_errno_map:                     // edi = код ошибки системы 
 3:  mov eax, 3
     ret
 
-_bit_errno_code:                    // → код ошибки системы из errno
+_bit_errno_code:                    # → код ошибки системы из errno
     push rbp
     mov rbp, rsp
     call __errno_location@PLT
@@ -244,7 +244,7 @@ _bit_errno_code:                    // → код ошибки системы и
     pop rbp
     jmp _bit_errno_map
 
-// User locks have process lifetime; aliases refer to the same mutex.
+# User locks have process lifetime; aliases refer to the same mutex.
 _bit_user_lock_new:
     push rbp
     mov rbp, rsp
@@ -272,7 +272,7 @@ _bit_user_lock_new:
     pop rbp
     jmp _bit_die
 
-_bit_user_lock_enter:                // rdi = lock, rsi = source line
+_bit_user_lock_enter:                # rdi = lock, rsi = source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -292,7 +292,7 @@ _bit_user_lock_enter:                // rdi = lock, rsi = source line
     pop rbp
     jmp _bit_die
 
-_bit_user_lock_leave:                // rdi = lock, rsi = source line
+_bit_user_lock_leave:                # rdi = lock, rsi = source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -312,7 +312,7 @@ _bit_user_lock_leave:                // rdi = lock, rsi = source line
     pop rbp
     jmp _bit_die
 
-_bit_thread_start:                  // rdi = code -> stable thread token
+_bit_thread_start:                  # rdi = code -> stable thread token
     push rbp
     mov rbp, rsp
     push rbx
@@ -320,7 +320,7 @@ _bit_thread_start:                  // rdi = code -> stable thread token
     push r13
     push r14
     mov rbx, rdi
-    // No bit thread can start before the shared registry and TLS key exist.
+    # No bit thread can start before the shared registry and TLS key exist.
     call _bit_rt_ensure
     mov edi, 128
     call _bit_alloc
@@ -369,11 +369,11 @@ _bit_thread_start:                  // rdi = code -> stable thread token
     pop rbp
     jmp _bit_die
 
-_bit_thread_run:                    // rdi = код потока
+_bit_thread_run:                    # rdi = код потока
     push rbp
     mov rbp, rsp
     call rdi
-    // State is optional: do not allocate it just to destroy it.
+    # State is optional: do not allocate it just to destroy it.
     mov rdi, [rip + Lrt_tkey]
     call pthread_getspecific@PLT
     test rax, rax
@@ -385,7 +385,7 @@ _bit_thread_run:                    // rdi = код потока
     pop rbp
     ret
 
-_bit_thread_wait:                   // rdi = stable token; completed tokens are no-ops
+_bit_thread_wait:                   # rdi = stable token; completed tokens are no-ops
     push rbp
     mov rbp, rsp
     push rbx
@@ -465,7 +465,7 @@ _bit_thread_wait:                   // rdi = stable token; completed tokens are 
     pop rbp
     jmp _bit_die
 
-_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный
+_bit_term_raw:                      # rdi = 1 сырой режим, 0 обычный
     push rbp
     mov rbp, rsp
     push rbx
@@ -492,7 +492,7 @@ _bit_term_raw:                      // rdi = 1 сырой режим, 0 обыч
     pop rbp
     ret
 
-_bit_term_key:                      // → строка из одного символа
+_bit_term_key:                      # → строка из одного символа
     push rbp
     mov rbp, rsp
     push rbx
@@ -544,7 +544,7 @@ _bit_term_key:                      // → строка из одного сим
     pop rbp
     ret
 
-_bit_term_error:                    // → копия текста последней пойманной ошибки ("" если не было)
+_bit_term_error:                    # → копия текста последней пойманной ошибки ("" если не было)
     push rbp
     mov rbp, rsp
     push rbx
@@ -567,7 +567,7 @@ _bit_term_error:                    // → копия текста послед�
     pop rbp
     ret
 
-_bit_die:                           // rdi = сообщение, rsi = строка программы
+_bit_die:                           # rdi = сообщение, rsi = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -617,7 +617,7 @@ _bit_oom:
     xor esi, esi
     call _bit_die
 
-_bit_key_cmp:                       // rdi=a, rsi=b, rdx=вид → eax (-1, 0, 1)
+_bit_key_cmp:                       # rdi=a, rsi=b, rdx=вид → eax (-1, 0, 1)
     cmp rdx, 2
     je 1f
     cmp rdi, rsi
@@ -642,7 +642,7 @@ _bit_key_cmp:                       // rdi=a, rsi=b, rdx=вид → eax (-1, 0, 
 4:  mov eax, 1
     ret
 
-_bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx=вид, rcx=убывание, r8=строка
+_bit_mas_sort_by:                   # rdi=значения, rsi=ключи, rdx=вид, rcx=убывание, r8=строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -712,7 +712,7 @@ _bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx
     pop rbp
     ret
 
-_bit_map_keys:                      // rdi=словарь, rsi=строка → mas строк
+_bit_map_keys:                      # rdi=словарь, rsi=строка → mas строк
     push rbp
     mov rbp, rsp
     push rbx
@@ -751,7 +751,7 @@ _bit_map_keys:                      // rdi=словарь, rsi=строка → 
     pop rbp
     ret
 
-_bit_map_values:                    // rdi=словарь, rsi=вид значения, rdx=строка → mas
+_bit_map_values:                    # rdi=словарь, rsi=вид значения, rdx=строка → mas
     push rbp
     mov rbp, rsp
     push rbx
@@ -790,7 +790,7 @@ _bit_map_values:                    // rdi=словарь, rsi=вид значе
     pop rbp
     ret
 
-_bit_map_find:                      // map, key -> index or -1
+_bit_map_find:                      # map, key -> index or -1
     push rbp
     mov rbp, rsp
     push rbx
@@ -820,7 +820,7 @@ _bit_map_find:                      // map, key -> index or -1
     pop rbp
     ret
 
-_bit_map_set:                       // map, key, value, source line
+_bit_map_set:                       # map, key, value, source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -853,7 +853,7 @@ _bit_map_set:                       // map, key, value, source line
     pop rbp
     ret
 
-_bit_map_remove:                    // map, key
+_bit_map_remove:                    # map, key
     push rbp
     mov rbp, rsp
     push rbx
@@ -874,7 +874,7 @@ _bit_map_remove:                    // map, key
     pop rbp
     ret
 
-_bit_random_seed:                   // Hash a UTF-8 seed word with FNV-1a.
+_bit_random_seed:                   # Hash a UTF-8 seed word with FNV-1a.
     mov rax, 0xcbf29ce484222325
     mov rcx, 0x100000001b3
 1:  movzx edx, byte ptr [rdi]
@@ -888,7 +888,7 @@ _bit_random_seed:                   // Hash a UTF-8 seed word with FNV-1a.
     mov qword ptr [rip + Lrt_random_ready], 1
     ret
 
-_bit_random_next:                   // SplitMix64 with unsigned wrapping arithmetic.
+_bit_random_next:                   # SplitMix64 with unsigned wrapping arithmetic.
     mov rcx, 0x9e3779b97f4a7c15
     add rcx, [rip + Lrt_random_state]
     mov [rip + Lrt_random_state], rcx
@@ -907,7 +907,7 @@ _bit_random_next:                   // SplitMix64 with unsigned wrapping arithme
     xor rax, rcx
     ret
 
-_bit_random_range:                  // Inclusive signed bounds, source line.
+_bit_random_range:                  # Inclusive signed bounds, source line.
     push rbp
     mov rbp, rsp
     push rbx
@@ -942,7 +942,7 @@ _bit_random_range:                  // Inclusive signed bounds, source line.
     call _bit_random_seed
 2:  test r12, r12
     jz 4f
-    // Rejection avoids modulo bias. A zero width denotes the entire num range.
+    # Rejection avoids modulo bias. A zero width denotes the entire num range.
     mov rax, r12
     neg rax
     xor edx, edx
@@ -971,8 +971,8 @@ _bit_random_range:                  // Inclusive signed bounds, source line.
     call _bit_die
 
 
-// String ownership registry. Unknown pointers (literals and borrowed values) are ignored.
-// Node layout: payload, references, next. Ownership adoption is explicit and idempotent.
+# String ownership registry. Unknown pointers (literals and borrowed values) are ignored.
+# Node layout: payload, references, next. Ownership adoption is explicit and idempotent.
 _bit_str_find_raw:
     xor eax, eax
     cmp rdi, [rip + Lrt_str_low]
@@ -997,7 +997,7 @@ _bit_str_find_raw:
     jmp 1b
 2:  ret
 
-_bit_str_find:                      // rdi = указатель → запись реестра или 0 (под замком)
+_bit_str_find:                      # rdi = указатель → запись реестра или 0 (под замком)
     push rbp
     mov rbp, rsp
     push rbx
@@ -1080,7 +1080,7 @@ _bit_str_adopt:
     mov rcx, [r12 + r13*8]
     mov [rax + 16], rcx
     mov [r12 + r13*8], rax
-    // Conservative bounds never shrink: pointers outside them cannot be owned strings.
+    # Conservative bounds never shrink: pointers outside them cannot be owned strings.
     mov rax, [rip + Lrt_str_low]
     cmp rbx, rax
     cmovb rax, rbx
@@ -1140,7 +1140,7 @@ _bit_str_release:
     pop rbp
 3:  ret
 
-_bit_alloc:                         // rdi = байты → rax = память
+_bit_alloc:                         # rdi = байты → rax = память
     push rbp
     mov rbp, rsp
     call malloc@PLT
@@ -1149,14 +1149,14 @@ _bit_alloc:                         // rdi = байты → rax = память
     pop rbp
     ret
 
-_bit_print:                         // rdi = строка
+_bit_print:                         # rdi = строка
     push rbp
     mov rbp, rsp
     call puts@PLT
     pop rbp
     ret
 
-_bit_num_str:                       // rdi = num → строка
+_bit_num_str:                       # rdi = num → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -1177,7 +1177,7 @@ _bit_num_str:                       // rdi = num → строка
     pop rbp
     ret
 
-_bit_dec_str:                       // rdi = биты dec → самая короткая точная запись
+_bit_dec_str:                       # rdi = биты dec → самая короткая точная запись
     push rbp
     mov rbp, rsp
     push rbx
@@ -1222,7 +1222,7 @@ _bit_dec_str:                       // rdi = биты dec → самая кор�
     pop rbp
     ret
 
-_bit_bool_str:                      // rdi = bool → строка
+_bit_bool_str:                      # rdi = bool → строка
     lea rax, [rip + Lrt_true]
     test rdi, rdi
     jnz 1f
@@ -1233,7 +1233,7 @@ _bit_string_str:
     mov rax, rdi
     ret
 
-_bit_to_str:                        // rdi = значение, rsi = вид (0 num, 1 dec, 2 string, 3 bool)
+_bit_to_str:                        # rdi = значение, rsi = вид (0 num, 1 dec, 2 string, 3 bool)
     cmp rsi, 0
     je _bit_num_str
     cmp rsi, 1
@@ -1243,7 +1243,7 @@ _bit_to_str:                        // rdi = значение, rsi = вид (0 n
     mov rax, rdi
     ret
 
-_bit_cat:                           // rdi = a, rsi = b → новая строка a+b
+_bit_cat:                           # rdi = a, rsi = b → новая строка a+b
     push rbp
     mov rbp, rsp
     push rbx
@@ -1280,7 +1280,7 @@ _bit_cat:                           // rdi = a, rsi = b → новая стро�
     pop rbp
     ret
 
-_bit_str_eq:                        // rdi, rsi = строки → 1 если равны
+_bit_str_eq:                        # rdi, rsi = строки → 1 если равны
     push rbp
     mov rbp, rsp
     call strcmp@PLT
@@ -1290,7 +1290,7 @@ _bit_str_eq:                        // rdi, rsi = строки → 1 если р
     pop rbp
     ret
 
-_bit_str_starts:                    // rdi=строка, rsi=начало → 1/0
+_bit_str_starts:                    # rdi=строка, rsi=начало → 1/0
 1:  movzx eax, byte ptr [rsi]
     test al, al
     jz 2f
@@ -1305,7 +1305,7 @@ _bit_str_starts:                    // rdi=строка, rsi=начало → 1/
 3:  xor eax, eax
     ret
 
-_bit_str_ends:                      // rdi=строка, rsi=конец → 1/0
+_bit_str_ends:                      # rdi=строка, rsi=конец → 1/0
     push rbp
     mov rbp, rsp
     push rbx
@@ -1345,7 +1345,7 @@ _bit_str_ends:                      // rdi=строка, rsi=конец → 1/0
     pop rbp
     ret
 
-_bit_str_trim:                      // rdi=строка → новая строка без краёв-пробелов
+_bit_str_trim:                      # rdi=строка → новая строка без краёв-пробелов
     push rbp
     mov rbp, rsp
     push rbx
@@ -1398,7 +1398,7 @@ _bit_str_trim:                      // rdi=строка → новая стро�
     pop rbp
     ret
 
-_bit_substr:                        // rdi=указатель, rsi=длина → новая строка
+_bit_substr:                        # rdi=указатель, rsi=длина → новая строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -1423,7 +1423,7 @@ _bit_substr:                        // rdi=указатель, rsi=длина �
     pop rbp
     ret
 
-_bit_str_index:                     // rdi=строка, rsi=подстрока → номер символа или -1
+_bit_str_index:                     # rdi=строка, rsi=подстрока → номер символа или -1
     push rbp
     mov rbp, rsp
     push rbx
@@ -1468,7 +1468,7 @@ _bit_str_index:                     // rdi=строка, rsi=подстрока 
     pop rbp
     ret
 
-_bit_str_contains:                  // rdi=строка, rsi=подстрока → 1/0
+_bit_str_contains:                  # rdi=строка, rsi=подстрока → 1/0
     push rbp
     mov rbp, rsp
     call _bit_str_index
@@ -1481,7 +1481,7 @@ _bit_str_contains:                  // rdi=строка, rsi=подстрока 
     pop rbp
     ret
 
-_bit_str_upper:                     // rdi=строка → новая строка в верхнем регистре
+_bit_str_upper:                     # rdi=строка → новая строка в верхнем регистре
     push rbp
     mov rbp, rsp
     push rbx
@@ -1515,7 +1515,7 @@ _bit_str_upper:                     // rdi=строка → новая стро�
     pop rbp
     ret
 
-_bit_str_lower:                     // rdi=строка → новая строка в нижнем регистре
+_bit_str_lower:                     # rdi=строка → новая строка в нижнем регистре
     push rbp
     mov rbp, rsp
     push rbx
@@ -1549,7 +1549,7 @@ _bit_str_lower:                     // rdi=строка → новая стро�
     pop rbp
     ret
 
-_bit_str_code:                      // rdi=строка, rsi=строка программы → код первого символа
+_bit_str_code:                      # rdi=строка, rsi=строка программы → код первого символа
     push rbp
     mov rbp, rsp
     push rbx
@@ -1614,7 +1614,7 @@ _bit_str_code:                      // rdi=строка, rsi=строка про
     pop rbp
     jmp _bit_die
 
-_bit_num_char:                      // rdi=код, rsi=строка программы → строка из одного символа
+_bit_num_char:                      # rdi=код, rsi=строка программы → строка из одного символа
     push rbp
     mov rbp, rsp
     push rbx
@@ -1700,15 +1700,15 @@ _bit_num_char:                      // rdi=код, rsi=строка програ
     pop rbp
     jmp _bit_die
 
-_bit_str_pad:                       // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка → строка
+_bit_str_pad:                       # rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка → строка
     mov r8d, 1
     jmp _bit_str_pad_do
 
-_bit_str_pad_left:                  // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка
+_bit_str_pad_left:                  # rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка
     xor r8d, r8d
     jmp _bit_str_pad_do
 
-_bit_str_pad_do:                    // rdi=строка, rsi=ширина в символах, rdx=заполнитель, rcx=строка, r8=направление
+_bit_str_pad_do:                    # rdi=строка, rsi=ширина в символах, rdx=заполнитель, rcx=строка, r8=направление
     push rbp
     mov rbp, rsp
     push rbx
@@ -1853,7 +1853,7 @@ _bit_str_pad_do:                    // rdi=строка, rsi=ширина в с�
     pop rbp
     jmp _bit_die
 
-_bit_str_repeat:                    // rdi=строка, rsi=раз, rdx=строка → строка
+_bit_str_repeat:                    # rdi=строка, rsi=раз, rdx=строка → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -1924,7 +1924,7 @@ _bit_str_repeat:                    // rdi=строка, rsi=раз, rdx=стр�
     pop rbp
     jmp _bit_die
 
-_bit_num_hex:                       // rdi=число, rsi=ширина, rdx=строка → строка в hex
+_bit_num_hex:                       # rdi=число, rsi=ширина, rdx=строка → строка в hex
     push rbp
     mov rbp, rsp
     push rbx
@@ -1987,7 +1987,7 @@ _bit_num_hex:                       // rdi=число, rsi=ширина, rdx=с�
     pop rbp
     jmp _bit_die
 
-_bit_dec_fixed:                     // rdi=биты dec, rsi=знаков после точки, rdx=строка → строка
+_bit_dec_fixed:                     # rdi=биты dec, rsi=знаков после точки, rdx=строка → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -2032,7 +2032,7 @@ _bit_dec_fixed:                     // rdi=биты dec, rsi=знаков пос
     pop rbp
     jmp _bit_die
 
-_bit_str_split:                     // rdi=строка, rsi=разделитель → mas строк
+_bit_str_split:                     # rdi=строка, rsi=разделитель → mas строк
     push rbp
     mov rbp, rsp
     push rbx
@@ -2105,7 +2105,7 @@ _bit_str_split:                     // rdi=строка, rsi=разделите�
     pop rbp
     ret
 
-_bit_str_replace:                   // rdi=строка, rsi=что, rdx=на что → новая строка
+_bit_str_replace:                   # rdi=строка, rsi=что, rdx=на что → новая строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -2200,7 +2200,7 @@ _bit_str_replace:                   // rdi=строка, rsi=что, rdx=на ч
     pop rbp
     ret
 
-_bit_str_sz:                        // rdi = строка → сколько символов (UTF-8)
+_bit_str_sz:                        # rdi = строка → сколько символов (UTF-8)
     xor eax, eax
 1:  movzx ecx, byte ptr [rdi]
     test ecx, ecx
@@ -2213,8 +2213,8 @@ _bit_str_sz:                        // rdi = строка → сколько с�
     jmp 1b
 2:  ret
 
-// массив: [0] данные, [8] длина, [16] ёмкость, [24] лимит (-1 = нет)
-_bit_mas_new:                       // rdi = лимит, rsi = сколько элементов
+# массив: [0] данные, [8] длина, [16] ёмкость, [24] лимит (-1 = нет)
+_bit_mas_new:                       # rdi = лимит, rsi = сколько элементов
     push rbp
     mov rbp, rsp
     push rbx
@@ -2243,7 +2243,7 @@ _bit_mas_new:                       // rdi = лимит, rsi = сколько э
     pop rbp
     ret
 
-_bit_mas_add:                       // rdi = массив, rsi = значение, rdx = строка программы
+_bit_mas_add:                       # rdi = массив, rsi = значение, rdx = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -2285,7 +2285,7 @@ _bit_mas_add:                       // rdi = массив, rsi = значени�
     pop rbp
     ret
 
-_bit_mas_insert:                    // rdi=массив, rsi=i, rdx=значение, rcx=строка
+_bit_mas_insert:                    # rdi=массив, rsi=i, rdx=значение, rcx=строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -2335,7 +2335,7 @@ _bit_mas_insert:                    // rdi=массив, rsi=i, rdx=значен
     pop rbp
     ret
 
-_bit_mas_remove:                    // rdi=массив, rsi=i
+_bit_mas_remove:                    # rdi=массив, rsi=i
     mov rax, [rdi]
     mov rcx, rsi
     mov rdx, [rdi + 8]
@@ -2351,7 +2351,7 @@ _bit_mas_remove:                    // rdi=массив, rsi=i
     mov [rdi + 8], rcx
     ret
 
-_bit_ipow:                          // rdi=основание, rsi=степень → rax (целая степень; отриц. → 0)
+_bit_ipow:                          # rdi=основание, rsi=степень → rax (целая степень; отриц. → 0)
     mov rax, 1
     test rsi, rsi
     js 2f
@@ -2364,7 +2364,7 @@ _bit_ipow:                          // rdi=основание, rsi=степен�
 2:  xor eax, eax
 3:  ret
 
-_bit_mas_str:                       // rdi = массив, rsi = вид элементов → "(1, 2, 3)"
+_bit_mas_str:                       # rdi = массив, rsi = вид элементов → "(1, 2, 3)"
     push rbp
     mov rbp, rsp
     push rbx
@@ -2403,7 +2403,7 @@ _bit_mas_str:                       // rdi = массив, rsi = вид элем
     pop rbp
     ret
 
-_bit_readline:                      // rdi = строка программы → введённый текст
+_bit_readline:                      # rdi = строка программы → введённый текст
     push rbp
     mov rbp, rsp
     push rbx
@@ -2443,7 +2443,7 @@ _bit_readline:                      // rdi = строка программы →
     mov rsi, rbx
     call _bit_die
 
-_bit_input_num:                     // rdi = есть границы, rsi = от, rdx = до, rcx = строка
+_bit_input_num:                     # rdi = есть границы, rsi = от, rdx = до, rcx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -2508,7 +2508,7 @@ _bit_input_num:                     // rdi = есть границы, rsi = от
     call printf@PLT
     jmp 1b
 
-_bit_input_dec:                     // rdi = есть границы, rsi = от, rdx = до (биты dec), rcx = строка
+_bit_input_dec:                     # rdi = есть границы, rsi = от, rdx = до (биты dec), rcx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -2578,10 +2578,10 @@ _bit_input_dec:                     // rdi = есть границы, rsi = от
     call printf@PLT
     jmp 1b
 
-_bit_input_str:                     // rdi = строка программы
+_bit_input_str:                     # rdi = строка программы
     jmp _bit_readline
 
-_bit_input_bool:                    // rdi = строка программы
+_bit_input_bool:                    # rdi = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -2632,7 +2632,7 @@ _bit_input_bool:                    // rdi = строка программы
     pop rbp
     ret
 
-_bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы
+_bit_errpath:                       # rdi = текст, rsi = путь, rdx = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -2643,7 +2643,7 @@ _bit_errpath:                       // rdi = текст, rsi = путь, rdx = �
     mov rsi, rbx
     call _bit_die
 
-_bit_file_read:                     // rdi = путь, rsi = строка -> весь текст (до конца, размер не нужен)
+_bit_file_read:                     # rdi = путь, rsi = строка -> весь текст (до конца, размер не нужен)
     push rbp
     mov rbp, rsp
     push rbx
@@ -2719,7 +2719,7 @@ _bit_file_read:                     // rdi = путь, rsi = строка -> в�
     mov rdx, r12
     call _bit_errpath
 
-_bit_file_size:                     // rdi = путь, rsi = строка → байты
+_bit_file_size:                     # rdi = путь, rsi = строка → байты
     push rbp
     mov rbp, rsp
     push rbx
@@ -2764,7 +2764,7 @@ _bit_file_size:                     // rdi = путь, rsi = строка → б
     mov rdx, r12
     call _bit_errpath
 
-_bit_file_write:                    // rdi = путь, rsi = текст, rdx = строка, rcx = режим ("w"/"a")
+_bit_file_write:                    # rdi = путь, rsi = текст, rdx = строка, rcx = режим ("w"/"a")
     push rbp
     mov rbp, rsp
     push rbx
@@ -2800,7 +2800,7 @@ _bit_file_write:                    // rdi = путь, rsi = текст, rdx = �
     mov rdx, r13
     call _bit_errpath
 
-_bit_file_lines:                    // rdi = путь, rsi = строка → mas из строк
+_bit_file_lines:                    # rdi = путь, rsi = строка → mas из строк
     push rbp
     mov rbp, rsp
     push rbx
@@ -2844,7 +2844,7 @@ _bit_file_lines:                    // rdi = путь, rsi = строка → ma
     pop rbp
     ret
 
-_bit_kind:                          // rdi = путь → 0 нет, 1 файл, 2 папка, 3 другое
+_bit_kind:                          # rdi = путь → 0 нет, 1 файл, 2 папка, 3 другое
     push rbp
     mov rbp, rsp
     sub rsp, 160
@@ -2868,7 +2868,7 @@ _bit_kind:                          // rdi = путь → 0 нет, 1 файл, 
     pop rbp
     ret
 
-_bit_dir_exists:                    // rdi = путь → 1 если это папка
+_bit_dir_exists:                    # rdi = путь → 1 если это папка
     push rbp
     mov rbp, rsp
     call _bit_kind
@@ -2878,7 +2878,7 @@ _bit_dir_exists:                    // rdi = путь → 1 если это па
     pop rbp
     ret
 
-_bit_file_exists:                   // rdi = путь → 1 если это файл
+_bit_file_exists:                   # rdi = путь → 1 если это файл
     push rbp
     mov rbp, rsp
     call _bit_kind
@@ -2888,7 +2888,7 @@ _bit_file_exists:                   // rdi = путь → 1 если это фа
     pop rbp
     ret
 
-_bit_file_remove:                   // rdi = путь, rsi = строка: удаляет только файл
+_bit_file_remove:                   # rdi = путь, rsi = строка: удаляет только файл
     push rbp
     mov rbp, rsp
     push rbx
@@ -2917,7 +2917,7 @@ _bit_file_remove:                   // rdi = путь, rsi = строка: уд�
     mov rdx, r12
     call _bit_errpath
 
-_bit_dir_remove:                    // rdi = путь, rsi = строка: удаляет только пустую папку
+_bit_dir_remove:                    # rdi = путь, rsi = строка: удаляет только пустую папку
     push rbp
     mov rbp, rsp
     push rbx
@@ -2946,7 +2946,7 @@ _bit_dir_remove:                    // rdi = путь, rsi = строка: уд�
     mov rdx, r12
     call _bit_errpath
 
-_bit_move:                          // rdi = from, rsi = to, rdx = source line
+_bit_move:                          # rdi = from, rsi = to, rdx = source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -2960,7 +2960,7 @@ _bit_move:                          // rdi = from, rsi = to, rdx = source line
     test eax, eax
     jz 1f
     call __errno_location@PLT
-    // EXDEV
+    # EXDEV
     cmp dword ptr [rax], 18
     jne 9f
     mov rdi, rbx
@@ -2982,7 +2982,7 @@ _bit_move:                          // rdi = from, rsi = to, rdx = source line
     mov rdx, r13
     call _bit_errpath
 
-_bit_copy_temp:                     // rdi = destination path; returns a sibling template
+_bit_copy_temp:                     # rdi = destination path; returns a sibling template
     push rbp
     mov rbp, rsp
     push rbx
@@ -3010,7 +3010,7 @@ _bit_copy_temp:                     // rdi = destination path; returns a sibling
     pop rbp
     ret
 
-_bit_copy:                          // Copy through a temporary sibling; replace only on success.
+_bit_copy:                          # Copy through a temporary sibling; replace only on success.
     push rbp
     mov rbp, rsp
     push rbx
@@ -3131,7 +3131,7 @@ _bit_copy:                          // Copy through a temporary sibling; replace
 8:  mov rdx, r13
     call _bit_errpath
 
-_bit_dir_make:                      // rdi = путь, rsi = строка; создаёт и все папки на пути
+_bit_dir_make:                      # rdi = путь, rsi = строка; создаёт и все папки на пути
     push rbp
     mov rbp, rsp
     push rbx
@@ -3183,7 +3183,7 @@ _bit_strptr_cmp:
     mov rsi, [rsi]
     jmp strcmp@PLT
 
-_bit_dir_list:                      // rdi = путь, rsi = строка → mas имён по алфавиту
+_bit_dir_list:                      # rdi = путь, rsi = строка → mas имён по алфавиту
     push rbp
     mov rbp, rsp
     push rbx
@@ -3243,7 +3243,7 @@ _bit_dir_list:                      // rdi = путь, rsi = строка → ma
 
 
 
-_bit_remove_is_home:                // path -> bool, compare canonical HOME paths
+_bit_remove_is_home:                # path -> bool, compare canonical HOME paths
     push rbp
     mov rbp, rsp
     push rbx
@@ -3299,7 +3299,7 @@ _bit_remove_is_home:                // path -> bool, compare canonical HOME path
     pop rbp
     ret
 
-_bit_remove_error:                  // message, owned path, line
+_bit_remove_error:                  # message, owned path, line
     push rbp
     mov rbp, rsp
     push rbx
@@ -3316,7 +3316,7 @@ _bit_remove_error:                  // message, owned path, line
     mov rsi, r12
     call _bit_die
 
-_bit_remove_prefix:                 // parent name, owned child error path -> owned full path
+_bit_remove_prefix:                 # parent name, owned child error path -> owned full path
     push rbp
     mov rbp, rsp
     push rbx
@@ -3341,7 +3341,7 @@ _bit_remove_prefix:                 // parent name, owned child error path -> ow
     pop rbp
     ret
 
-_bit_dir_remove_all:                // path, line; never descend through symbolic links
+_bit_dir_remove_all:                # path, line; never descend through symbolic links
     push rbp
     mov rbp, rsp
     push rbx
@@ -3415,7 +3415,7 @@ _bit_dir_remove_all:                // path, line; never descend through symboli
     mov rdx, r12
     call _bit_remove_error
 
-_bit_remove_at:                     // parent fd, name, line, require directory -> 0/owned error path
+_bit_remove_at:                     # parent fd, name, line, require directory -> 0/owned error path
     push rbp
     mov rbp, rsp
     push rbx
@@ -3565,7 +3565,7 @@ _bit_mode_set:
     mov rdx, r12
     call _bit_errpath
 
-_bit_permissions_parse:             // text, line -> permission bits
+_bit_permissions_parse:             # text, line -> permission bits
     xor eax, eax
     xor ecx, ecx
     mov r8d, 256
@@ -3679,7 +3679,7 @@ _bit_read_only_set:
     pop rbp
     ret
 
-_bit_lkind:                         // rdi = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)
+_bit_lkind:                         # rdi = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)
     push rbp
     mov rbp, rsp
     sub rsp, 160
@@ -3703,7 +3703,7 @@ _bit_lkind:                         // rdi = путь → как _bit_kind, но
     pop rbp
     ret
 
-_bit_file_mtime:                    // rdi = путь, rsi = строка → время изменения (секунды с 1970)
+_bit_file_mtime:                    # rdi = путь, rsi = строка → время изменения (секунды с 1970)
     push rbp
     mov rbp, rsp
     push rbx
@@ -3726,7 +3726,7 @@ _bit_file_mtime:                    // rdi = путь, rsi = строка → в
     mov rdx, r12
     call _bit_errpath
 
-_bit_dir_walk:                      // rdi = путь, rsi = строка → mas путей ко всем файлам внутри
+_bit_dir_walk:                      # rdi = путь, rsi = строка → mas путей ко всем файлам внутри
     push rbp
     mov rbp, rsp
     push rbx
@@ -3749,7 +3749,7 @@ _bit_dir_walk:                      // rdi = путь, rsi = строка → ma
     pop rbp
     ret
 
-_bit_walk_into:                     // rdi = путь, rsi = mas, rdx = строка
+_bit_walk_into:                     # rdi = путь, rsi = mas, rdx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -3804,7 +3804,7 @@ _bit_walk_into:                     // rdi = путь, rsi = mas, rdx = стро
     ret
 
 
-_bit_path_info:                     // path, line -> path, size, modified, kind
+_bit_path_info:                     # path, line -> path, size, modified, kind
     push rbp
     mov rbp, rsp
     push rbx
@@ -3884,7 +3884,7 @@ _bit_dir_walk_info:
     pop rbp
     ret
 
-_bit_walk_info_into:                // path, output array, line
+_bit_walk_info_into:                # path, output array, line
     push rbp
     mov rbp, rsp
     push rbx
@@ -3954,7 +3954,7 @@ _bit_walk_info_into:                // path, output array, line
     ret
 
 
-_bit_basename:                      // rdi = путь → имя после последнего /
+_bit_basename:                      # rdi = путь → имя после последнего /
     push rbp
     mov rbp, rsp
     push rbx
@@ -3972,7 +3972,7 @@ _bit_basename:                      // rdi = путь → имя после по
     pop rbp
     ret
 
-_bit_wstatus:                       // edi = статус wait → код выхода (сигнал → 128+номер), запоминает его
+_bit_wstatus:                       # edi = статус wait → код выхода (сигнал → 128+номер), запоминает его
     mov eax, edi
     cmp eax, -1
     je 2f
@@ -3988,11 +3988,11 @@ _bit_wstatus:                       // edi = статус wait → код вых
 3:  mov [rip + Lrt_status], rax
     ret
 
-_bit_status:                        // → код выхода последней команды
+_bit_status:                        # → код выхода последней команды
     mov rax, [rip + Lrt_status]
     ret
 
-_bit_eof:                           // → 1 если ввод закончился
+_bit_eof:                           # → 1 если ввод закончился
     push rbp
     mov rbp, rsp
     push rbx
@@ -4016,7 +4016,7 @@ _bit_eof:                           // → 1 если ввод закончил�
     pop rbp
     ret
 
-_bit_run_live:                      // rdi = команда: вывод сразу в терминал
+_bit_run_live:                      # rdi = команда: вывод сразу в терминал
     push rbp
     mov rbp, rsp
     push rbx
@@ -4033,7 +4033,7 @@ _bit_run_live:                      // rdi = команда: вывод сраз
     pop rbp
     ret
 
-_bit_run:                           // rdi = команда, rsi = строка → её вывод
+_bit_run:                           # rdi = команда, rsi = строка → её вывод
     push rbp
     mov rbp, rsp
     push rbx
@@ -4107,7 +4107,7 @@ _bit_run:                           // rdi = команда, rsi = строка 
     mov rdx, r12
     call _bit_errpath
 
-_bit_args:                          // → mas из аргументов командной строки
+_bit_args:                          # → mas из аргументов командной строки
     push rbp
     mov rbp, rsp
     push rbx
@@ -4137,7 +4137,7 @@ _bit_args:                          // → mas из аргументов ком�
     pop rbp
     ret
 
-_bit_env:                           // rdi = имя → значение или ""
+_bit_env:                           # rdi = имя → значение или ""
     push rbp
     mov rbp, rsp
     call getenv@PLT
@@ -4150,7 +4150,7 @@ _bit_env:                           // rdi = имя → значение или 
     pop rbp
     ret
 
-_bit_term_folder:                   // rdi = строка программы → текущая папка (новая строка)
+_bit_term_folder:                   # rdi = строка программы → текущая папка (новая строка)
     push rbp
     mov rbp, rsp
     push rbx
@@ -4169,7 +4169,7 @@ _bit_term_folder:                   // rdi = строка программы →
     mov rsi, rbx
     call _bit_die
 
-_bit_term_go:                       // rdi = путь, rsi = строка программы
+_bit_term_go:                       # rdi = путь, rsi = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -4188,7 +4188,7 @@ _bit_term_go:                       // rdi = путь, rsi = строка про
     mov rdx, r12
     call _bit_errpath
 
-_bit_env_set:                       // rdi = имя, rsi = значение, rdx = строка программы
+_bit_env_set:                       # rdi = имя, rsi = значение, rdx = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -4219,12 +4219,12 @@ _bit_clear:
     pop rbp
     ret
 
-_bit_wait:                          // rdi = milliseconds
+_bit_wait:                          # rdi = milliseconds
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    sub rsp, 32                    // timespec request and remainder
+    sub rsp, 32                    # timespec request and remainder
     mov rbx, rdi
     xor edi, edi
     call fflush@PLT
@@ -4247,7 +4247,7 @@ _bit_wait:                          // rdi = milliseconds
     test eax, eax
     jz 1b
     call __errno_location@PLT
-    cmp dword ptr [rax], 4         // EINTR
+    cmp dword ptr [rax], 4         # EINTR
     jne 3f
     mov rax, [rsp + 16]
     mov rdx, [rsp + 24]
@@ -4260,7 +4260,7 @@ _bit_wait:                          // rdi = milliseconds
     pop rbp
     ret
 
-_bit_exit:                          // rdi = код выхода
+_bit_exit:                          # rdi = код выхода
     push rbp
     mov rbp, rsp
     push rbx
@@ -4271,7 +4271,7 @@ _bit_exit:                          // rdi = код выхода
     mov rdi, rbx
     call exit@PLT
 
-_bit_mem_used:                      // → пик памяти программы (Linux отдаёт в КБ)
+_bit_mem_used:                      # → пик памяти программы (Linux отдаёт в КБ)
     push rbp
     mov rbp, rsp
     sub rsp, 160
@@ -4284,7 +4284,7 @@ _bit_mem_used:                      // → пик памяти программ�
     pop rbp
     ret
 
-_bit_mem_total:                     // → сколько байт памяти в компьютере (sysinfo)
+_bit_mem_total:                     # → сколько байт памяти в компьютере (sysinfo)
     push rbp
     mov rbp, rsp
     sub rsp, 128
@@ -4297,7 +4297,7 @@ _bit_mem_total:                     // → сколько байт памяти 
     pop rbp
     ret
 
-_bit_str_bytes:                     // rdi = строка → mas из байтов
+_bit_str_bytes:                     # rdi = строка → mas из байтов
     push rbp
     mov rbp, rsp
     push rbx
@@ -4327,7 +4327,7 @@ _bit_str_bytes:                     // rdi = строка → mas из байт�
     pop rbp
     ret
 
-_bit_mas_text:                      // rdi = mas байтов, rsi = от, rdx = до → строка
+_bit_mas_text:                      # rdi = mas байтов, rsi = от, rdx = до → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -4367,7 +4367,7 @@ _bit_mas_text:                      // rdi = mas байтов, rsi = от, rdx =
     pop rbp
     ret
 
-_bit_mas_join:                      // rdi = mas строк, rsi = разделитель → одна строка
+_bit_mas_join:                      # rdi = mas строк, rsi = разделитель → одна строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -4429,7 +4429,7 @@ _bit_mas_join:                      // rdi = mas строк, rsi = раздел�
     pop rbp
     ret
 
-_bit_mas_slice:                     // rdi = массив, rsi = от, rdx = до (включительно) → новый массив
+_bit_mas_slice:                     # rdi = массив, rsi = от, rdx = до (включительно) → новый массив
     push rbp
     mov rbp, rsp
     push rbx
@@ -4473,7 +4473,7 @@ _bit_mas_slice:                     // rdi = массив, rsi = от, rdx = д�
     pop rbp
     ret
 
-_bit_str_slice:                     // rdi = строка, rsi = от, rdx = до (символы, включительно) → строка
+_bit_str_slice:                     # rdi = строка, rsi = от, rdx = до (символы, включительно) → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -4540,7 +4540,7 @@ _bit_str_slice:                     // rdi = строка, rsi = от, rdx = д�
     pop rbp
     ret
 
-_bit_file_line:                     // path, index, source line -> independent copy
+_bit_file_line:                     # path, index, source line -> independent copy
     push rbp
     mov rbp, rsp
     push rbx
@@ -4589,7 +4589,7 @@ _bit_file_line:                     // path, index, source line -> independent c
     pop rbp
     ret
 
-_bit_file_slice:                    // rdi = путь, rsi = от, rdx = до, rcx = строка программы
+_bit_file_slice:                    # rdi = путь, rsi = от, rdx = до, rcx = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -4607,7 +4607,7 @@ _bit_file_slice:                    // rdi = путь, rsi = от, rdx = до, r
     pop rbp
     ret
 
-_bit_mas_sum:                       // rdi = массив, rsi = вид (0 num, 1 dec), rdx = строка программы
+_bit_mas_sum:                       # rdi = массив, rsi = вид (0 num, 1 dec), rdx = строка программы
     mov r8, [rdi]
     mov r9, [rdi + 8]
     xor ecx, ecx
@@ -4656,7 +4656,7 @@ _bit_cmp_dec:
     sub eax, ecx
     ret
 
-_bit_mas_sort:                      // rdi = массив, rsi = вид элементов: сортирует на месте
+_bit_mas_sort:                      # rdi = массив, rsi = вид элементов: сортирует на месте
     push rbp
     mov rbp, rsp
     mov r9, rsi
@@ -4675,8 +4675,8 @@ _bit_mas_sort:                      // rdi = массив, rsi = вид элем
     pop rbp
     ret
 
-// bytes: [0] данные, [8] длина, [16] ёмкость, [24] лимит; один байт на элемент
-_bit_bytes_new:                     // rdi = сколько байт (нулями) → bytes
+# bytes: [0] данные, [8] длина, [16] ёмкость, [24] лимит; один байт на элемент
+_bit_bytes_new:                     # rdi = сколько байт (нулями) → bytes
     push rbp
     mov rbp, rsp
     push rbx
@@ -4710,7 +4710,7 @@ _bit_bytes_new:                     // rdi = сколько байт (нулям
     pop rbp
     ret
 
-_bit_bytes_add:                     // rdi = bytes, rsi = значение (младший байт)
+_bit_bytes_add:                     # rdi = bytes, rsi = значение (младший байт)
     push rbp
     mov rbp, rsp
     push rbx
@@ -4739,7 +4739,7 @@ _bit_bytes_add:                     // rdi = bytes, rsi = значение (мл
     pop rbp
     ret
 
-_bit_bytes_slice:                   // rdi = bytes, rsi = от, rdx = до (включительно) → новые bytes
+_bit_bytes_slice:                   # rdi = bytes, rsi = от, rdx = до (включительно) → новые bytes
     push rbp
     mov rbp, rsp
     push rbx
@@ -4777,7 +4777,7 @@ _bit_bytes_slice:                   // rdi = bytes, rsi = от, rdx = до (вк
     pop rbp
     ret
 
-_bit_bytes_text:                    // rdi = bytes → строка
+_bit_bytes_text:                    # rdi = bytes → строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -4802,7 +4802,7 @@ _bit_bytes_text:                    // rdi = bytes → строка
     pop rbp
     ret
 
-_bit_bytes_str:                     // rdi = bytes → "<01 a0 ff>"
+_bit_bytes_str:                     # rdi = bytes → "<01 a0 ff>"
     push rbp
     mov rbp, rsp
     push rbx
@@ -4847,7 +4847,7 @@ _bit_bytes_str:                     // rdi = bytes → "<01 a0 ff>"
     pop rbp
     ret
 
-_bit_file_load:                     // rdi = путь, rsi = строка → bytes (всё содержимое как есть)
+_bit_file_load:                     # rdi = путь, rsi = строка → bytes (всё содержимое как есть)
     push rbp
     mov rbp, rsp
     push rbx
@@ -4910,7 +4910,7 @@ _bit_file_load:                     // rdi = путь, rsi = строка → by
     mov rdx, r12
     call _bit_errpath
 
-_bit_file_save:                     // rdi = путь, rsi = bytes, rdx = строка: записывает байты как есть
+_bit_file_save:                     # rdi = путь, rsi = bytes, rdx = строка: записывает байты как есть
     push rbp
     mov rbp, rsp
     push rbx
@@ -4947,7 +4947,7 @@ _bit_file_save:                     // rdi = путь, rsi = bytes, rdx = стр
     mov rdx, r13
     call _bit_errpath
 
-_bit_file_load_at:                  // path, offset, count, source line -> bytes
+_bit_file_load_at:                  # path, offset, count, source line -> bytes
     push rbp
     mov rbp, rsp
     push rbx
@@ -5015,13 +5015,13 @@ _bit_file_load_at:                  // path, offset, count, source line -> bytes
     call _bit_die
 
 _bit_open_update:
-    // O_WRONLY | O_CREAT (Linux), mode 0666 filtered by umask
+    # O_WRONLY | O_CREAT (Linux), mode 0666 filtered by umask
     mov esi, 65
     mov edx, 438
     xor eax, eax
     jmp open@PLT
 
-_bit_file_save_at:                  // path, bytes, offset, source line
+_bit_file_save_at:                  # path, bytes, offset, source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -5042,7 +5042,7 @@ _bit_file_save_at:                  // path, bytes, offset, source line
     mov r15d, eax
     mov edi, eax
     lea rsi, [rip + Lrt_wb]
-    // fdopen does not truncate an existing descriptor
+    # fdopen does not truncate an existing descriptor
     call fdopen@PLT
     test rax, rax
     jz 6f
@@ -5085,7 +5085,7 @@ _bit_file_save_at:                  // path, bytes, offset, source line
     mov rsi, r14
     call _bit_die
 
-_bit_mem_free:                      // → свободно + буферы (sysinfo)
+_bit_mem_free:                      # → свободно + буферы (sysinfo)
     push rbp
     mov rbp, rsp
     sub rsp, 128
@@ -5099,7 +5099,7 @@ _bit_mem_free:                      // → свободно + буферы (sysi
     pop rbp
     ret
 
-_bit_self_pid:                      // → pid текущего процесса
+_bit_self_pid:                      # → pid текущего процесса
     push rbp
     mov rbp, rsp
     call getpid@PLT
@@ -5107,11 +5107,11 @@ _bit_self_pid:                      // → pid текущего процесса
     pop rbp
     ret
 
-_bit_bytes_addr:                    // rdi = bytes → адрес данных
+_bit_bytes_addr:                    # rdi = bytes → адрес данных
     mov rax, [rdi]
     ret
 
-_bit_bytes_num:                     // rdi = bytes, rsi = номер, rdx = строка -> 8 байт как число
+_bit_bytes_num:                     # rdi = bytes, rsi = номер, rdx = строка -> 8 байт как число
     test rsi, rsi
     js 9f
     lea rax, [rsi + 8]
@@ -5125,7 +5125,7 @@ _bit_bytes_num:                     // rdi = bytes, rsi = номер, rdx = ст
     mov rsi, rdx
     call _bit_die
 
-_bit_bytes_put:                     // rdi = bytes, rsi = номер, rdx = число, rcx = строка
+_bit_bytes_put:                     # rdi = bytes, rsi = номер, rdx = число, rcx = строка
     test rsi, rsi
     js 9f
     lea rax, [rsi + 8]
@@ -5139,7 +5139,7 @@ _bit_bytes_put:                     // rdi = bytes, rsi = номер, rdx = чи
     mov rsi, rcx
     call _bit_die
 
-_bit_hexval_ptr:                    // rdi = указатель -> rax = число, rdx = конец
+_bit_hexval_ptr:                    # rdi = указатель -> rax = число, rdx = конец
     xor eax, eax
 1:  movzx r8d, byte ptr [rdi]
     lea r9d, [r8 - 48]
@@ -5157,7 +5157,7 @@ _bit_hexval_ptr:                    // rdi = указатель -> rax = чис�
 2:  mov rdx, rdi
     ret
 
-_bit_str_hex:                       // rdi = строка -> число (hex, можно с 0x)
+_bit_str_hex:                       # rdi = строка -> число (hex, можно с 0x)
     push rbp
     mov rbp, rsp
 1:  movzx eax, byte ptr [rdi]
@@ -5176,10 +5176,10 @@ _bit_str_hex:                       // rdi = строка -> число (hex, м
     pop rbp
     ret
 
-_bit_drop_str:                      // release an adopted string reference
+_bit_drop_str:                      # release an adopted string reference
     jmp _bit_str_release
 
-_bit_bytes_free:                    // rdi = bytes (или 0) -> освободить буфер и описатель
+_bit_bytes_free:                    # rdi = bytes (или 0) -> освободить буфер и описатель
     test rdi, rdi
     jz 1f
     push rbp
@@ -5196,15 +5196,15 @@ _bit_bytes_free:                    // rdi = bytes (или 0) -> освобод�
     pop rbp
 1:  ret
 
-_bit_tcp_connect:                   // rdi = "ip:port", rsi = строка -> TCP conn
+_bit_tcp_connect:                   # rdi = "ip:port", rsi = строка -> TCP conn
     mov edx, 1
     jmp _bit_ip_connect
 
-_bit_udp_connect:                   // rdi = "ip:port", rsi = строка -> UDP conn
+_bit_udp_connect:                   # rdi = "ip:port", rsi = строка -> UDP conn
     mov edx, 2
     jmp _bit_ip_connect
 
-_bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx = тип сокета
+_bit_ip_connect:                    # rdi = адрес, rsi = строка, rdx = тип сокета
     push rbp
     mov rbp, rsp
     push rbx
@@ -5303,7 +5303,7 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     pop rbp
     jmp _bit_die
 
-_bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут мс, rdx = строка -> TCP conn
+_bit_tcp_connect_timed:               # rdi = "ip:port", rsi = таймаут мс, rdx = строка -> TCP conn
     push rbp
     mov rbp, rsp
     push rbx
@@ -5481,12 +5481,12 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     pop rbp
     jmp _bit_die
 
-_bit_tcp_listen:                    // port, line -> server
+_bit_tcp_listen:                    # port, line -> server
     mov rdx, rsi
     xor esi, esi
     jmp _bit_tcp_listen_at
 
-_bit_tcp_listen_at:                 // port, IPv4 address or null, line -> server
+_bit_tcp_listen_at:                 # port, IPv4 address or null, line -> server
     push rbp
     mov rbp, rsp
     push rbx
@@ -5562,7 +5562,7 @@ _bit_tcp_listen_at:                 // port, IPv4 address or null, line -> serve
 6:  mov rsi, r14
     call _bit_die
 
-_bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
+_bit_tcp_accept:                    # rdi = server, rsi = строка -> conn
     push rbp
     mov rbp, rsp
     push rbx
@@ -5584,7 +5584,7 @@ _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     pop rbp
     jmp _bit_die
 
-_bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
+_bit_sock_peer:                     # socket, source line -> owned "IPv4:port"
     push rbp
     mov rbp, rsp
     push rbx
@@ -5637,7 +5637,7 @@ _bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
     mov rsi, r12
     call _bit_die
 
-_bit_sock_send:                     // rdi = conn, rsi = строка, rdx = строка программы
+_bit_sock_send:                     # rdi = conn, rsi = строка, rdx = строка программы
     push rbp
     mov rbp, rsp
     push rbx
@@ -5677,7 +5677,7 @@ _bit_sock_send:                     // rdi = conn, rsi = строка, rdx = с�
     pop rbp
     jmp _bit_die
 
-_bit_sock_recv:                     // rdi = conn, rsi = строка -> строка
+_bit_sock_recv:                     # rdi = conn, rsi = строка -> строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -5707,7 +5707,7 @@ _bit_sock_recv:                     // rdi = conn, rsi = строка -> стр�
     pop rbp
     jmp _bit_die
 
-_bit_socket_wait:                   // socket, timeout in ms -> poll result
+_bit_socket_wait:                   # socket, timeout in ms -> poll result
     push rbp
     mov rbp, rsp
     push rbx
@@ -5719,9 +5719,9 @@ _bit_socket_wait:                   // socket, timeout in ms -> poll result
     mov r12d, esi
     xor edi, edi
     call _bit_os_clock
-    lea r13, [rax + r12]           // absolute deadline
+    lea r13, [rax + r12]           # absolute deadline
     mov r14, r12
-1:  mov dword ptr [rsp + 4], 1     // POLLIN; clear revents
+1:  mov dword ptr [rsp + 4], 1     # POLLIN; clear revents
     mov rdi, rsp
     mov esi, 1
     mov edx, r14d
@@ -5729,7 +5729,7 @@ _bit_socket_wait:                   // socket, timeout in ms -> poll result
     test eax, eax
     jns 3f
     call __errno_location@PLT
-    cmp dword ptr [rax], 4         // EINTR
+    cmp dword ptr [rax], 4         # EINTR
     jne 2f
     xor edi, edi
     call _bit_os_clock
@@ -5747,7 +5747,7 @@ _bit_socket_wait:                   // socket, timeout in ms -> poll result
     pop rbp
     ret
 
-_bit_sock_recv_timed:               // socket, count, timeout in ms, source line -> string
+_bit_sock_recv_timed:               # socket, count, timeout in ms, source line -> string
     push rbp
     mov rbp, rsp
     push rbx
@@ -5801,10 +5801,10 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
 5:  mov rsi, r13
     call _bit_die
 
-_bit_sock_close:                    // rdi = conn/server
+_bit_sock_close:                    # rdi = conn/server
     jmp close@PLT
 
-_bit_shquote:                       // rdi = строка -> 'строка' с экранированием
+_bit_shquote:                       # rdi = строка -> 'строка' с экранированием
     push rbp
     mov rbp, rsp
     push rbx
@@ -5845,7 +5845,7 @@ _bit_shquote:                       // rdi = строка -> 'строка' с �
     pop rbp
     ret
 
-_bit_spawn_capture:                 // rdi = argv (char**, NULL-терм), rsi = строка → вывод stdout
+_bit_spawn_capture:                 # rdi = argv (char**, NULL-терм), rsi = строка → вывод stdout
     push rbp
     mov rbp, rsp
     push rbx
@@ -5942,7 +5942,7 @@ _bit_spawn_capture:                 // rdi = argv (char**, NULL-терм), rsi =
     mov rsi, r12
     call _bit_die
 
-_bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = строка → код выхода
+_bit_spawn_status:                  # rdi = argv, rsi = тихо(0/1), rdx = строка → код выхода
     push rbp
     mov rbp, rsp
     push rbx
@@ -5994,7 +5994,7 @@ _bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = с
     mov rsi, r13
     call _bit_die
 
-_bit_fetch:                         // rdi = url, rsi = строка -> тело
+_bit_fetch:                         # rdi = url, rsi = строка -> тело
     push rbp
     mov rbp, rsp
     push rbx
@@ -6018,7 +6018,7 @@ _bit_fetch:                         // rdi = url, rsi = строка -> тело
     pop rbp
     ret
 
-_bit_http_post:                     // rdi = url, rsi = данные, rdx = строка -> ответ
+_bit_http_post:                     # rdi = url, rsi = данные, rdx = строка -> ответ
     push rbp
     mov rbp, rsp
     push rbx
@@ -6048,7 +6048,7 @@ _bit_http_post:                     // rdi = url, rsi = данные, rdx = ст
     pop rbp
     ret
 
-_bit_download:                      // rdi = url, rsi = файл, rdx = строка
+_bit_download:                      # rdi = url, rsi = файл, rdx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -6079,7 +6079,7 @@ _bit_download:                      // rdi = url, rsi = файл, rdx = стро
     pop rbp
     ret
 
-_bit_resolve:                       // rdi = имя хоста, rsi = строка -> IP-адрес строкой
+_bit_resolve:                       # rdi = имя хоста, rsi = строка -> IP-адрес строкой
     push rbp
     mov rbp, rsp
     push rbx
@@ -6110,7 +6110,7 @@ _bit_resolve:                       // rdi = имя хоста, rsi = строк
     pop rbp
     jmp _bit_die
 
-_bit_ping_clock:                    // monotonic milliseconds, -1 on failure
+_bit_ping_clock:                    # monotonic milliseconds, -1 on failure
     sub rsp, 24
     mov edi, 1                      # CLOCK_MONOTONIC on Linux
     mov rsi, rsp
@@ -6128,7 +6128,7 @@ _bit_ping_clock:                    // monotonic milliseconds, -1 on failure
 2:  add rsp, 24
     ret
 
-_bit_ping:                          // host -> ICMP echo reply, without a subprocess
+_bit_ping:                          # host -> ICMP echo reply, without a subprocess
     push rbp
     mov rbp, rsp
     push rbx
@@ -6138,8 +6138,8 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     push r15
     sub rsp, 344
     mov rbx, rdi
-    mov r12, -1                    // socket
-    xor r13d, r13d                 // addrinfo list
+    mov r12, -1                    # socket
+    xor r13d, r13d                 # addrinfo list
     test rbx, rbx
     jz 9f
     cmp byte ptr [rbx], 0
@@ -6148,7 +6148,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     movdqu [rsp], xmm0
     movdqu [rsp + 16], xmm0
     movdqu [rsp + 32], xmm0
-    mov dword ptr [rsp + 8], 2     // SOCK_DGRAM, any IP family
+    mov dword ptr [rsp + 8], 2     # SOCK_DGRAM, any IP family
     mov rdi, rbx
     xor esi, esi
     mov rdx, rsp
@@ -6160,7 +6160,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     test r13, r13
     jz 9f
     mov r14, r13
-11: mov eax, [r14 + 4]            // ai_family
+11: mov eax, [r14 + 4]            # ai_family
     cmp eax, 2
     je 12f
     cmp eax, 10                   # AF_INET6 on Linux
@@ -6169,17 +6169,17 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     test r14, r14
     jnz 11b
     jmp 9f
-12: mov [rsp + 4], eax            // retain family after freeaddrinfo
-    mov r15d, [r14 + 16]          // ai_addrlen
-    mov r14, [r14 + 24]           // ai_addr on Linux
+12: mov [rsp + 4], eax            # retain family after freeaddrinfo
+    mov r15d, [r14 + 16]          # ai_addrlen
+    mov r14, [r14 + 24]           # ai_addr on Linux
     test r14, r14
     jz 9f
     mov edi, eax
-    mov esi, 2                    // SOCK_DGRAM
-    mov edx, 1                    // IPPROTO_ICMP
+    mov esi, 2                    # SOCK_DGRAM
+    mov edx, 1                    # IPPROTO_ICMP
     cmp eax, 2
     je 13f
-    mov edx, 58                   // IPPROTO_ICMPV6
+    mov edx, 58                   # IPPROTO_ICMPV6
 13: call socket@PLT
     test eax, eax
     js 9f
@@ -6197,7 +6197,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     movabs rax, 0x6251000035f10008
     cmp dword ptr [rsp + 4], 2
     je 14f
-    movabs rax, 0x6251000000000080 // ICMPv6 echo; OS supplies checksum
+    movabs rax, 0x6251000000000080 # ICMPv6 echo; OS supplies checksum
 14: mov [rsp + 56], rax
     movabs rax, 0x676e69702d746962
     mov [rsp + 64], rax
@@ -6211,10 +6211,10 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     call _bit_ping_clock
     test rax, rax
     js 9f
-    lea r15, [rax + 1000]         // one-second deadline
+    lea r15, [rax + 1000]         # one-second deadline
     mov r14, 1000
 1:  mov [rsp + 72], r12d
-    mov dword ptr [rsp + 76], 1  // POLLIN; clear revents
+    mov dword ptr [rsp + 76], 1  # POLLIN; clear revents
     lea rdi, [rsp + 72]
     mov esi, 1
     mov edx, r14d
@@ -6237,7 +6237,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     shr r8d, 4
     cmp r8d, 4
     jne 2f
-    and edx, 15                   // Darwin includes IPv4 header
+    and edx, 15                   # Darwin includes IPv4 header
     lea rcx, [rdx * 4]
     cmp rcx, 20
     jb 7f
@@ -6250,10 +6250,10 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     jne 7f
     cmp dword ptr [rsp + 4], 2
     jne 15f
-    cmp byte ptr [rdx], 0          // ICMP echo reply
+    cmp byte ptr [rdx], 0          # ICMP echo reply
     jne 7f
     jmp 16f
-15: cmp byte ptr [rdx], 129        // ICMPv6 echo reply
+15: cmp byte ptr [rdx], 129        # ICMPv6 echo reply
     jne 7f
 16: cmp word ptr [rdx + 6], 0x6251
     jne 7f
@@ -6263,7 +6263,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     mov r14d, 1
     jmp 8f
 6:  call __errno_location@PLT
-    cmp dword ptr [rax], 4       // EINTR
+    cmp dword ptr [rax], 4       # EINTR
     jne 9f
 7:  call _bit_ping_clock
     test rax, rax
@@ -6290,7 +6290,7 @@ _bit_ping:                          // host -> ICMP echo reply, without a subpro
     pop rbp
     ret
 
-_bit_str_num:                       // rdi = строка -> число
+_bit_str_num:                       # rdi = строка -> число
     mov rcx, rdi
     xor r8d, r8d
 1:  movzx eax, byte ptr [rcx]
@@ -6316,7 +6316,7 @@ _bit_str_num:                       // rdi = строка -> число
     neg rax
 6:  ret
 
-_bit_str_num_checked:               // rdi = string, rsi = source line
+_bit_str_num_checked:               # rdi = string, rsi = source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -6361,7 +6361,7 @@ _bit_str_num_checked:               // rdi = string, rsi = source line
     mov rsi, r12
     call _bit_die
 
-_bit_str_lines:                     // rdi = строка -> mas строк
+_bit_str_lines:                     # rdi = строка -> mas строк
     push rbp
     mov rbp, rsp
     push rbx
@@ -6411,7 +6411,7 @@ _bit_str_lines:                     // rdi = строка -> mas строк
     pop rbp
     ret
 
-_bit_os_host:                       // -> имя компьютера
+_bit_os_host:                       # -> имя компьютера
     push rbp
     mov rbp, rsp
     push rbx
@@ -6428,7 +6428,7 @@ _bit_os_host:                       // -> имя компьютера
     pop rbp
     ret
 
-_bit_os_user:                       // -> имя пользователя
+_bit_os_user:                       # -> имя пользователя
     push rbp
     mov rbp, rsp
     lea rdi, [rip + Lrt_userenv]
@@ -6439,7 +6439,7 @@ _bit_os_user:                       // -> имя пользователя
 1:  pop rbp
     ret
 
-_bit_os_clock:                      // rdi = source line -> monotonic milliseconds
+_bit_os_clock:                      # rdi = source line -> monotonic milliseconds
     push rbp
     mov rbp, rsp
     push rbx
@@ -6464,7 +6464,7 @@ _bit_os_clock:                      // rdi = source line -> monotonic millisecon
     mov rsi, rbx
     call _bit_die
 
-_bit_os_now:                        // -> время (секунды)
+_bit_os_now:                        # -> время (секунды)
     push rbp
     mov rbp, rsp
     xor edi, edi
@@ -6472,13 +6472,13 @@ _bit_os_now:                        // -> время (секунды)
     pop rbp
     ret
 
-_bit_os_cpus:                       // source line -> online logical processors
+_bit_os_cpus:                       # source line -> online logical processors
     push rbp
     mov rbp, rsp
     push rbx
     sub rsp, 8
     mov rbx, rdi
-    mov edi, 84                    // glibc _SC_NPROCESSORS_ONLN
+    mov edi, 84                    # glibc _SC_NPROCESSORS_ONLN
     call sysconf@PLT
     cmp rax, 1
     jl 9f
@@ -6490,7 +6490,7 @@ _bit_os_cpus:                       // source line -> online logical processors
     mov rsi, rbx
     call _bit_die
 
-_bit_procs_add:                    // array, pid, name, source line
+_bit_procs_add:                    # array, pid, name, source line
     push rbp
     mov rbp, rsp
     push rbx
@@ -6531,7 +6531,7 @@ _bit_procs_add:                    // array, pid, name, source line
     pop rbp
     ret
 
-_bit_procs_finish:                 // array -> joined string; free temporary entries
+_bit_procs_finish:                 # array -> joined string; free temporary entries
     push rbp
     mov rbp, rsp
     push rbx
@@ -6562,7 +6562,7 @@ _bit_procs_finish:                 // array -> joined string; free temporary ent
     pop rbp
     ret
 
-_bit_os_procs:                     // source line -> PID and process name per line
+_bit_os_procs:                     # source line -> PID and process name per line
     push rbp
     mov rbp, rsp
     push rbx
@@ -6658,7 +6658,7 @@ _bit_os_procs:                     // source line -> PID and process name per li
     mov rsi, rbx
     call _bit_die
 
-_bit_mas_argv:                      // rdi = mas строк → rax = char** (NULL в конце)
+_bit_mas_argv:                      # rdi = mas строк → rax = char** (NULL в конце)
     push rbp
     mov rbp, rsp
     push rbx
@@ -6684,7 +6684,7 @@ _bit_mas_argv:                      // rdi = mas строк → rax = char** (NU
     pop rbp
     ret
 
-_bit_buf_read:                      // edi = fd, rsi = буфер (ptr, len, cap) → rax = прочитано
+_bit_buf_read:                      # edi = fd, rsi = буфер (ptr, len, cap) → rax = прочитано
     push rbp
     mov rbp, rsp
     push rbx
@@ -6718,7 +6718,7 @@ _bit_buf_read:                      // edi = fd, rsi = буфер (ptr, len, cap
     pop rbp
     ret
 
-_bit_buf_finish:                    // rdi = буфер → строка (без последнего \n)
+_bit_buf_finish:                    # rdi = буфер → строка (без последнего \n)
     mov rax, [rdi + 8]
     mov rdx, [rdi]
     test rax, rax
@@ -6730,7 +6730,7 @@ _bit_buf_finish:                    // rdi = буфер → строка (без
     mov rax, rdx
     ret
 
-_bit_exec:                          // rdi = mas строк, rsi = stdin (или 0), rdx = строка → stdout
+_bit_exec:                          # rdi = mas строк, rsi = stdin (или 0), rdx = строка → stdout
     push rbp
     mov rbp, rsp
     push rbx
@@ -6766,17 +6766,17 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     test eax, eax
     js 9f
     mov edi, dword ptr [rsp + 20]
-    // F_GETFL
+    # F_GETFL
     mov esi, 3
     xor eax, eax
     call fcntl@PLT
     test eax, eax
     js 9f
     mov edx, eax
-    // O_NONBLOCK
+    # O_NONBLOCK
     or edx, 2048
     mov edi, dword ptr [rsp + 20]
-    // F_SETFL
+    # F_SETFL
     mov esi, 4
     xor eax, eax
     call fcntl@PLT
@@ -6834,13 +6834,13 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     test r14, r14
     jz 6f
     mov edi, 13
-    // SIG_IGN
+    # SIG_IGN
     mov esi, 1
     call signal@PLT
     mov [rsp + 112], rax
     mov eax, dword ptr [rsp + 20]
     mov dword ptr [rsp + 144], eax
-    // POLLOUT
+    # POLLOUT
     mov dword ptr [rsp + 148], 4
     mov qword ptr [rsp + 104], 3
     jmp 5f
@@ -6915,10 +6915,10 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     jg 73f
     call __errno_location@PLT
     mov eax, dword ptr [rax]
-    // EINTR
+    # EINTR
     cmp eax, 4
     je 7b
-    // EAGAIN
+    # EAGAIN
     cmp eax, 11
     je 7b
     jmp 74f
@@ -6943,7 +6943,7 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     call _bit_wstatus
     jmp 82f
 81: call __errno_location@PLT
-    // EINTR
+    # EINTR
     cmp dword ptr [rax], 4
     je 8b
     mov qword ptr [rip + Lrt_status], 127
@@ -6976,7 +6976,7 @@ _bit_exec:                          // rdi = mas строк, rsi = stdin (или
     mov rsi, r13
     call _bit_die
 
-_bit_term_stderr:                   // → копия stderr последнего mas >> run ("" если не было)
+_bit_term_stderr:                   # → копия stderr последнего mas >> run ("" если не было)
     push rbp
     mov rbp, rsp
     push rbx
@@ -6999,8 +6999,8 @@ _bit_term_stderr:                   // → копия stderr последнег�
     ret
 
 
-// ───── чужие процессы (Linux): /proc/<pid>/mem ─────
-_bit_proc_path:                     // rdi = pid, rsi = формат → строка "/proc/<pid>/..."
+# ───── чужие процессы (Linux): /proc/<pid>/mem ─────
+_bit_proc_path:                     # rdi = pid, rsi = формат → строка "/proc/<pid>/..."
     push rbp
     mov rbp, rsp
     push rbx
@@ -7024,7 +7024,7 @@ _bit_proc_path:                     // rdi = pid, rsi = формат → стр�
     pop rbp
     ret
 
-_bit_proc_fail:                     // rdi = текст, rsi = путь, rdx = строка программы: текст + путь + причина
+_bit_proc_fail:                     # rdi = текст, rsi = путь, rdx = строка программы: текст + путь + причина
     push rbp
     mov rbp, rsp
     push rbx
@@ -7051,7 +7051,7 @@ _bit_proc_fail:                     // rdi = текст, rsi = путь, rdx = �
     mov rsi, r13
     call _bit_die
 
-_bit_proc_start:                    // rdi = команда, rsi = строка → pid запущенного процесса (наш ребёнок)
+_bit_proc_start:                    # rdi = команда, rsi = строка → pid запущенного процесса (наш ребёнок)
     push rbp
     mov rbp, rsp
     push rbx
@@ -7088,7 +7088,7 @@ _bit_proc_start:                    // rdi = команда, rsi = строка 
     mov rdx, r12
     call _bit_errpath
 
-_bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем или -1
+_bit_proc_find:                     # rdi = имя, rsi = строка → pid первого процесса с таким именем или -1
     push rbp
     mov rbp, rsp
     push rbx
@@ -7161,7 +7161,7 @@ _bit_proc_find:                     // rdi = имя, rsi = строка → pid 
     pop rbp
     ret
 
-_bit_proc_alive:                    // rdi = pid → 1 если процесс есть
+_bit_proc_alive:                    # rdi = pid → 1 если процесс есть
     push rbp
     mov rbp, rsp
     test rdi, rdi
@@ -7180,7 +7180,7 @@ _bit_proc_alive:                    // rdi = pid → 1 если процесс �
     pop rbp
     ret
 
-_bit_proc_name:                     // rdi = pid → имя процесса или ""
+_bit_proc_name:                     # rdi = pid → имя процесса или ""
     push rbp
     mov rbp, rsp
     push rbx
@@ -7208,7 +7208,7 @@ _bit_proc_name:                     // rdi = pid → имя процесса и�
     pop rbp
     ret
 
-_bit_proc_maps:                     // rdi = pid, rsi = строка → mas строк /proc/<pid>/maps
+_bit_proc_maps:                     # rdi = pid, rsi = строка → mas строк /proc/<pid>/maps
     push rbp
     mov rbp, rsp
     push rbx
@@ -7224,7 +7224,7 @@ _bit_proc_maps:                     // rdi = pid, rsi = строка → mas с�
     pop rbp
     ret
 
-_bit_proc_read:                     // rdi = pid, rsi = адрес, rdx = сколько байт, rcx = строка → bytes
+_bit_proc_read:                     # rdi = pid, rsi = адрес, rdx = сколько байт, rcx = строка → bytes
     push rbp
     mov rbp, rsp
     push rbx
@@ -7274,7 +7274,7 @@ _bit_proc_read:                     // rdi = pid, rsi = адрес, rdx = ско
     mov rdx, r14
     call _bit_proc_fail
 
-_bit_proc_write:                    // rdi = pid, rsi = адрес, rdx = bytes, rcx = строка
+_bit_proc_write:                    # rdi = pid, rsi = адрес, rdx = bytes, rcx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -7320,14 +7320,14 @@ _bit_proc_write:                    // rdi = pid, rsi = адрес, rdx = bytes,
     mov rdx, r14
     call _bit_proc_fail
 
-_bit_proc_kill:                     // rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)
+_bit_proc_kill:                     # rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)
     push rbp
     mov rbp, rsp
     push rbx
     push r12
     mov rbx, rdi
     mov r12, rsi
-    // pid <= 0 у kill значит «группа» или «все процессы» — не трогаем
+    # pid <= 0 у kill значит «группа» или «все процессы» — не трогаем
     test rdi, rdi
     jle 8f
     mov esi, 15
@@ -7352,11 +7352,11 @@ _bit_proc_kill:                     // rdi = pid, rsi = строка: проси
     mov rdx, r12
     call _bit_proc_fail
 
-_bit_proc_wait:                     // rdi = pid → код выхода
+_bit_proc_wait:                     # rdi = pid → код выхода
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    // pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс
+    # pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс
     test rdi, rdi
     jle 1f
     mov rsi, rsp
@@ -7372,7 +7372,7 @@ _bit_proc_wait:                     // rdi = pid → код выхода
     pop rbp
     ret
 
-_bit_proc_read_num:                 // rdi = pid, rsi = адрес, rdx = строка -> число (8 байт)
+_bit_proc_read_num:                 # rdi = pid, rsi = адрес, rdx = строка -> число (8 байт)
     push rbp
     mov rbp, rsp
     mov rcx, rdx
@@ -7383,7 +7383,7 @@ _bit_proc_read_num:                 // rdi = pid, rsi = адрес, rdx = стр
     pop rbp
     ret
 
-_bit_proc_write_num:                // rdi = pid, rsi = адрес, rdx = число, rcx = строка
+_bit_proc_write_num:                # rdi = pid, rsi = адрес, rdx = число, rcx = строка
     push rbp
     mov rbp, rsp
     push rbx
@@ -7410,7 +7410,7 @@ _bit_proc_write_num:                // rdi = pid, rsi = адрес, rdx = чис
     pop rbp
     ret
 
-_bit_proc_try:                      // rdi=pid, rsi=адрес, rdx=сколько -> bytes или 0 (без ошибки)
+_bit_proc_try:                      # rdi=pid, rsi=адрес, rdx=сколько -> bytes или 0 (без ошибки)
     push rbp
     mov rbp, rsp
     push rbx
@@ -7453,7 +7453,7 @@ _bit_proc_try:                      // rdi=pid, rsi=адрес, rdx=скольк
     pop rbp
     ret
 
-_bit_proc_scan:                     // rdi=pid, rsi=число, rdx=строка -> mas:num адресов
+_bit_proc_scan:                     # rdi=pid, rsi=число, rdx=строка -> mas:num адресов
     push rbp
     mov rbp, rsp
     push rbx

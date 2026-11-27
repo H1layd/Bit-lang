@@ -8067,7 +8067,10 @@ fn make_tmp() {
 }
 
 fn clean_tmp(string d) {
-    do("rm -rf {quote(d)}" >> run);
+    dir temporary = d;
+    recover {
+        if temporary >> exists { do(temporary >> remove_all); }
+    } else { }
 }
 
 fn link_linux(string s, string o, string exe, string d) {
@@ -8223,7 +8226,8 @@ host {
     string src = f >> read;
     string full = PATH;
     if not starts(full, "/") {
-        do(full >> ch(("pwd" >> run) + "/" + full));
+        dir folder = term >> folder;
+        do(full >> ch((folder >> path) + "/" + full));
     }
     do(full >> ch(normalize_source_path(full)));
     do(SOURCES_ACTIVE >> add(full));
@@ -22515,10 +22519,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add(".intel_syntax noprefix"));
     do(o >> add(".text"));
     do(o >> add(""));
-    do(o >> add("// ─────────── среда выполнения bit (x86_64) ───────────"));
-    do(o >> add("// аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax"));
+    do(o >> add("# ─────────── среда выполнения bit (x86_64) ───────────"));
+    do(o >> add("# аргументы: rdi, rsi, rdx, rcx, r8, r9; результат: rax"));
     do(o >> add(".p2align 4"));
-    do(o >> add("_bit_signal_handler:                 // async-signal-safe: set one aligned flag"));
+    do(o >> add("_bit_signal_handler:                 # async-signal-safe: set one aligned flag"));
     do(o >> add("    mov dword ptr [rip + Lrt_signalled], 1"));
     do(o >> add("    ret"));
     do(o >> add(""));
@@ -22560,7 +22564,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    xor esi, esi"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_rt_ensure:                     // однократная подготовка ключа потока и замка строк"));
+    do(o >> add("_bit_rt_ensure:                     # однократная подготовка ключа потока и замка строк"));
     do(o >> add("    cmp byte ptr [rip + Lrt_ready], 0"));
     do(o >> add("    jne 9f"));
     do(o >> add("    push rbp"));
@@ -22594,7 +22598,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_tstate:                        // → блок состояния этого потока"));
+    do(o >> add("_bit_tstate:                        # → блок состояния этого потока"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22620,7 +22624,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_recover_enter:                 // rdi = frame allocated by the compiler"));
+    do(o >> add("_bit_recover_enter:                 # rdi = frame allocated by the compiler"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22655,7 +22659,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_own_str:                       // rdi = stack record with string and previous pointer"));
+    do(o >> add("_bit_own_str:                       # rdi = stack record with string and previous pointer"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22686,7 +22690,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_drop_str"));
     do(o >> add(""));
-    do(o >> add("_bit_setjmp:                        // rdi = буфер → 0; сохраняет callee-saved, sp и адрес возврата"));
+    do(o >> add("_bit_setjmp:                        # rdi = буфер → 0; сохраняет callee-saved, sp и адрес возврата"));
     do(o >> add("    mov [rdi], rbx"));
     do(o >> add("    mov [rdi + 8], rbp"));
     do(o >> add("    mov [rdi + 16], r12"));
@@ -22700,7 +22704,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    xor eax, eax"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_longjmp:                       // rdi = буфер, rsi = значение → возврат из _bit_setjmp"));
+    do(o >> add("_bit_longjmp:                       # rdi = буфер, rsi = значение → возврат из _bit_setjmp"));
     do(o >> add("    mov rbx, [rdi]"));
     do(o >> add("    mov rbp, [rdi + 8]"));
     do(o >> add("    mov r12, [rdi + 16]"));
@@ -22711,7 +22715,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rsi"));
     do(o >> add("    jmp qword ptr [rdi + 56]"));
     do(o >> add(""));
-    do(o >> add("_bit_set_errcode:                   // rdi = код → запомнить для этого потока"));
+    do(o >> add("_bit_set_errcode:                   # rdi = код → запомнить для этого потока"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22724,7 +22728,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_term_errcode:                  // → код последней пойманной ошибки (0 = без кода)"));
+    do(o >> add("_bit_term_errcode:                  # → код последней пойманной ошибки (0 = без кода)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call _bit_tstate"));
@@ -22732,7 +22736,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_errno_map:                     // edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода"));
+    do(o >> add("_bit_errno_map:                     # edi = код ошибки системы → 1 отказ, 2 таймаут, 3 нет маршрута, 0 без кода"));
     do(o >> add("    cmp edi, 111                     # ECONNREFUSED (Linux)"));
     do(o >> add("    je 1f"));
     do(o >> add("    cmp edi, 110                     # ETIMEDOUT (Linux)"));
@@ -22750,7 +22754,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("3:  mov eax, 3"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_errno_code:                    // → код ошибки системы из errno"));
+    do(o >> add("_bit_errno_code:                    # → код ошибки системы из errno"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call __errno_location@PLT"));
@@ -22758,7 +22762,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_errno_map"));
     do(o >> add(""));
-    do(o >> add("// User locks have process lifetime; aliases refer to the same mutex."));
+    do(o >> add("# User locks have process lifetime; aliases refer to the same mutex."));
     do(o >> add("_bit_user_lock_new:"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
@@ -22786,7 +22790,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_user_lock_enter:                // rdi = lock, rsi = source line"));
+    do(o >> add("_bit_user_lock_enter:                # rdi = lock, rsi = source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22806,7 +22810,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_user_lock_leave:                // rdi = lock, rsi = source line"));
+    do(o >> add("_bit_user_lock_leave:                # rdi = lock, rsi = source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22826,7 +22830,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_thread_start:                  // rdi = code -> stable thread token"));
+    do(o >> add("_bit_thread_start:                  # rdi = code -> stable thread token"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22834,7 +22838,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push r13"));
     do(o >> add("    push r14"));
     do(o >> add("    mov rbx, rdi"));
-    do(o >> add("    // No bit thread can start before the shared registry and TLS key exist."));
+    do(o >> add("    # No bit thread can start before the shared registry and TLS key exist."));
     do(o >> add("    call _bit_rt_ensure"));
     do(o >> add("    mov edi, 128"));
     do(o >> add("    call _bit_alloc"));
@@ -22883,11 +22887,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_thread_run:                    // rdi = код потока"));
+    do(o >> add("_bit_thread_run:                    # rdi = код потока"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call rdi"));
-    do(o >> add("    // State is optional: do not allocate it just to destroy it."));
+    do(o >> add("    # State is optional: do not allocate it just to destroy it."));
     do(o >> add("    mov rdi, [rip + Lrt_tkey]"));
     do(o >> add("    call pthread_getspecific@PLT"));
     do(o >> add("    test rax, rax"));
@@ -22899,7 +22903,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_thread_wait:                   // rdi = stable token; completed tokens are no-ops"));
+    do(o >> add("_bit_thread_wait:                   # rdi = stable token; completed tokens are no-ops"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -22979,7 +22983,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_term_raw:                      // rdi = 1 сырой режим, 0 обычный"));
+    do(o >> add("_bit_term_raw:                      # rdi = 1 сырой режим, 0 обычный"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23006,7 +23010,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_term_key:                      // → строка из одного символа"));
+    do(o >> add("_bit_term_key:                      # → строка из одного символа"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23058,7 +23062,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_term_error:                    // → копия текста последней пойманной ошибки (\"\" если не было)"));
+    do(o >> add("_bit_term_error:                    # → копия текста последней пойманной ошибки (\"\" если не было)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23081,7 +23085,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_die:                           // rdi = сообщение, rsi = строка программы"));
+    do(o >> add("_bit_die:                           # rdi = сообщение, rsi = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23131,7 +23135,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    xor esi, esi"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_key_cmp:                       // rdi=a, rsi=b, rdx=вид → eax (-1, 0, 1)"));
+    do(o >> add("_bit_key_cmp:                       # rdi=a, rsi=b, rdx=вид → eax (-1, 0, 1)"));
     do(o >> add("    cmp rdx, 2"));
     do(o >> add("    je 1f"));
     do(o >> add("    cmp rdi, rsi"));
@@ -23156,7 +23160,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("4:  mov eax, 1"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_sort_by:                   // rdi=значения, rsi=ключи, rdx=вид, rcx=убывание, r8=строка"));
+    do(o >> add("_bit_mas_sort_by:                   # rdi=значения, rsi=ключи, rdx=вид, rcx=убывание, r8=строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23226,7 +23230,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_map_keys:                      // rdi=словарь, rsi=строка → mas строк"));
+    do(o >> add("_bit_map_keys:                      # rdi=словарь, rsi=строка → mas строк"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23265,7 +23269,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_map_values:                    // rdi=словарь, rsi=вид значения, rdx=строка → mas"));
+    do(o >> add("_bit_map_values:                    # rdi=словарь, rsi=вид значения, rdx=строка → mas"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23304,7 +23308,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_map_find:                      // map, key -> index or -1"));
+    do(o >> add("_bit_map_find:                      # map, key -> index or -1"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23334,7 +23338,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_map_set:                       // map, key, value, source line"));
+    do(o >> add("_bit_map_set:                       # map, key, value, source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23367,7 +23371,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_map_remove:                    // map, key"));
+    do(o >> add("_bit_map_remove:                    # map, key"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23388,7 +23392,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_random_seed:                   // Hash a UTF-8 seed word with FNV-1a."));
+    do(o >> add("_bit_random_seed:                   # Hash a UTF-8 seed word with FNV-1a."));
     do(o >> add("    mov rax, 0xcbf29ce484222325"));
     do(o >> add("    mov rcx, 0x100000001b3"));
     do(o >> add("1:  movzx edx, byte ptr [rdi]"));
@@ -23402,7 +23406,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov qword ptr [rip + Lrt_random_ready], 1"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_random_next:                   // SplitMix64 with unsigned wrapping arithmetic."));
+    do(o >> add("_bit_random_next:                   # SplitMix64 with unsigned wrapping arithmetic."));
     do(o >> add("    mov rcx, 0x9e3779b97f4a7c15"));
     do(o >> add("    add rcx, [rip + Lrt_random_state]"));
     do(o >> add("    mov [rip + Lrt_random_state], rcx"));
@@ -23421,7 +23425,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    xor rax, rcx"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_random_range:                  // Inclusive signed bounds, source line."));
+    do(o >> add("_bit_random_range:                  # Inclusive signed bounds, source line."));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23456,7 +23460,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call _bit_random_seed"));
     do(o >> add("2:  test r12, r12"));
     do(o >> add("    jz 4f"));
-    do(o >> add("    // Rejection avoids modulo bias. A zero width denotes the entire num range."));
+    do(o >> add("    # Rejection avoids modulo bias. A zero width denotes the entire num range."));
     do(o >> add("    mov rax, r12"));
     do(o >> add("    neg rax"));
     do(o >> add("    xor edx, edx"));
@@ -23485,8 +23489,8 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
     do(o >> add(""));
-    do(o >> add("// String ownership registry. Unknown pointers (literals and borrowed values) are ignored."));
-    do(o >> add("// Node layout: payload, references, next. Ownership adoption is explicit and idempotent."));
+    do(o >> add("# String ownership registry. Unknown pointers (literals and borrowed values) are ignored."));
+    do(o >> add("# Node layout: payload, references, next. Ownership adoption is explicit and idempotent."));
     do(o >> add("_bit_str_find_raw:"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("    cmp rdi, [rip + Lrt_str_low]"));
@@ -23511,7 +23515,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jmp 1b"));
     do(o >> add("2:  ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_find:                      // rdi = указатель → запись реестра или 0 (под замком)"));
+    do(o >> add("_bit_str_find:                      # rdi = указатель → запись реестра или 0 (под замком)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23594,7 +23598,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rcx, [r12 + r13*8]"));
     do(o >> add("    mov [rax + 16], rcx"));
     do(o >> add("    mov [r12 + r13*8], rax"));
-    do(o >> add("    // Conservative bounds never shrink: pointers outside them cannot be owned strings."));
+    do(o >> add("    # Conservative bounds never shrink: pointers outside them cannot be owned strings."));
     do(o >> add("    mov rax, [rip + Lrt_str_low]"));
     do(o >> add("    cmp rbx, rax"));
     do(o >> add("    cmovb rax, rbx"));
@@ -23654,7 +23658,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("3:  ret"));
     do(o >> add(""));
-    do(o >> add("_bit_alloc:                         // rdi = байты → rax = память"));
+    do(o >> add("_bit_alloc:                         # rdi = байты → rax = память"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call malloc@PLT"));
@@ -23663,14 +23667,14 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_print:                         // rdi = строка"));
+    do(o >> add("_bit_print:                         # rdi = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call puts@PLT"));
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_num_str:                       // rdi = num → строка"));
+    do(o >> add("_bit_num_str:                       # rdi = num → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23691,7 +23695,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_dec_str:                       // rdi = биты dec → самая короткая точная запись"));
+    do(o >> add("_bit_dec_str:                       # rdi = биты dec → самая короткая точная запись"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23736,7 +23740,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bool_str:                      // rdi = bool → строка"));
+    do(o >> add("_bit_bool_str:                      # rdi = bool → строка"));
     do(o >> add("    lea rax, [rip + Lrt_true]"));
     do(o >> add("    test rdi, rdi"));
     do(o >> add("    jnz 1f"));
@@ -23747,7 +23751,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rdi"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_to_str:                        // rdi = значение, rsi = вид (0 num, 1 dec, 2 string, 3 bool)"));
+    do(o >> add("_bit_to_str:                        # rdi = значение, rsi = вид (0 num, 1 dec, 2 string, 3 bool)"));
     do(o >> add("    cmp rsi, 0"));
     do(o >> add("    je _bit_num_str"));
     do(o >> add("    cmp rsi, 1"));
@@ -23757,7 +23761,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rdi"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_cat:                           // rdi = a, rsi = b → новая строка a+b"));
+    do(o >> add("_bit_cat:                           # rdi = a, rsi = b → новая строка a+b"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23794,7 +23798,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_eq:                        // rdi, rsi = строки → 1 если равны"));
+    do(o >> add("_bit_str_eq:                        # rdi, rsi = строки → 1 если равны"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call strcmp@PLT"));
@@ -23804,7 +23808,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_starts:                    // rdi=строка, rsi=начало → 1/0"));
+    do(o >> add("_bit_str_starts:                    # rdi=строка, rsi=начало → 1/0"));
     do(o >> add("1:  movzx eax, byte ptr [rsi]"));
     do(o >> add("    test al, al"));
     do(o >> add("    jz 2f"));
@@ -23819,7 +23823,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("3:  xor eax, eax"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_ends:                      // rdi=строка, rsi=конец → 1/0"));
+    do(o >> add("_bit_str_ends:                      # rdi=строка, rsi=конец → 1/0"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23859,7 +23863,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_trim:                      // rdi=строка → новая строка без краёв-пробелов"));
+    do(o >> add("_bit_str_trim:                      # rdi=строка → новая строка без краёв-пробелов"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23912,7 +23916,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_substr:                        // rdi=указатель, rsi=длина → новая строка"));
+    do(o >> add("_bit_substr:                        # rdi=указатель, rsi=длина → новая строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23937,7 +23941,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_index:                     // rdi=строка, rsi=подстрока → номер символа или -1"));
+    do(o >> add("_bit_str_index:                     # rdi=строка, rsi=подстрока → номер символа или -1"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -23982,7 +23986,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_contains:                  // rdi=строка, rsi=подстрока → 1/0"));
+    do(o >> add("_bit_str_contains:                  # rdi=строка, rsi=подстрока → 1/0"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call _bit_str_index"));
@@ -23995,7 +23999,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_upper:                     // rdi=строка → новая строка в верхнем регистре"));
+    do(o >> add("_bit_str_upper:                     # rdi=строка → новая строка в верхнем регистре"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24029,7 +24033,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_lower:                     // rdi=строка → новая строка в нижнем регистре"));
+    do(o >> add("_bit_str_lower:                     # rdi=строка → новая строка в нижнем регистре"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24063,7 +24067,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_code:                      // rdi=строка, rsi=строка программы → код первого символа"));
+    do(o >> add("_bit_str_code:                      # rdi=строка, rsi=строка программы → код первого символа"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24128,7 +24132,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_num_char:                      // rdi=код, rsi=строка программы → строка из одного символа"));
+    do(o >> add("_bit_num_char:                      # rdi=код, rsi=строка программы → строка из одного символа"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24214,15 +24218,15 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_str_pad:                       // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка → строка"));
+    do(o >> add("_bit_str_pad:                       # rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка → строка"));
     do(o >> add("    mov r8d, 1"));
     do(o >> add("    jmp _bit_str_pad_do"));
     do(o >> add(""));
-    do(o >> add("_bit_str_pad_left:                  // rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка"));
+    do(o >> add("_bit_str_pad_left:                  # rdi=строка, rsi=ширина, rdx=заполнитель, rcx=строка"));
     do(o >> add("    xor r8d, r8d"));
     do(o >> add("    jmp _bit_str_pad_do"));
     do(o >> add(""));
-    do(o >> add("_bit_str_pad_do:                    // rdi=строка, rsi=ширина в символах, rdx=заполнитель, rcx=строка, r8=направление"));
+    do(o >> add("_bit_str_pad_do:                    # rdi=строка, rsi=ширина в символах, rdx=заполнитель, rcx=строка, r8=направление"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24367,7 +24371,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_str_repeat:                    // rdi=строка, rsi=раз, rdx=строка → строка"));
+    do(o >> add("_bit_str_repeat:                    # rdi=строка, rsi=раз, rdx=строка → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24438,7 +24442,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_num_hex:                       // rdi=число, rsi=ширина, rdx=строка → строка в hex"));
+    do(o >> add("_bit_num_hex:                       # rdi=число, rsi=ширина, rdx=строка → строка в hex"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24501,7 +24505,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_dec_fixed:                     // rdi=биты dec, rsi=знаков после точки, rdx=строка → строка"));
+    do(o >> add("_bit_dec_fixed:                     # rdi=биты dec, rsi=знаков после точки, rdx=строка → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24546,7 +24550,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_str_split:                     // rdi=строка, rsi=разделитель → mas строк"));
+    do(o >> add("_bit_str_split:                     # rdi=строка, rsi=разделитель → mas строк"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24619,7 +24623,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_replace:                   // rdi=строка, rsi=что, rdx=на что → новая строка"));
+    do(o >> add("_bit_str_replace:                   # rdi=строка, rsi=что, rdx=на что → новая строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24714,7 +24718,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_sz:                        // rdi = строка → сколько символов (UTF-8)"));
+    do(o >> add("_bit_str_sz:                        # rdi = строка → сколько символов (UTF-8)"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("1:  movzx ecx, byte ptr [rdi]"));
     do(o >> add("    test ecx, ecx"));
@@ -24727,8 +24731,8 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jmp 1b"));
     do(o >> add("2:  ret"));
     do(o >> add(""));
-    do(o >> add("// массив: [0] данные, [8] длина, [16] ёмкость, [24] лимит (-1 = нет)"));
-    do(o >> add("_bit_mas_new:                       // rdi = лимит, rsi = сколько элементов"));
+    do(o >> add("# массив: [0] данные, [8] длина, [16] ёмкость, [24] лимит (-1 = нет)"));
+    do(o >> add("_bit_mas_new:                       # rdi = лимит, rsi = сколько элементов"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24757,7 +24761,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_add:                       // rdi = массив, rsi = значение, rdx = строка программы"));
+    do(o >> add("_bit_mas_add:                       # rdi = массив, rsi = значение, rdx = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24799,7 +24803,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_insert:                    // rdi=массив, rsi=i, rdx=значение, rcx=строка"));
+    do(o >> add("_bit_mas_insert:                    # rdi=массив, rsi=i, rdx=значение, rcx=строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24849,7 +24853,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_remove:                    // rdi=массив, rsi=i"));
+    do(o >> add("_bit_mas_remove:                    # rdi=массив, rsi=i"));
     do(o >> add("    mov rax, [rdi]"));
     do(o >> add("    mov rcx, rsi"));
     do(o >> add("    mov rdx, [rdi + 8]"));
@@ -24865,7 +24869,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov [rdi + 8], rcx"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_ipow:                          // rdi=основание, rsi=степень → rax (целая степень; отриц. → 0)"));
+    do(o >> add("_bit_ipow:                          # rdi=основание, rsi=степень → rax (целая степень; отриц. → 0)"));
     do(o >> add("    mov rax, 1"));
     do(o >> add("    test rsi, rsi"));
     do(o >> add("    js 2f"));
@@ -24878,7 +24882,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("2:  xor eax, eax"));
     do(o >> add("3:  ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_str:                       // rdi = массив, rsi = вид элементов → \"(1, 2, 3)\""));
+    do(o >> add("_bit_mas_str:                       # rdi = массив, rsi = вид элементов → \"(1, 2, 3)\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24917,7 +24921,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_readline:                      // rdi = строка программы → введённый текст"));
+    do(o >> add("_bit_readline:                      # rdi = строка программы → введённый текст"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -24957,7 +24961,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_input_num:                     // rdi = есть границы, rsi = от, rdx = до, rcx = строка"));
+    do(o >> add("_bit_input_num:                     # rdi = есть границы, rsi = от, rdx = до, rcx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25022,7 +25026,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call printf@PLT"));
     do(o >> add("    jmp 1b"));
     do(o >> add(""));
-    do(o >> add("_bit_input_dec:                     // rdi = есть границы, rsi = от, rdx = до (биты dec), rcx = строка"));
+    do(o >> add("_bit_input_dec:                     # rdi = есть границы, rsi = от, rdx = до (биты dec), rcx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25092,10 +25096,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call printf@PLT"));
     do(o >> add("    jmp 1b"));
     do(o >> add(""));
-    do(o >> add("_bit_input_str:                     // rdi = строка программы"));
+    do(o >> add("_bit_input_str:                     # rdi = строка программы"));
     do(o >> add("    jmp _bit_readline"));
     do(o >> add(""));
-    do(o >> add("_bit_input_bool:                    // rdi = строка программы"));
+    do(o >> add("_bit_input_bool:                    # rdi = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25146,7 +25150,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_errpath:                       // rdi = текст, rsi = путь, rdx = строка программы"));
+    do(o >> add("_bit_errpath:                       # rdi = текст, rsi = путь, rdx = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25157,7 +25161,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_file_read:                     // rdi = путь, rsi = строка -> весь текст (до конца, размер не нужен)"));
+    do(o >> add("_bit_file_read:                     # rdi = путь, rsi = строка -> весь текст (до конца, размер не нужен)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25233,7 +25237,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_file_size:                     // rdi = путь, rsi = строка → байты"));
+    do(o >> add("_bit_file_size:                     # rdi = путь, rsi = строка → байты"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25278,7 +25282,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_file_write:                    // rdi = путь, rsi = текст, rdx = строка, rcx = режим (\"w\"/\"a\")"));
+    do(o >> add("_bit_file_write:                    # rdi = путь, rsi = текст, rdx = строка, rcx = режим (\"w\"/\"a\")"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25314,7 +25318,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r13"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_file_lines:                    // rdi = путь, rsi = строка → mas из строк"));
+    do(o >> add("_bit_file_lines:                    # rdi = путь, rsi = строка → mas из строк"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25358,7 +25362,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_kind:                          // rdi = путь → 0 нет, 1 файл, 2 папка, 3 другое"));
+    do(o >> add("_bit_kind:                          # rdi = путь → 0 нет, 1 файл, 2 папка, 3 другое"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 160"));
@@ -25382,7 +25386,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_exists:                    // rdi = путь → 1 если это папка"));
+    do(o >> add("_bit_dir_exists:                    # rdi = путь → 1 если это папка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call _bit_kind"));
@@ -25392,7 +25396,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_exists:                   // rdi = путь → 1 если это файл"));
+    do(o >> add("_bit_file_exists:                   # rdi = путь → 1 если это файл"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call _bit_kind"));
@@ -25402,7 +25406,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_remove:                   // rdi = путь, rsi = строка: удаляет только файл"));
+    do(o >> add("_bit_file_remove:                   # rdi = путь, rsi = строка: удаляет только файл"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25431,7 +25435,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_remove:                    // rdi = путь, rsi = строка: удаляет только пустую папку"));
+    do(o >> add("_bit_dir_remove:                    # rdi = путь, rsi = строка: удаляет только пустую папку"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25460,7 +25464,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_move:                          // rdi = from, rsi = to, rdx = source line"));
+    do(o >> add("_bit_move:                          # rdi = from, rsi = to, rdx = source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25474,7 +25478,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jz 1f"));
     do(o >> add("    call __errno_location@PLT"));
-    do(o >> add("    // EXDEV"));
+    do(o >> add("    # EXDEV"));
     do(o >> add("    cmp dword ptr [rax], 18"));
     do(o >> add("    jne 9f"));
     do(o >> add("    mov rdi, rbx"));
@@ -25496,7 +25500,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r13"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_copy_temp:                     // rdi = destination path; returns a sibling template"));
+    do(o >> add("_bit_copy_temp:                     # rdi = destination path; returns a sibling template"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25524,7 +25528,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_copy:                          // Copy through a temporary sibling; replace only on success."));
+    do(o >> add("_bit_copy:                          # Copy through a temporary sibling; replace only on success."));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25645,7 +25649,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("8:  mov rdx, r13"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_make:                      // rdi = путь, rsi = строка; создаёт и все папки на пути"));
+    do(o >> add("_bit_dir_make:                      # rdi = путь, rsi = строка; создаёт и все папки на пути"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25697,7 +25701,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, [rsi]"));
     do(o >> add("    jmp strcmp@PLT"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_list:                      // rdi = путь, rsi = строка → mas имён по алфавиту"));
+    do(o >> add("_bit_dir_list:                      # rdi = путь, rsi = строка → mas имён по алфавиту"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25757,7 +25761,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add(""));
     do(o >> add(""));
     do(o >> add(""));
-    do(o >> add("_bit_remove_is_home:                // path -> bool, compare canonical HOME paths"));
+    do(o >> add("_bit_remove_is_home:                # path -> bool, compare canonical HOME paths"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25813,7 +25817,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_remove_error:                  // message, owned path, line"));
+    do(o >> add("_bit_remove_error:                  # message, owned path, line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25830,7 +25834,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_remove_prefix:                 // parent name, owned child error path -> owned full path"));
+    do(o >> add("_bit_remove_prefix:                 # parent name, owned child error path -> owned full path"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25855,7 +25859,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_remove_all:                // path, line; never descend through symbolic links"));
+    do(o >> add("_bit_dir_remove_all:                # path, line; never descend through symbolic links"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -25929,7 +25933,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_remove_error"));
     do(o >> add(""));
-    do(o >> add("_bit_remove_at:                     // parent fd, name, line, require directory -> 0/owned error path"));
+    do(o >> add("_bit_remove_at:                     # parent fd, name, line, require directory -> 0/owned error path"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26079,7 +26083,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_permissions_parse:             // text, line -> permission bits"));
+    do(o >> add("_bit_permissions_parse:             # text, line -> permission bits"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("    xor ecx, ecx"));
     do(o >> add("    mov r8d, 256"));
@@ -26193,7 +26197,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_lkind:                         // rdi = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)"));
+    do(o >> add("_bit_lkind:                         # rdi = путь → как _bit_kind, но ссылка — 3 (не заходим по ней)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 160"));
@@ -26217,7 +26221,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_mtime:                    // rdi = путь, rsi = строка → время изменения (секунды с 1970)"));
+    do(o >> add("_bit_file_mtime:                    # rdi = путь, rsi = строка → время изменения (секунды с 1970)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26240,7 +26244,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_dir_walk:                      // rdi = путь, rsi = строка → mas путей ко всем файлам внутри"));
+    do(o >> add("_bit_dir_walk:                      # rdi = путь, rsi = строка → mas путей ко всем файлам внутри"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26263,7 +26267,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_walk_into:                     // rdi = путь, rsi = mas, rdx = строка"));
+    do(o >> add("_bit_walk_into:                     # rdi = путь, rsi = mas, rdx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26318,7 +26322,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add(""));
-    do(o >> add("_bit_path_info:                     // path, line -> path, size, modified, kind"));
+    do(o >> add("_bit_path_info:                     # path, line -> path, size, modified, kind"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26398,7 +26402,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_walk_info_into:                // path, output array, line"));
+    do(o >> add("_bit_walk_info_into:                # path, output array, line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26468,7 +26472,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add(""));
-    do(o >> add("_bit_basename:                      // rdi = путь → имя после последнего /"));
+    do(o >> add("_bit_basename:                      # rdi = путь → имя после последнего /"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26486,7 +26490,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_wstatus:                       // edi = статус wait → код выхода (сигнал → 128+номер), запоминает его"));
+    do(o >> add("_bit_wstatus:                       # edi = статус wait → код выхода (сигнал → 128+номер), запоминает его"));
     do(o >> add("    mov eax, edi"));
     do(o >> add("    cmp eax, -1"));
     do(o >> add("    je 2f"));
@@ -26502,11 +26506,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("3:  mov [rip + Lrt_status], rax"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_status:                        // → код выхода последней команды"));
+    do(o >> add("_bit_status:                        # → код выхода последней команды"));
     do(o >> add("    mov rax, [rip + Lrt_status]"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_eof:                           // → 1 если ввод закончился"));
+    do(o >> add("_bit_eof:                           # → 1 если ввод закончился"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26530,7 +26534,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_run_live:                      // rdi = команда: вывод сразу в терминал"));
+    do(o >> add("_bit_run_live:                      # rdi = команда: вывод сразу в терминал"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26547,7 +26551,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_run:                           // rdi = команда, rsi = строка → её вывод"));
+    do(o >> add("_bit_run:                           # rdi = команда, rsi = строка → её вывод"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26621,7 +26625,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_args:                          // → mas из аргументов командной строки"));
+    do(o >> add("_bit_args:                          # → mas из аргументов командной строки"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26651,7 +26655,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_env:                           // rdi = имя → значение или \"\""));
+    do(o >> add("_bit_env:                           # rdi = имя → значение или \"\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call getenv@PLT"));
@@ -26664,7 +26668,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_term_folder:                   // rdi = строка программы → текущая папка (новая строка)"));
+    do(o >> add("_bit_term_folder:                   # rdi = строка программы → текущая папка (новая строка)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26683,7 +26687,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_term_go:                       // rdi = путь, rsi = строка программы"));
+    do(o >> add("_bit_term_go:                       # rdi = путь, rsi = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26702,7 +26706,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_env_set:                       // rdi = имя, rsi = значение, rdx = строка программы"));
+    do(o >> add("_bit_env_set:                       # rdi = имя, rsi = значение, rdx = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26733,12 +26737,12 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_wait:                          // rdi = milliseconds"));
+    do(o >> add("_bit_wait:                          # rdi = milliseconds"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
-    do(o >> add("    sub rsp, 32                    // timespec request and remainder"));
+    do(o >> add("    sub rsp, 32                    # timespec request and remainder"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    xor edi, edi"));
     do(o >> add("    call fflush@PLT"));
@@ -26761,7 +26765,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jz 1b"));
     do(o >> add("    call __errno_location@PLT"));
-    do(o >> add("    cmp dword ptr [rax], 4         // EINTR"));
+    do(o >> add("    cmp dword ptr [rax], 4         # EINTR"));
     do(o >> add("    jne 3f"));
     do(o >> add("    mov rax, [rsp + 16]"));
     do(o >> add("    mov rdx, [rsp + 24]"));
@@ -26774,7 +26778,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_exit:                          // rdi = код выхода"));
+    do(o >> add("_bit_exit:                          # rdi = код выхода"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26785,7 +26789,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdi, rbx"));
     do(o >> add("    call exit@PLT"));
     do(o >> add(""));
-    do(o >> add("_bit_mem_used:                      // → пик памяти программы (Linux отдаёт в КБ)"));
+    do(o >> add("_bit_mem_used:                      # → пик памяти программы (Linux отдаёт в КБ)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 160"));
@@ -26798,7 +26802,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mem_total:                     // → сколько байт памяти в компьютере (sysinfo)"));
+    do(o >> add("_bit_mem_total:                     # → сколько байт памяти в компьютере (sysinfo)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 128"));
@@ -26811,7 +26815,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_bytes:                     // rdi = строка → mas из байтов"));
+    do(o >> add("_bit_str_bytes:                     # rdi = строка → mas из байтов"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26841,7 +26845,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_text:                      // rdi = mas байтов, rsi = от, rdx = до → строка"));
+    do(o >> add("_bit_mas_text:                      # rdi = mas байтов, rsi = от, rdx = до → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26881,7 +26885,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_join:                      // rdi = mas строк, rsi = разделитель → одна строка"));
+    do(o >> add("_bit_mas_join:                      # rdi = mas строк, rsi = разделитель → одна строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26943,7 +26947,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_slice:                     // rdi = массив, rsi = от, rdx = до (включительно) → новый массив"));
+    do(o >> add("_bit_mas_slice:                     # rdi = массив, rsi = от, rdx = до (включительно) → новый массив"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -26987,7 +26991,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_slice:                     // rdi = строка, rsi = от, rdx = до (символы, включительно) → строка"));
+    do(o >> add("_bit_str_slice:                     # rdi = строка, rsi = от, rdx = до (символы, включительно) → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27054,7 +27058,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_line:                     // path, index, source line -> independent copy"));
+    do(o >> add("_bit_file_line:                     # path, index, source line -> independent copy"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27103,7 +27107,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_slice:                    // rdi = путь, rsi = от, rdx = до, rcx = строка программы"));
+    do(o >> add("_bit_file_slice:                    # rdi = путь, rsi = от, rdx = до, rcx = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27121,7 +27125,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_sum:                       // rdi = массив, rsi = вид (0 num, 1 dec), rdx = строка программы"));
+    do(o >> add("_bit_mas_sum:                       # rdi = массив, rsi = вид (0 num, 1 dec), rdx = строка программы"));
     do(o >> add("    mov r8, [rdi]"));
     do(o >> add("    mov r9, [rdi + 8]"));
     do(o >> add("    xor ecx, ecx"));
@@ -27170,7 +27174,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    sub eax, ecx"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_sort:                      // rdi = массив, rsi = вид элементов: сортирует на месте"));
+    do(o >> add("_bit_mas_sort:                      # rdi = массив, rsi = вид элементов: сортирует на месте"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    mov r9, rsi"));
@@ -27189,8 +27193,8 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("// bytes: [0] данные, [8] длина, [16] ёмкость, [24] лимит; один байт на элемент"));
-    do(o >> add("_bit_bytes_new:                     // rdi = сколько байт (нулями) → bytes"));
+    do(o >> add("# bytes: [0] данные, [8] длина, [16] ёмкость, [24] лимит; один байт на элемент"));
+    do(o >> add("_bit_bytes_new:                     # rdi = сколько байт (нулями) → bytes"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27224,7 +27228,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_add:                     // rdi = bytes, rsi = значение (младший байт)"));
+    do(o >> add("_bit_bytes_add:                     # rdi = bytes, rsi = значение (младший байт)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27253,7 +27257,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_slice:                   // rdi = bytes, rsi = от, rdx = до (включительно) → новые bytes"));
+    do(o >> add("_bit_bytes_slice:                   # rdi = bytes, rsi = от, rdx = до (включительно) → новые bytes"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27291,7 +27295,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_text:                    // rdi = bytes → строка"));
+    do(o >> add("_bit_bytes_text:                    # rdi = bytes → строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27316,7 +27320,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_str:                     // rdi = bytes → \"<01 a0 ff>\""));
+    do(o >> add("_bit_bytes_str:                     # rdi = bytes → \"<01 a0 ff>\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27361,7 +27365,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_file_load:                     // rdi = путь, rsi = строка → bytes (всё содержимое как есть)"));
+    do(o >> add("_bit_file_load:                     # rdi = путь, rsi = строка → bytes (всё содержимое как есть)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27424,7 +27428,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_file_save:                     // rdi = путь, rsi = bytes, rdx = строка: записывает байты как есть"));
+    do(o >> add("_bit_file_save:                     # rdi = путь, rsi = bytes, rdx = строка: записывает байты как есть"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27461,7 +27465,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r13"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_file_load_at:                  // path, offset, count, source line -> bytes"));
+    do(o >> add("_bit_file_load_at:                  # path, offset, count, source line -> bytes"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27529,13 +27533,13 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
     do(o >> add("_bit_open_update:"));
-    do(o >> add("    // O_WRONLY | O_CREAT (Linux), mode 0666 filtered by umask"));
+    do(o >> add("    # O_WRONLY | O_CREAT (Linux), mode 0666 filtered by umask"));
     do(o >> add("    mov esi, 65"));
     do(o >> add("    mov edx, 438"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("    jmp open@PLT"));
     do(o >> add(""));
-    do(o >> add("_bit_file_save_at:                  // path, bytes, offset, source line"));
+    do(o >> add("_bit_file_save_at:                  # path, bytes, offset, source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27556,7 +27560,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov r15d, eax"));
     do(o >> add("    mov edi, eax"));
     do(o >> add("    lea rsi, [rip + Lrt_wb]"));
-    do(o >> add("    // fdopen does not truncate an existing descriptor"));
+    do(o >> add("    # fdopen does not truncate an existing descriptor"));
     do(o >> add("    call fdopen@PLT"));
     do(o >> add("    test rax, rax"));
     do(o >> add("    jz 6f"));
@@ -27599,7 +27603,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r14"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_mem_free:                      // → свободно + буферы (sysinfo)"));
+    do(o >> add("_bit_mem_free:                      # → свободно + буферы (sysinfo)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 128"));
@@ -27613,7 +27617,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_self_pid:                      // → pid текущего процесса"));
+    do(o >> add("_bit_self_pid:                      # → pid текущего процесса"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    call getpid@PLT"));
@@ -27621,11 +27625,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_addr:                    // rdi = bytes → адрес данных"));
+    do(o >> add("_bit_bytes_addr:                    # rdi = bytes → адрес данных"));
     do(o >> add("    mov rax, [rdi]"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_num:                     // rdi = bytes, rsi = номер, rdx = строка -> 8 байт как число"));
+    do(o >> add("_bit_bytes_num:                     # rdi = bytes, rsi = номер, rdx = строка -> 8 байт как число"));
     do(o >> add("    test rsi, rsi"));
     do(o >> add("    js 9f"));
     do(o >> add("    lea rax, [rsi + 8]"));
@@ -27639,7 +27643,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rdx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_put:                     // rdi = bytes, rsi = номер, rdx = число, rcx = строка"));
+    do(o >> add("_bit_bytes_put:                     # rdi = bytes, rsi = номер, rdx = число, rcx = строка"));
     do(o >> add("    test rsi, rsi"));
     do(o >> add("    js 9f"));
     do(o >> add("    lea rax, [rsi + 8]"));
@@ -27653,7 +27657,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rcx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_hexval_ptr:                    // rdi = указатель -> rax = число, rdx = конец"));
+    do(o >> add("_bit_hexval_ptr:                    # rdi = указатель -> rax = число, rdx = конец"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("1:  movzx r8d, byte ptr [rdi]"));
     do(o >> add("    lea r9d, [r8 - 48]"));
@@ -27671,7 +27675,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("2:  mov rdx, rdi"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_hex:                       // rdi = строка -> число (hex, можно с 0x)"));
+    do(o >> add("_bit_str_hex:                       # rdi = строка -> число (hex, можно с 0x)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("1:  movzx eax, byte ptr [rdi]"));
@@ -27690,10 +27694,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_drop_str:                      // release an adopted string reference"));
+    do(o >> add("_bit_drop_str:                      # release an adopted string reference"));
     do(o >> add("    jmp _bit_str_release"));
     do(o >> add(""));
-    do(o >> add("_bit_bytes_free:                    // rdi = bytes (или 0) -> освободить буфер и описатель"));
+    do(o >> add("_bit_bytes_free:                    # rdi = bytes (или 0) -> освободить буфер и описатель"));
     do(o >> add("    test rdi, rdi"));
     do(o >> add("    jz 1f"));
     do(o >> add("    push rbp"));
@@ -27710,15 +27714,15 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("1:  ret"));
     do(o >> add(""));
-    do(o >> add("_bit_tcp_connect:                   // rdi = \"ip:port\", rsi = строка -> TCP conn"));
+    do(o >> add("_bit_tcp_connect:                   # rdi = \"ip:port\", rsi = строка -> TCP conn"));
     do(o >> add("    mov edx, 1"));
     do(o >> add("    jmp _bit_ip_connect"));
     do(o >> add(""));
-    do(o >> add("_bit_udp_connect:                   // rdi = \"ip:port\", rsi = строка -> UDP conn"));
+    do(o >> add("_bit_udp_connect:                   # rdi = \"ip:port\", rsi = строка -> UDP conn"));
     do(o >> add("    mov edx, 2"));
     do(o >> add("    jmp _bit_ip_connect"));
     do(o >> add(""));
-    do(o >> add("_bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx = тип сокета"));
+    do(o >> add("_bit_ip_connect:                    # rdi = адрес, rsi = строка, rdx = тип сокета"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27817,7 +27821,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_tcp_connect_timed:               // rdi = \"ip:port\", rsi = таймаут мс, rdx = строка -> TCP conn"));
+    do(o >> add("_bit_tcp_connect_timed:               # rdi = \"ip:port\", rsi = таймаут мс, rdx = строка -> TCP conn"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -27995,12 +27999,12 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_tcp_listen:                    // port, line -> server"));
+    do(o >> add("_bit_tcp_listen:                    # port, line -> server"));
     do(o >> add("    mov rdx, rsi"));
     do(o >> add("    xor esi, esi"));
     do(o >> add("    jmp _bit_tcp_listen_at"));
     do(o >> add(""));
-    do(o >> add("_bit_tcp_listen_at:                 // port, IPv4 address or null, line -> server"));
+    do(o >> add("_bit_tcp_listen_at:                 # port, IPv4 address or null, line -> server"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28076,7 +28080,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("6:  mov rsi, r14"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_tcp_accept:                    // rdi = server, rsi = строка -> conn"));
+    do(o >> add("_bit_tcp_accept:                    # rdi = server, rsi = строка -> conn"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28098,7 +28102,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_sock_peer:                     // socket, source line -> owned \"IPv4:port\""));
+    do(o >> add("_bit_sock_peer:                     # socket, source line -> owned \"IPv4:port\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28151,7 +28155,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_sock_send:                     // rdi = conn, rsi = строка, rdx = строка программы"));
+    do(o >> add("_bit_sock_send:                     # rdi = conn, rsi = строка, rdx = строка программы"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28191,7 +28195,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_sock_recv:                     // rdi = conn, rsi = строка -> строка"));
+    do(o >> add("_bit_sock_recv:                     # rdi = conn, rsi = строка -> строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28221,7 +28225,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_socket_wait:                   // socket, timeout in ms -> poll result"));
+    do(o >> add("_bit_socket_wait:                   # socket, timeout in ms -> poll result"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28233,9 +28237,9 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov r12d, esi"));
     do(o >> add("    xor edi, edi"));
     do(o >> add("    call _bit_os_clock"));
-    do(o >> add("    lea r13, [rax + r12]           // absolute deadline"));
+    do(o >> add("    lea r13, [rax + r12]           # absolute deadline"));
     do(o >> add("    mov r14, r12"));
-    do(o >> add("1:  mov dword ptr [rsp + 4], 1     // POLLIN; clear revents"));
+    do(o >> add("1:  mov dword ptr [rsp + 4], 1     # POLLIN; clear revents"));
     do(o >> add("    mov rdi, rsp"));
     do(o >> add("    mov esi, 1"));
     do(o >> add("    mov edx, r14d"));
@@ -28243,7 +28247,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    jns 3f"));
     do(o >> add("    call __errno_location@PLT"));
-    do(o >> add("    cmp dword ptr [rax], 4         // EINTR"));
+    do(o >> add("    cmp dword ptr [rax], 4         # EINTR"));
     do(o >> add("    jne 2f"));
     do(o >> add("    xor edi, edi"));
     do(o >> add("    call _bit_os_clock"));
@@ -28261,7 +28265,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_sock_recv_timed:               // socket, count, timeout in ms, source line -> string"));
+    do(o >> add("_bit_sock_recv_timed:               # socket, count, timeout in ms, source line -> string"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28315,10 +28319,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("5:  mov rsi, r13"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_sock_close:                    // rdi = conn/server"));
+    do(o >> add("_bit_sock_close:                    # rdi = conn/server"));
     do(o >> add("    jmp close@PLT"));
     do(o >> add(""));
-    do(o >> add("_bit_shquote:                       // rdi = строка -> 'строка' с экранированием"));
+    do(o >> add("_bit_shquote:                       # rdi = строка -> 'строка' с экранированием"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28359,7 +28363,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_spawn_capture:                 // rdi = argv (char**, NULL-терм), rsi = строка → вывод stdout"));
+    do(o >> add("_bit_spawn_capture:                 # rdi = argv (char**, NULL-терм), rsi = строка → вывод stdout"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28456,7 +28460,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = строка → код выхода"));
+    do(o >> add("_bit_spawn_status:                  # rdi = argv, rsi = тихо(0/1), rdx = строка → код выхода"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28508,7 +28512,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r13"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_fetch:                         // rdi = url, rsi = строка -> тело"));
+    do(o >> add("_bit_fetch:                         # rdi = url, rsi = строка -> тело"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28532,7 +28536,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_http_post:                     // rdi = url, rsi = данные, rdx = строка -> ответ"));
+    do(o >> add("_bit_http_post:                     # rdi = url, rsi = данные, rdx = строка -> ответ"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28562,7 +28566,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_download:                      // rdi = url, rsi = файл, rdx = строка"));
+    do(o >> add("_bit_download:                      # rdi = url, rsi = файл, rdx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28593,7 +28597,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_resolve:                       // rdi = имя хоста, rsi = строка -> IP-адрес строкой"));
+    do(o >> add("_bit_resolve:                       # rdi = имя хоста, rsi = строка -> IP-адрес строкой"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28624,7 +28628,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    jmp _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_ping_clock:                    // monotonic milliseconds, -1 on failure"));
+    do(o >> add("_bit_ping_clock:                    # monotonic milliseconds, -1 on failure"));
     do(o >> add("    sub rsp, 24"));
     do(o >> add("    mov edi, 1                      # CLOCK_MONOTONIC on Linux"));
     do(o >> add("    mov rsi, rsp"));
@@ -28642,7 +28646,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("2:  add rsp, 24"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_ping:                          // host -> ICMP echo reply, without a subprocess"));
+    do(o >> add("_bit_ping:                          # host -> ICMP echo reply, without a subprocess"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28652,8 +28656,8 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    push r15"));
     do(o >> add("    sub rsp, 344"));
     do(o >> add("    mov rbx, rdi"));
-    do(o >> add("    mov r12, -1                    // socket"));
-    do(o >> add("    xor r13d, r13d                 // addrinfo list"));
+    do(o >> add("    mov r12, -1                    # socket"));
+    do(o >> add("    xor r13d, r13d                 # addrinfo list"));
     do(o >> add("    test rbx, rbx"));
     do(o >> add("    jz 9f"));
     do(o >> add("    cmp byte ptr [rbx], 0"));
@@ -28662,7 +28666,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    movdqu [rsp], xmm0"));
     do(o >> add("    movdqu [rsp + 16], xmm0"));
     do(o >> add("    movdqu [rsp + 32], xmm0"));
-    do(o >> add("    mov dword ptr [rsp + 8], 2     // SOCK_DGRAM, any IP family"));
+    do(o >> add("    mov dword ptr [rsp + 8], 2     # SOCK_DGRAM, any IP family"));
     do(o >> add("    mov rdi, rbx"));
     do(o >> add("    xor esi, esi"));
     do(o >> add("    mov rdx, rsp"));
@@ -28674,7 +28678,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test r13, r13"));
     do(o >> add("    jz 9f"));
     do(o >> add("    mov r14, r13"));
-    do(o >> add("11: mov eax, [r14 + 4]            // ai_family"));
+    do(o >> add("11: mov eax, [r14 + 4]            # ai_family"));
     do(o >> add("    cmp eax, 2"));
     do(o >> add("    je 12f"));
     do(o >> add("    cmp eax, 10                   # AF_INET6 on Linux"));
@@ -28683,17 +28687,17 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test r14, r14"));
     do(o >> add("    jnz 11b"));
     do(o >> add("    jmp 9f"));
-    do(o >> add("12: mov [rsp + 4], eax            // retain family after freeaddrinfo"));
-    do(o >> add("    mov r15d, [r14 + 16]          // ai_addrlen"));
-    do(o >> add("    mov r14, [r14 + 24]           // ai_addr on Linux"));
+    do(o >> add("12: mov [rsp + 4], eax            # retain family after freeaddrinfo"));
+    do(o >> add("    mov r15d, [r14 + 16]          # ai_addrlen"));
+    do(o >> add("    mov r14, [r14 + 24]           # ai_addr on Linux"));
     do(o >> add("    test r14, r14"));
     do(o >> add("    jz 9f"));
     do(o >> add("    mov edi, eax"));
-    do(o >> add("    mov esi, 2                    // SOCK_DGRAM"));
-    do(o >> add("    mov edx, 1                    // IPPROTO_ICMP"));
+    do(o >> add("    mov esi, 2                    # SOCK_DGRAM"));
+    do(o >> add("    mov edx, 1                    # IPPROTO_ICMP"));
     do(o >> add("    cmp eax, 2"));
     do(o >> add("    je 13f"));
-    do(o >> add("    mov edx, 58                   // IPPROTO_ICMPV6"));
+    do(o >> add("    mov edx, 58                   # IPPROTO_ICMPV6"));
     do(o >> add("13: call socket@PLT"));
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
@@ -28711,7 +28715,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    movabs rax, 0x6251000035f10008"));
     do(o >> add("    cmp dword ptr [rsp + 4], 2"));
     do(o >> add("    je 14f"));
-    do(o >> add("    movabs rax, 0x6251000000000080 // ICMPv6 echo; OS supplies checksum"));
+    do(o >> add("    movabs rax, 0x6251000000000080 # ICMPv6 echo; OS supplies checksum"));
     do(o >> add("14: mov [rsp + 56], rax"));
     do(o >> add("    movabs rax, 0x676e69702d746962"));
     do(o >> add("    mov [rsp + 64], rax"));
@@ -28725,10 +28729,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call _bit_ping_clock"));
     do(o >> add("    test rax, rax"));
     do(o >> add("    js 9f"));
-    do(o >> add("    lea r15, [rax + 1000]         // one-second deadline"));
+    do(o >> add("    lea r15, [rax + 1000]         # one-second deadline"));
     do(o >> add("    mov r14, 1000"));
     do(o >> add("1:  mov [rsp + 72], r12d"));
-    do(o >> add("    mov dword ptr [rsp + 76], 1  // POLLIN; clear revents"));
+    do(o >> add("    mov dword ptr [rsp + 76], 1  # POLLIN; clear revents"));
     do(o >> add("    lea rdi, [rsp + 72]"));
     do(o >> add("    mov esi, 1"));
     do(o >> add("    mov edx, r14d"));
@@ -28751,7 +28755,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    shr r8d, 4"));
     do(o >> add("    cmp r8d, 4"));
     do(o >> add("    jne 2f"));
-    do(o >> add("    and edx, 15                   // Darwin includes IPv4 header"));
+    do(o >> add("    and edx, 15                   # Darwin includes IPv4 header"));
     do(o >> add("    lea rcx, [rdx * 4]"));
     do(o >> add("    cmp rcx, 20"));
     do(o >> add("    jb 7f"));
@@ -28764,10 +28768,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jne 7f"));
     do(o >> add("    cmp dword ptr [rsp + 4], 2"));
     do(o >> add("    jne 15f"));
-    do(o >> add("    cmp byte ptr [rdx], 0          // ICMP echo reply"));
+    do(o >> add("    cmp byte ptr [rdx], 0          # ICMP echo reply"));
     do(o >> add("    jne 7f"));
     do(o >> add("    jmp 16f"));
-    do(o >> add("15: cmp byte ptr [rdx], 129        // ICMPv6 echo reply"));
+    do(o >> add("15: cmp byte ptr [rdx], 129        # ICMPv6 echo reply"));
     do(o >> add("    jne 7f"));
     do(o >> add("16: cmp word ptr [rdx + 6], 0x6251"));
     do(o >> add("    jne 7f"));
@@ -28777,7 +28781,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov r14d, 1"));
     do(o >> add("    jmp 8f"));
     do(o >> add("6:  call __errno_location@PLT"));
-    do(o >> add("    cmp dword ptr [rax], 4       // EINTR"));
+    do(o >> add("    cmp dword ptr [rax], 4       # EINTR"));
     do(o >> add("    jne 9f"));
     do(o >> add("7:  call _bit_ping_clock"));
     do(o >> add("    test rax, rax"));
@@ -28804,7 +28808,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_num:                       // rdi = строка -> число"));
+    do(o >> add("_bit_str_num:                       # rdi = строка -> число"));
     do(o >> add("    mov rcx, rdi"));
     do(o >> add("    xor r8d, r8d"));
     do(o >> add("1:  movzx eax, byte ptr [rcx]"));
@@ -28830,7 +28834,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    neg rax"));
     do(o >> add("6:  ret"));
     do(o >> add(""));
-    do(o >> add("_bit_str_num_checked:               // rdi = string, rsi = source line"));
+    do(o >> add("_bit_str_num_checked:               # rdi = string, rsi = source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28875,7 +28879,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r12"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_str_lines:                     // rdi = строка -> mas строк"));
+    do(o >> add("_bit_str_lines:                     # rdi = строка -> mas строк"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28925,7 +28929,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_os_host:                       // -> имя компьютера"));
+    do(o >> add("_bit_os_host:                       # -> имя компьютера"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28942,7 +28946,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_os_user:                       // -> имя пользователя"));
+    do(o >> add("_bit_os_user:                       # -> имя пользователя"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    lea rdi, [rip + Lrt_userenv]"));
@@ -28953,7 +28957,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("1:  pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_os_clock:                      // rdi = source line -> monotonic milliseconds"));
+    do(o >> add("_bit_os_clock:                      # rdi = source line -> monotonic milliseconds"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -28978,7 +28982,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_os_now:                        // -> время (секунды)"));
+    do(o >> add("_bit_os_now:                        # -> время (секунды)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    xor edi, edi"));
@@ -28986,13 +28990,13 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_os_cpus:                       // source line -> online logical processors"));
+    do(o >> add("_bit_os_cpus:                       # source line -> online logical processors"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
     do(o >> add("    sub rsp, 8"));
     do(o >> add("    mov rbx, rdi"));
-    do(o >> add("    mov edi, 84                    // glibc _SC_NPROCESSORS_ONLN"));
+    do(o >> add("    mov edi, 84                    # glibc _SC_NPROCESSORS_ONLN"));
     do(o >> add("    call sysconf@PLT"));
     do(o >> add("    cmp rax, 1"));
     do(o >> add("    jl 9f"));
@@ -29004,7 +29008,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_procs_add:                    // array, pid, name, source line"));
+    do(o >> add("_bit_procs_add:                    # array, pid, name, source line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29045,7 +29049,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_procs_finish:                 // array -> joined string; free temporary entries"));
+    do(o >> add("_bit_procs_finish:                 # array -> joined string; free temporary entries"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29076,7 +29080,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_os_procs:                     // source line -> PID and process name per line"));
+    do(o >> add("_bit_os_procs:                     # source line -> PID and process name per line"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29172,7 +29176,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, rbx"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_mas_argv:                      // rdi = mas строк → rax = char** (NULL в конце)"));
+    do(o >> add("_bit_mas_argv:                      # rdi = mas строк → rax = char** (NULL в конце)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29198,7 +29202,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_buf_read:                      // edi = fd, rsi = буфер (ptr, len, cap) → rax = прочитано"));
+    do(o >> add("_bit_buf_read:                      # edi = fd, rsi = буфер (ptr, len, cap) → rax = прочитано"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29232,7 +29236,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_buf_finish:                    // rdi = буфер → строка (без последнего \\n)"));
+    do(o >> add("_bit_buf_finish:                    # rdi = буфер → строка (без последнего \\n)"));
     do(o >> add("    mov rax, [rdi + 8]"));
     do(o >> add("    mov rdx, [rdi]"));
     do(o >> add("    test rax, rax"));
@@ -29244,7 +29248,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rax, rdx"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_exec:                          // rdi = mas строк, rsi = stdin (или 0), rdx = строка → stdout"));
+    do(o >> add("_bit_exec:                          # rdi = mas строк, rsi = stdin (или 0), rdx = строка → stdout"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29280,17 +29284,17 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
     do(o >> add("    mov edi, dword ptr [rsp + 20]"));
-    do(o >> add("    // F_GETFL"));
+    do(o >> add("    # F_GETFL"));
     do(o >> add("    mov esi, 3"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("    call fcntl@PLT"));
     do(o >> add("    test eax, eax"));
     do(o >> add("    js 9f"));
     do(o >> add("    mov edx, eax"));
-    do(o >> add("    // O_NONBLOCK"));
+    do(o >> add("    # O_NONBLOCK"));
     do(o >> add("    or edx, 2048"));
     do(o >> add("    mov edi, dword ptr [rsp + 20]"));
-    do(o >> add("    // F_SETFL"));
+    do(o >> add("    # F_SETFL"));
     do(o >> add("    mov esi, 4"));
     do(o >> add("    xor eax, eax"));
     do(o >> add("    call fcntl@PLT"));
@@ -29348,13 +29352,13 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    test r14, r14"));
     do(o >> add("    jz 6f"));
     do(o >> add("    mov edi, 13"));
-    do(o >> add("    // SIG_IGN"));
+    do(o >> add("    # SIG_IGN"));
     do(o >> add("    mov esi, 1"));
     do(o >> add("    call signal@PLT"));
     do(o >> add("    mov [rsp + 112], rax"));
     do(o >> add("    mov eax, dword ptr [rsp + 20]"));
     do(o >> add("    mov dword ptr [rsp + 144], eax"));
-    do(o >> add("    // POLLOUT"));
+    do(o >> add("    # POLLOUT"));
     do(o >> add("    mov dword ptr [rsp + 148], 4"));
     do(o >> add("    mov qword ptr [rsp + 104], 3"));
     do(o >> add("    jmp 5f"));
@@ -29429,10 +29433,10 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    jg 73f"));
     do(o >> add("    call __errno_location@PLT"));
     do(o >> add("    mov eax, dword ptr [rax]"));
-    do(o >> add("    // EINTR"));
+    do(o >> add("    # EINTR"));
     do(o >> add("    cmp eax, 4"));
     do(o >> add("    je 7b"));
-    do(o >> add("    // EAGAIN"));
+    do(o >> add("    # EAGAIN"));
     do(o >> add("    cmp eax, 11"));
     do(o >> add("    je 7b"));
     do(o >> add("    jmp 74f"));
@@ -29457,7 +29461,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    call _bit_wstatus"));
     do(o >> add("    jmp 82f"));
     do(o >> add("81: call __errno_location@PLT"));
-    do(o >> add("    // EINTR"));
+    do(o >> add("    # EINTR"));
     do(o >> add("    cmp dword ptr [rax], 4"));
     do(o >> add("    je 8b"));
     do(o >> add("    mov qword ptr [rip + Lrt_status], 127"));
@@ -29490,7 +29494,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r13"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_term_stderr:                   // → копия stderr последнего mas >> run (\"\" если не было)"));
+    do(o >> add("_bit_term_stderr:                   # → копия stderr последнего mas >> run (\"\" если не было)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29513,8 +29517,8 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    ret"));
     do(o >> add(""));
     do(o >> add(""));
-    do(o >> add("// ───── чужие процессы (Linux): /proc/<pid>/mem ─────"));
-    do(o >> add("_bit_proc_path:                     // rdi = pid, rsi = формат → строка \"/proc/<pid>/...\""));
+    do(o >> add("# ───── чужие процессы (Linux): /proc/<pid>/mem ─────"));
+    do(o >> add("_bit_proc_path:                     # rdi = pid, rsi = формат → строка \"/proc/<pid>/...\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29538,7 +29542,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_fail:                     // rdi = текст, rsi = путь, rdx = строка программы: текст + путь + причина"));
+    do(o >> add("_bit_proc_fail:                     # rdi = текст, rsi = путь, rdx = строка программы: текст + путь + причина"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29565,7 +29569,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rsi, r13"));
     do(o >> add("    call _bit_die"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_start:                    // rdi = команда, rsi = строка → pid запущенного процесса (наш ребёнок)"));
+    do(o >> add("_bit_proc_start:                    # rdi = команда, rsi = строка → pid запущенного процесса (наш ребёнок)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29602,7 +29606,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_errpath"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_find:                     // rdi = имя, rsi = строка → pid первого процесса с таким именем или -1"));
+    do(o >> add("_bit_proc_find:                     # rdi = имя, rsi = строка → pid первого процесса с таким именем или -1"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29675,7 +29679,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_alive:                    // rdi = pid → 1 если процесс есть"));
+    do(o >> add("_bit_proc_alive:                    # rdi = pid → 1 если процесс есть"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    test rdi, rdi"));
@@ -29694,7 +29698,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_name:                     // rdi = pid → имя процесса или \"\""));
+    do(o >> add("_bit_proc_name:                     # rdi = pid → имя процесса или \"\""));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29722,7 +29726,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_maps:                     // rdi = pid, rsi = строка → mas строк /proc/<pid>/maps"));
+    do(o >> add("_bit_proc_maps:                     # rdi = pid, rsi = строка → mas строк /proc/<pid>/maps"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29738,7 +29742,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_read:                     // rdi = pid, rsi = адрес, rdx = сколько байт, rcx = строка → bytes"));
+    do(o >> add("_bit_proc_read:                     # rdi = pid, rsi = адрес, rdx = сколько байт, rcx = строка → bytes"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29788,7 +29792,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r14"));
     do(o >> add("    call _bit_proc_fail"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_write:                    // rdi = pid, rsi = адрес, rdx = bytes, rcx = строка"));
+    do(o >> add("_bit_proc_write:                    # rdi = pid, rsi = адрес, rdx = bytes, rcx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29834,14 +29838,14 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r14"));
     do(o >> add("    call _bit_proc_fail"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_kill:                     // rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)"));
+    do(o >> add("_bit_proc_kill:                     # rdi = pid, rsi = строка: просит процесс завершиться (SIGTERM)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
     do(o >> add("    push r12"));
     do(o >> add("    mov rbx, rdi"));
     do(o >> add("    mov r12, rsi"));
-    do(o >> add("    // pid <= 0 у kill значит «группа» или «все процессы» — не трогаем"));
+    do(o >> add("    # pid <= 0 у kill значит «группа» или «все процессы» — не трогаем"));
     do(o >> add("    test rdi, rdi"));
     do(o >> add("    jle 8f"));
     do(o >> add("    mov esi, 15"));
@@ -29866,11 +29870,11 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    mov rdx, r12"));
     do(o >> add("    call _bit_proc_fail"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_wait:                     // rdi = pid → код выхода"));
+    do(o >> add("_bit_proc_wait:                     # rdi = pid → код выхода"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    sub rsp, 16"));
-    do(o >> add("    // pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс"));
+    do(o >> add("    # pid <= 0 у waitpid значит «любой ребёнок» — это не наш процесс"));
     do(o >> add("    test rdi, rdi"));
     do(o >> add("    jle 1f"));
     do(o >> add("    mov rsi, rsp"));
@@ -29886,7 +29890,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_read_num:                 // rdi = pid, rsi = адрес, rdx = строка -> число (8 байт)"));
+    do(o >> add("_bit_proc_read_num:                 # rdi = pid, rsi = адрес, rdx = строка -> число (8 байт)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    mov rcx, rdx"));
@@ -29897,7 +29901,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_write_num:                // rdi = pid, rsi = адрес, rdx = число, rcx = строка"));
+    do(o >> add("_bit_proc_write_num:                # rdi = pid, rsi = адрес, rdx = число, rcx = строка"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29924,7 +29928,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_try:                      // rdi=pid, rsi=адрес, rdx=сколько -> bytes или 0 (без ошибки)"));
+    do(o >> add("_bit_proc_try:                      # rdi=pid, rsi=адрес, rdx=сколько -> bytes или 0 (без ошибки)"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
@@ -29967,7 +29971,7 @@ fn rt_x86_linux(mas o) {
     do(o >> add("    pop rbp"));
     do(o >> add("    ret"));
     do(o >> add(""));
-    do(o >> add("_bit_proc_scan:                     // rdi=pid, rsi=число, rdx=строка -> mas:num адресов"));
+    do(o >> add("_bit_proc_scan:                     # rdi=pid, rsi=число, rdx=строка -> mas:num адресов"));
     do(o >> add("    push rbp"));
     do(o >> add("    mov rbp, rsp"));
     do(o >> add("    push rbx"));
