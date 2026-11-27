@@ -18,9 +18,22 @@ fn capture_map(string key, string value) {
 fn capture_record(string value) {
     return Capture(value);
 }
+fn capture_transformed() {
+    string value = capture_make(6);
+    return value >> upper;
+}
+fn capture_sliced() {
+    string value = capture_make(7);
+    return value >> get(0:3);
+}
+fn capture_padded() {
+    string value = capture_make(8);
+    return value >> pad(12, ".");
+}
 fn capture_produce() {
     string array_value = capture_make(1);
     if not (array_value >> starts("captured")) { print("unexpected-prefix"); }
+    if not (array_value >> contains("tured")) { print("unexpected-contains"); }
     do(capture_array(array_value));
     do(array_value >> ch("changed"));
     string global_value = capture_make(2);
@@ -48,4 +61,7 @@ host {
     string alias = first;
     do(first >> ch("changed"));
     print(alias);
+    print(capture_transformed());
+    print(capture_sliced());
+    print(capture_padded());
 }

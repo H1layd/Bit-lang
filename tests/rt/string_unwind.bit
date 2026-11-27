@@ -99,6 +99,30 @@ fn unwind_process_input(num n) {
         if term >> error == "" { print("missing-process-error" >> num); }
     }
 }
+fn unwind_more_local_methods(num n) {
+    string value = unwind_string(n);
+    string upper = value >> upper;
+    string lower = value >> lower;
+    string piece = value >> get(0:2);
+    string repeated = value >> repeat(2);
+    string padded = value >> pad(16, ".");
+    string padded_left = value >> pad_left(16, ".");
+    bool found = value >> contains("value");
+    num index = value >> find("-");
+    num code = value >> code;
+    string number = "{n}";
+    num parsed = number >> num;
+    recover {
+        print(value >> num);
+    } else {
+        if not (value >> contains("value")) { print("lost-value" >> num); }
+    }
+    if not found or index != 5 or code != 118 or parsed != n {
+        print("wrong-local-method" >> num);
+    }
+    return (upper >> sz) + (lower >> sz) + (piece >> sz) + (repeated >> sz) +
+        (padded >> sz) + (padded_left >> sz);
+}
 fn unwind_local_methods(num n) {
     string value = unwind_string(n);
     bool prefix = value >> starts("value");
@@ -187,6 +211,7 @@ host {
         } else {
             do(caught >> ch(caught + 1));
         }
+        do(unwind_more_local_methods(i));
         do(unwind_local_methods(i));
         do(unwind_pipe_trim(i));
         do(unwind_pipe_slice(i));

@@ -210,3 +210,20 @@ and both time and memory measurements varied considerably. Both compilers produc
 identical assembly for the same previous source; four alternating assembly-generation
 runs gave medians of 3.921 s before and 4.300 s after. The cause of the difference
 is unresolved; repeat on a less loaded machine before drawing a performance conclusion.
+
+A repeat of self-build measurements after the `mas >> run` fix on a less loaded
+machine alternated each version three times in the same temporary directory.
+Times before: 5.653, 5.318, and 5.220 s; after: 5.341, 5.428, and 5.319 s.
+Medians were 5.318 s and 5.341 s, with median peaks of 709,525,504 and 709,558,272
+bytes respectively. The previous large discrepancy did not recur; the measurements
+do not establish the absence of all overhead.
+
+Local string analysis now recognizes independent results and reads from `upper`,
+`lower`, `get`, `repeat`, `pad`, `pad_left`, `contains`, `find`, `code`, and `num`.
+Such uses no longer prevent cleanup by themselves; storing a value in shared data
+is still tracked separately. Tests cover returning results, shared storage, and
+cleanup through `recover`. For 50,000 `contains` calls on roughly 1 KiB strings,
+peak memory fell from 80,216,064 to 1,785,856 bytes, with a count of 50,000 in
+both cases. Three macOS ARM64 self-builds gave medians of 5.153 s and 676.67 MiB
+before, and 5.151 s and 677.00 MiB after. The machine was not isolated and the
+sources differ.

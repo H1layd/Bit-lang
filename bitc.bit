@@ -2648,8 +2648,16 @@ fn string_escapes(num n, string name) {
     bool held_call = k == "call" and record_by_name(fs(n)) < 0;
     # These string methods copy their results or only compare; their receiver is
     # never stored beyond the call. Arguments are still analysed separately.
-    bool safe_receiver = k == "pipe" and (fs(n) == "sz" or fs(n) == "starts" or
-        fs(n) == "ends" or fs(n) == "trim" or fs(n) == "replace");
+    bool safe_receiver = false;
+    if k == "pipe" and kind(a) == "var" and fs(a) == name {
+        string method = fs(n);
+        do(safe_receiver >> ch(method == "sz" or method == "starts" or
+            method == "ends" or method == "trim" or method == "replace" or
+            method == "upper" or method == "lower" or method == "get" or
+            method == "repeat" or method == "pad" or method == "pad_left" or
+            method == "contains" or method == "find" or method == "code" or
+            method == "num"));
+    }
     bool read_only = safe_receiver or k == "print" or copying;
     if not (read_only and kind(a) == "var") and string_escapes(a, name) {
         return true;
