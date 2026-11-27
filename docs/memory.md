@@ -196,3 +196,17 @@ Three self-builds per version on macOS ARM64 initially gave medians of 5.296 s a
 676.66 MiB before, and 5.596 s and 676.55 MiB after. Repeating in reverse order gave
 5.414 s and 676.56 MiB after, and 5.741 s and 676.53 MiB before. The machine was
 not isolated and the sources differ; these results do not establish a speed change.
+
+`mas >> run(input)` now retains the computed input through process launch and
+releases it after a normal return or `recover`. In a test with 50,000 recovered
+failures and roughly 1 KiB inputs, peak `mem >> used` fell from 80,265,216 to
+1,802,240 bytes with 50,000 caught errors in both versions. Tests also cover 1 MiB
+of input to a running child and cleanup when the command returns status 127.
+
+On macOS ARM64, three self-builds per version gave medians of 8.311 s and 640.92 MiB
+before, and 11.465 s and 676.58 MiB after. Repeated in reverse order: 12.472 s and
+503.55 MiB after, and 8.840 s and 676.58 MiB before. The machine was heavily loaded,
+and both time and memory measurements varied considerably. Both compilers produced
+identical assembly for the same previous source; four alternating assembly-generation
+runs gave medians of 3.921 s before and 4.300 s after. The cause of the difference
+is unresolved; repeat on a less loaded machine before drawing a performance conclusion.

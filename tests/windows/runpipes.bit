@@ -5,7 +5,7 @@ host {
         do(input >> ch(input + input));
     mas cmd = ("powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
         "[Console]::Error.Write(('e' * 131072)); $s = [Console]::In.ReadLine(); if ($s.Length -ne 1048576) {{ exit 3 }}; [Console]::Out.Write('ok'); exit 7");
-    string output = cmd >> run(input);
+    string output = cmd >> run(input + "");
     print(output >> sz);
     print(term >> stderr >> sz);
     print(term >> status);

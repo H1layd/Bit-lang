@@ -6718,10 +6718,12 @@ fn mas_run(num n, string ot, num line) {
     if c1(n) > 1 or (c1(n) == 1 and kind(arg(n, 0)) == "range") {
         do(fail("run или run(\"вход\") — на вход программе одна строка", line));
     }
+    mas string_args = (num);
     if c1(n) == 1 {
         do(push());
         do(expr(arg(n, 0)));
         do(coerce(RT, "string", line, "run(вход)"));
+        do(hold_call_string(arg(n, 0), "string", string_args));
         do(op_acc_to(1));
         do(pop(pr(0)));
     } else {
@@ -6730,6 +6732,7 @@ fn mas_run(num n, string ot, num line) {
     }
     do(op_imm(pr(2), source_line(line)));
     do(op_call("_bit_exec"));
+    do(drop_call_strings(string_args));
     do(res("string"));
     do(op_rt1("_bit_str_adopt"));
     do(RFRESH >> ch(true));
