@@ -1,0 +1,43 @@
+use "../../rt/http/url.bit";
+
+fn url_test(string source, string scheme, string host_name, string port, string target, string authority) {
+    mas result = http_url_parse(source);
+    if (result >> sz) != 5 or (result >> get(0, "")) != scheme or
+       (result >> get(1, "")) != host_name or (result >> get(2, "")) != port or
+       (result >> get(3, "")) != target or (result >> get(4, "")) != authority {
+        print("FAIL URL {source}: {result}");
+    }
+}
+
+fn url_bad(string source) {
+    if http_url_parse(source) >> sz != 0 { print("FAIL invalid URL {source}"); }
+}
+
+host {
+    do(url_test("http://example.com", "http", "example.com", "80", "/", "example.com"));
+    do(url_test("HTTPS://Example.com:8443/a%2Fb?x=1#fragment", "https", "Example.com", "8443", "/a%2Fb?x=1", "Example.com:8443"));
+    do(url_test("http://example.com?x=y", "http", "example.com", "80", "/?x=y", "example.com"));
+    do(url_test("http://[::1]:8080/a", "http", "::1", "8080", "/a", "[::1]:8080"));
+    do(url_test("https://[2001:db8::1]#fragment", "https", "2001:db8::1", "443", "/", "[2001:db8::1]"));
+    do(url_test("http://127.0.0.1:65535/path?x=a+b#z", "http", "127.0.0.1", "65535", "/path?x=a+b", "127.0.0.1:65535"));
+    do(url_test("http://[::ffff:127.0.0.1]/", "http", "::ffff:127.0.0.1", "80", "/", "[::ffff:127.0.0.1]"));
+    do(url_bad(""));
+    do(url_bad("file:///x"));
+    do(url_bad("http://"));
+    do(url_bad("http://user:pass@example.com/"));
+    do(url_bad("http://example.com:/"));
+    do(url_bad("http://example.com:0/"));
+    do(url_bad("http://example.com:65536/"));
+    do(url_bad("http://example.com:-1/"));
+    do(url_bad("http://example.com:1:2/"));
+    do(url_bad("http://[::1/"));
+    do(url_bad("http://::1/"));
+    do(url_bad("http://example.com/hello world"));
+    do(url_bad("http://example.com/%zz"));
+    do(url_bad("http://example.com/%2"));
+    do(url_bad("http://example.com/%2#fragment"));
+    do(url_bad("http://example.com/\r\nInjected: yes"));
+    do(url_bad("http://[::1]:/"));
+    do(url_bad("http://example.com\\evil/"));
+    print("http url tests complete");
+}

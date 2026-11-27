@@ -1,0 +1,98 @@
+# Internal parser for absolute HTTP(S) URLs. Returns an empty string array on
+# invalid input, otherwise [scheme, host, port, request-target, Host header].
+# The transport is responsible for DNS, TLS verification and redirects.
+
+fn http_url_hex(num c) {
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102);
+}
+
+fn http_url_parse(string url) {
+    mas result = (string);
+    mas chars = url >> bytes;
+    num length = chars >> sz;
+    string lower = url >> lower;
+    num begin = 0;
+    string scheme = "";
+    string default_port = "";
+    if lower >> starts("http://") {
+        do(scheme >> ch("http"));
+        do(default_port >> ch("80"));
+        do(begin >> ch(7));
+    } else if lower >> starts("https://") {
+        do(scheme >> ch("https"));
+        do(default_port >> ch("443"));
+        do(begin >> ch(8));
+    } else { return result; }
+    num end = begin;
+    while end < length {
+        num c = chars >> get(end, -1);
+        if c == 47 or c == 63 or c == 35 { break; }
+        if c < 33 or c >= 127 or c == 64 or c == 92 { return result; }
+        do(end >> ch(end + 1));
+    }
+    if end == begin { return result; }
+    num host_first = begin;
+    num host_last = end;
+    num port_start = end;
+    bool ipv6 = (chars >> get(begin, -1)) == 91;
+    if ipv6 {
+        num close = begin + 1;
+        while close < end and (chars >> get(close, -1)) != 93 {
+            num c = chars >> get(close, -1);
+            if not (http_url_hex(c) or c == 58 or c == 46) { return result; }
+            do(close >> ch(close + 1));
+        }
+        if close == end or close == begin + 1 { return result; }
+        do(host_first >> ch(begin + 1));
+        do(host_last >> ch(close));
+        if close + 1 < end {
+            if (chars >> get(close + 1, -1)) != 58 { return result; }
+            do(port_start >> ch(close + 2));
+        }
+    } else {
+        num i = begin;
+        while i < end {
+            num c = chars >> get(i, -1);
+            if c == 58 {
+                do(host_last >> ch(i));
+                do(port_start >> ch(i + 1));
+                break;
+            }
+            if not ((c >= 48 and c <= 57) or (c >= 65 and c <= 90) or
+                    (c >= 97 and c <= 122) or c == 45 or c == 46 or c == 95) { return result; }
+            do(i >> ch(i + 1));
+        }
+    }
+    if host_last == host_first { return result; }
+    string port = default_port;
+    if port_start < end {
+        num port_num = 0;
+        for i in port_start:end - 1 {
+            num digit = (chars >> get(i, -1)) - 48;
+            if digit < 0 or digit > 9 or port_num > 6553 { return result; }
+            do(port_num >> ch(port_num * 10 + digit));
+        }
+        if port_num < 1 or port_num > 65535 { return result; }
+        do(port >> ch(chars >> text(port_start, end)));
+    } else if port_start == end and (chars >> get(end - 1, -1)) == 58 { return result; }
+    num target_end = end;
+    while target_end < length and (chars >> get(target_end, -1)) != 35 {
+        num c = chars >> get(target_end, -1);
+        if c < 33 or c == 127 or c == 92 { return result; }
+        if c == 37 {
+            if target_end + 2 >= length or not http_url_hex(chars >> get(target_end + 1, -1)) or
+               not http_url_hex(chars >> get(target_end + 2, -1)) { return result; }
+            do(target_end >> ch(target_end + 2));
+        }
+        do(target_end >> ch(target_end + 1));
+    }
+    string target = chars >> text(end, target_end);
+    if target == "" { do(target >> ch("/")); }
+    else if (chars >> get(end, -1)) == 63 { do(target >> ch("/" + target)); }
+    do(result >> add(scheme));
+    do(result >> add(chars >> text(host_first, host_last)));
+    do(result >> add(port));
+    do(result >> add(target));
+    do(result >> add(chars >> text(begin, end)));
+    return result;
+}
