@@ -104,19 +104,20 @@ wait.
   codes being decoded as POSIX wait statuses. Previously fixed: files written in text mode (`\n` became `\r\n`),
   non-ASCII paths, commands and arguments broken by the ANSI code page, transliterated runtime
   messages. Windows programs are now UTF-8 throughout.
-- [ ] Run the updated runtimes on native Linux.
+- [x] Updated runtimes passed 143/143 tests and self-hosting on native Arch Linux x86-64,
+  including HOME protection, binary TCP/UDP and HTTP/TLS.
 - [x] Linux in Colima: Debian, x86-64 under QEMU, unprivileged user;
   95/95 and self-hosting passed, including `remove_all` protection for HOME and its ancestors.
 - [x] HOME/USERPROFILE ancestor protection passed on live Windows and was committed
   (`95be464`). The former Linux server was deleted; QEMU has intermittent emulator
-  crashes, so native Linux remains a separate check.
+  crashes. A separate native Arch Linux run has since been completed.
   After the thread lifecycle changes, two full QEMU runs passed 125/126 and 124/126;
   QEMU crashed during different tests. In 500 repetitions of one example it crashed
   once with the earlier version and four times with the new one; both core files were
   ARM64 QEMU processes. In a new paired run of 500 repetitions after stack alignment
   work, QEMU crashed eight times before and seven times after; those cores were also
   from QEMU. The final full run after the alignment fixes passed 128/128 and
-  self-hosting. These measurements do not establish reliability on native Linux.
+  self-hosting. These measurements concerned the emulator; a later native Arch run passed 143/143.
 - [x] **`d >> walk`** — every file inside a folder, nested folders included, without following links
   to folders; **`f >> modified`** — last change time.
 - [x] **`connect(ms)`** — a TCP connect with a bound wait: a nonblocking socket,
@@ -144,10 +145,10 @@ wait.
   for local Windows tests (Python 3 on Windows and OpenSSL for a short-lived test certificate are required).
   macOS uses the system libcurl library without starting a program; both architectures
   pass `tools/test_http_native.py`, including TLS and interrupted downloads. Linux
-  uses `libcurl.so.4`; HTTP, TLS and downloads passed under QEMU. Native Linux testing
-  and an in-project HTTP transport without libcurl remain separate work. The full Linux
-  run as an unprivileged user passed 141/143: two unrelated tests exited 139; each
-  passed three subsequent individual reruns.
+  uses `libcurl.so.4`; HTTP, TLS and downloads passed on native Arch Linux x86-64,
+  alongside 143/143 tests and self-hosting. An in-project HTTP transport without
+  libcurl remains separate work. Under QEMU, the full run passed 141/143: two unrelated
+  tests exited 139; each passed three subsequent individual reruns.
 - [ ] **Binary socket data**: `send(bytes)` and `recv_bytes(count, timeout)` are
   implemented; TCP/UDP, zero bytes, timeout and closure were tested on macOS and Linux.
   The Windows version builds but still needs to be run and tested on Windows.
@@ -209,11 +210,10 @@ package-manager checkpoint still applies. The author chooses the license and new
 language decisions.
 
 1. ~~**Finish the current work.**~~ HOME/USERPROFILE ancestor protection passed on
-   Windows, macOS, and Linux under QEMU and was committed. Native Linux remains a
-   separate portability check.
+   Windows, macOS, Linux under QEMU and native Arch Linux and was committed.
 2. **Open the project to people.** A `LICENSE` file (the author picks the license; without one
    nobody may legally use the code). GitHub Actions: build, self-hosting and tests on macOS, Linux
-   and Windows on every commit, with a badge in the README. A run on a real Linux machine.
+   and Windows on every commit, with a badge in the README. A native Arch Linux run is complete.
    Compiler and runtime messages in English by default, Russian as an option, like the docs.
 3. **Memory and long-running programs.** Define ownership for strings, arrays, maps,
    and records, returned values, and shared assignments. Reclaim objects without leaks
