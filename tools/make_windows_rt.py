@@ -35,7 +35,7 @@ NEED = ["_bit_str_find", "_bit_str_retain", "_bit_str_adopt", "_bit_str_release"
 WRAP = ["calloc", "memcpy", "qsort", "realloc", "strlen", "free", "getentropy"]
 # сеть: переносим и оборачиваем вызовы Winsock
 NET = ["_bit_tcp_connect", "_bit_udp_connect", "_bit_ip_connect", "_bit_tcp_listen", "_bit_tcp_listen_at",
-       "_bit_tcp_accept", "_bit_sock_peer", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_recv_timed",
+       "_bit_tcp_accept", "_bit_sock_peer", "_bit_sock_send", "_bit_sock_recv", "_bit_sock_recv_timed", "_bit_sock_recv_bytes",
        "_bit_sock_close", "_bit_resolve"]
 SOCK = ["accept", "bind", "connect", "getpeername", "gethostbyname", "inet_ntop", "inet_pton",
         "listen", "setsockopt", "recv", "send", "socket", "strlen", "free"]
@@ -91,6 +91,8 @@ def extract(name):
 
 def extract_net(name):
     b = wrapcalls(extract_raw(name), SOCK)
+    if name == "_bit_ip_connect":
+        b = b.replace("mov word ptr [rdx], 0x210", "mov word ptr [rdx], 2")
     if name == "_bit_tcp_listen_at":
         b = b.replace("mov word ptr [rsp], 0x210", "mov word ptr [rsp], 2")
     b = b.replace("call _close\n", "call _w_closesocket\n")
@@ -4299,6 +4301,52 @@ _bit_wp_mapline:                    // rdi = начало, rsi = конец, edx
     pop rbx
     pop rbp
     ret
+
+_bit_sock_send_bytes:               # socket, bytes, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 32
+    mov rbx, rdi
+    mov r12, [rsi]
+    mov r13, [rsi + 8]
+    mov r14, rdx
+1:  mov rdi, rbx
+    mov rsi, r12
+    mov rdx, r13
+    cmp rdx, 2147483647
+    jbe 2f
+    mov edx, 2147483647
+2:  xor ecx, ecx
+    call _w_send
+    test eax, eax
+    jg 4f
+    jz 5f
+    call WSAGetLastError
+    cmp eax, 10004
+    je 1b
+    jmp 9f
+4:  mov eax, eax
+    add r12, rax
+    sub r13, rax
+    jnz 1b
+    jmp 3f
+5:  test r13, r13
+    jz 3f
+    jmp 9f
+3:  add rsp, 32
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_esend]
+    mov rsi, r14
+    call _bit_die
 
 _bit_compiler_run_direct:                  # argv array -> status
     push rbp

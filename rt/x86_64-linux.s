@@ -5672,6 +5672,48 @@ _bit_sock_peer:                     # socket, source line -> owned "IPv4:port"
     mov rsi, r12
     call _bit_die
 
+_bit_sock_send_bytes:               # socket, bytes, source line
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 16
+    mov rbx, rdi
+    mov r12, [rsi]
+    mov r13, [rsi + 8]
+    mov r14, rdx
+1:  mov rdi, rbx
+    mov rsi, r12
+    mov rdx, r13
+    mov ecx, 16384
+    call send@PLT
+    test rax, rax
+    jg 2f
+    jz 5f
+    call __errno_location@PLT
+    cmp dword ptr [rax], 4
+    je 1b
+    jmp 9f
+2:  add r12, rax
+    sub r13, rax
+    jnz 1b
+    jmp 3f
+5:  test r13, r13
+    jz 3f
+    jmp 9f
+3:  add rsp, 16
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+9:  lea rdi, [rip + Lrt_esend]
+    mov rsi, r14
+    call _bit_die
+
 _bit_sock_send:                     # rdi = conn, rsi = строка, rdx = строка программы
     push rbp
     mov rbp, rsp
@@ -5826,6 +5868,60 @@ _bit_sock_recv_timed:               # socket, count, timeout in ms, source line 
     ret
 6:  mov rdi, r14
     call free@PLT
+7:  lea rdi, [rip + Lrt_erecv]
+    jmp 5f
+8:  mov edi, 2
+    call _bit_set_errcode
+    lea rdi, [rip + Lrt_erecv_timeout]
+    jmp 5f
+9:  lea rdi, [rip + Lrt_erecv_args]
+5:  mov rsi, r13
+    call _bit_die
+
+_bit_sock_recv_bytes:               # socket, count, timeout ms, source line -> bytes
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rcx
+    cmp r12, 1
+    jl 9f
+    cmp r12, 2147483647
+    jg 9f
+    test rdx, rdx
+    js 9f
+    cmp rdx, 2147483647
+    jg 9f
+    mov rsi, rdx
+    call _bit_socket_wait
+    test eax, eax
+    jz 8f
+    js 7f
+    mov rdi, r12
+    call _bit_bytes_new
+    mov r14, rax
+    mov rdi, rbx
+    mov rsi, [r14]
+    mov rdx, r12
+    xor ecx, ecx
+    call recv@PLT
+    test eax, eax
+    js 6f
+    mov eax, eax
+    mov [r14 + 8], rax
+    mov rax, r14
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+6:  mov rdi, r14
+    call _bit_bytes_free
 7:  lea rdi, [rip + Lrt_erecv]
     jmp 5f
 8:  mov edi, 2

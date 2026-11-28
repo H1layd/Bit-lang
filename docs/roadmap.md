@@ -142,10 +142,11 @@ wait.
   WinHTTP, validate TLS, and preserve the destination on truncated downloads. URLs
   with embedded credentials are not supported yet. Run `python3 tools/test_http_windows.py --stack-check host`
   for local Windows tests (Python 3 on Windows and OpenSSL for a short-lived test certificate are required). macOS and Linux remain unfinished.
-- [ ] **Binary socket data**: agree on names and add `bytes` send/receive with explicit
-  lengths and correct partial-operation handling. Current `send` and `recv` are text:
-  a local `A\0B` probe sent only `A`, and a reply containing NUL was also truncated.
-  Test TCP/UDP on macOS, Windows, and Linux with NULs, large data, timeouts, and closure.
+- [ ] **Binary socket data**: `send(bytes)` and `recv_bytes(count, timeout)` are
+  implemented; TCP/UDP, zero bytes, timeout and closure were tested on macOS and Linux.
+  The Windows version builds but still needs to be run and tested on Windows.
+  Also fix `_bit_ip_connect` to preserve the full Windows `SOCKET` value; the shared
+  code currently truncates it to 32 bits.
 
 - [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
   Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected
@@ -196,7 +197,7 @@ Do not start the package manager or subsequent milestones until instructed.
 
 **Current work:** remove implicit external utilities from the compiler and runtime;
 HTTP on macOS/Linux and building without `as`/`ld` are unfinished. Binary sockets
-are also needed. Memory work remains unfinished: strings first, followed by `mas`,
+still need testing on Windows. Memory work remains unfinished: strings first, followed by `mas`,
 `map`, and records. These are directions, not a strictly sequential order; the
 package-manager checkpoint still applies. The author chooses the license and new
 language decisions.

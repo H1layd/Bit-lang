@@ -5127,7 +5127,7 @@ _bit_ip_connect:                    // x0 = адрес, x1 = строка, x2 = 
     b 3b
 4:  str xzr, [x22]
     str xzr, [x22, #8]
-    mov w2, #2
+    mov w2, #0x210                 // Darwin sin_len and AF_INET
     strh w2, [x22]
     lsl w4, w3, #8
     lsr w5, w3, #8
@@ -5484,6 +5484,54 @@ _bit_sock_peer:                     // socket, source line -> owned "IPv4:port"
     mov x1, x19
     bl _bit_die
 
+_bit_sock_send_bytes:               // socket, bytes, source line
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    sub sp, sp, #16
+    mov x19, x0
+    ldr x20, [x1]
+    ldr x21, [x1, #8]
+    mov x22, x2
+    mov w9, #1
+    str w9, [sp]
+    mov w0, w19
+    mov w1, #65535
+    mov w2, #4130
+    mov x3, sp
+    mov w4, #4
+    bl _setsockopt
+    cbnz w0, 9f
+1:  mov w0, w19
+    mov x1, x20
+    mov x2, x21
+    mov w3, #0
+    bl _send
+    cmp x0, #0
+    b.gt 2f
+    cbz x0, 5f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4
+    b.eq 1b
+    b 9f
+2:  add x20, x20, x0
+    sub x21, x21, x0
+    cbnz x21, 1b
+    b 3f
+5:  cbz x21, 3f
+    b 9f
+3:  add sp, sp, #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+9:  adrp x0, Lrt_esend@PAGE
+    add x0, x0, Lrt_esend@PAGEOFF
+    mov x1, x22
+    bl _bit_die
+
 _bit_sock_send:                     // x0 = conn, x1 = строка, x2 = строка программы
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -5607,6 +5655,79 @@ _bit_sock_recv_timed:               // socket, count, timeout in ms, source line
     ret
 6:  mov x0, x22
     bl _free
+7:  adrp x0, Lrt_erecv@PAGE
+    add x0, x0, Lrt_erecv@PAGEOFF
+    b 5f
+8:  mov x0, #2
+    bl _bit_set_errcode
+    adrp x0, Lrt_erecv_timeout@PAGE
+    add x0, x0, Lrt_erecv_timeout@PAGEOFF
+    b 5f
+9:  adrp x0, Lrt_erecv_args@PAGE
+    add x0, x0, Lrt_erecv_args@PAGEOFF
+5:  mov x1, x21
+    bl _bit_die
+
+_bit_sock_recv_bytes:               // socket, count, timeout ms, source line -> bytes
+    stp x29, x30, [sp, #-16]!
+    mov x29, sp
+    stp x19, x20, [sp, #-16]!
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    sub sp, sp, #16
+    mov x19, x0
+    mov x20, x1
+    mov x21, x3
+    mov w4, #2147483647
+    cmp x20, #1
+    b.lt 9f
+    cmp x20, x4
+    b.gt 9f
+    tbnz x2, #63, 9f
+    cmp x2, x4
+    b.gt 9f
+    mov x24, x2
+    mov x0, x21
+    bl _bit_os_clock
+    add x23, x0, x24
+    str w19, [sp]
+1:  mov w4, #1
+    str w4, [sp, #4]
+    mov x0, sp
+    mov w1, #1
+    mov x2, x24
+    bl _poll
+    cbz w0, 8f
+    tbz w0, #31, 2f
+    bl ___error
+    ldr w0, [x0]
+    cmp w0, #4
+    b.ne 7f
+    mov x0, x21
+    bl _bit_os_clock
+    subs x24, x23, x0
+    b.le 8f
+    b 1b
+2:  mov x0, x20
+    bl _bit_bytes_new
+    mov x22, x0
+    mov w0, w19
+    ldr x1, [x22]
+    mov x2, x20
+    mov w3, #0
+    bl _recv
+    cmp x0, #0
+    b.lt 6f
+    str x0, [x22, #8]
+    mov x0, x22
+    add sp, sp, #16
+    ldp x23, x24, [sp], #16
+    ldp x21, x22, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
+6:  mov x0, x22
+    bl _bit_bytes_free
 7:  adrp x0, Lrt_erecv@PAGE
     add x0, x0, Lrt_erecv@PAGEOFF
     b 5f

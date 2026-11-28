@@ -135,6 +135,19 @@ _bit_os_procs:                     // source line -> PID and process name per li
     call _bit_die
 """)
 
+# Linux prevents SIGPIPE per send, without Darwin's socket option.
+def linux_send_bytes(body):
+    begin = body.index("    // Darwin-only SO_NOSIGPIPE setup")
+    end = body.index("    // End Darwin-only SO_NOSIGPIPE setup.", begin)
+    end = body.index("\n", end) + 1
+    body = body[:begin] + body[end:]
+    old = "    xor ecx, ecx\n    call send@PLT"
+    if body.count(old) != 1:
+        raise ValueError("expected one byte-send flags instruction")
+    return body.replace(old, "    mov ecx, 16384\n    call send@PLT")
+
+t = func_transform(t, "_bit_sock_send_bytes", linux_send_bytes)
+
 # Linux glibc sigaction differs from Darwin: 128-byte mask, flags at 136.
 t = func_replace(t, "_bit_signal_init", """
 _bit_signal_init:                    # Linux/glibc sigaction with SA_RESTART
@@ -186,6 +199,8 @@ t = func_transform(t, "_bit_os_clock", lambda body: body.replace(
     "mov edi, 1                       # CLOCK_MONOTONIC on Linux"))
 
 # sockaddr_in and socket option constants for Linux.
+t = func_transform(t, "_bit_ip_connect", lambda body: body.replace(
+    "mov word ptr [rdx], 0x210", "mov word ptr [rdx], 2"))
 t = func_transform(t, "_bit_tcp_listen_at", lambda body: body
     .replace("mov word ptr [rsp], 0x210", "mov word ptr [rsp], 2")
     .replace("mov esi, 0xffff", "mov esi, 1")

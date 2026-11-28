@@ -911,8 +911,10 @@ ICMP sockets; if the request cannot be sent or there is no response, it returns 
 | `"ip:port" >> connect(ms)` | connect over TCP, waiting no longer than `ms` milliseconds |
 | `"ip:port" >> udp` | open UDP → `conn` |
 | `c >> send("...")` | send |
+| `c >> send(data)` | send all `bytes`, including zero bytes |
 | `c >> recv` | receive a string |
 | `c >> recv(count, timeout_ms)` | receive up to `count` bytes as text, with a timeout |
+| `c >> recv_bytes(count, timeout_ms)` | receive binary data → `bytes` |
 | `c >> close` / `s >> close` | close |
 
 ```
@@ -947,6 +949,11 @@ In `recv(count, timeout_ms)`, the count is in bytes (1–2147483647) and the tim
 milliseconds (0–2147483647). A zero timeout checks for data without waiting. A timeout
 is an error that `recover` can handle, while a clean TCP close returns an empty string.
 Join the chunks before processing text when a UTF-8 character can span two reads.
+
+`recv_bytes` takes the same count and timeout as `recv` and preserves arbitrary bytes.
+It returns one system read, so TCP data can arrive in chunks. Free the returned `bytes`
+with `do(data >> free)`. An empty result means a TCP close; an empty UDP datagram has
+the same representation. Sending empty `bytes` sends an empty UDP datagram.
 
 `connect(ms)` bounds the connection wait. macOS and Linux use a nonblocking socket
 and `poll`; Windows uses a socket timeout.

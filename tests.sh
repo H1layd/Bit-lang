@@ -58,6 +58,7 @@ if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_x86_stack_audit.py; then pass; else fail "выравнивание стека x86"; fi
     if python3 tools/test_posix_signals.py; then pass; else fail "сигналы POSIX"; fi
     if python3 tools/test_ping_native.py; then pass; else fail "ping без внешней программы"; fi
+    if python3 tools/test_socket_bytes.py; then pass; else fail "двоичные сокеты"; fi
     if python3 tools/test_os_cpus_native.py; then pass; else fail "число ядер без внешней программы"; fi
     if python3 tools/test_os_procs_native.py; then pass; else fail "список процессов без внешней программы"; fi
     if python3 tools/test_compiler_no_helpers.py; then pass; else fail "сборка без служебных утилит"; fi

@@ -1,0 +1,48 @@
+host {
+    string endpoint = term >> args >> get(0, "");
+    string mode = term >> args >> get(1, "");
+    if mode == "udp" or mode == "udp_empty" {
+        conn datagram = endpoint >> udp;
+        bytes packet = mem >> take(0);
+        if mode == "udp" {
+            do(packet >> add(0) >> add(65) >> add(66) >> add(0) >> add(255));
+        }
+        do(datagram >> send(packet));
+        bytes reply = datagram >> recv_bytes(8, 1000);
+        print(reply);
+        do(reply >> free);
+        do(packet >> free);
+        do(datagram >> close);
+        return;
+    }
+    conn c = endpoint >> connect(1000);
+    if mode == "timeout" {
+        recover {
+            bytes unexpected = c >> recv_bytes(4, 50);
+            do(unexpected >> free);
+            print("unexpected");
+        } else { print("timeout:{term >> error_code}"); }
+        do(c >> close);
+        return;
+    }
+    bytes data = mem >> take(5);
+    if mode == "large" {
+        do(data >> set(0, 0) >> set(1, 1) >> set(2, 2) >> set(3, 3) >> set(4, 4));
+        for i in 5:262143 { do(data >> add(i % 256)); }
+    } else {
+        do(data >> set(0, 0) >> set(1, 65) >> set(2, 66) >> set(3, 0) >> set(4, 255));
+    }
+    do(c >> send(data));
+    do(data >> free);
+    bytes all_data = mem >> take(0);
+    while true {
+        bytes part = c >> recv_bytes(2, 1000);
+        num count = part >> sz;
+        if count == 0 { do(part >> free); break; }
+        for i in 0:count - 1 { do(all_data >> add(part >> get(i, 0))); }
+        do(part >> free);
+    }
+    print(all_data);
+    do(all_data >> free);
+    do(c >> close);
+}
