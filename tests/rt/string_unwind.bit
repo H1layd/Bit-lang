@@ -1,6 +1,25 @@
 fn unwind_string(num n) {
     return "value-{n}";
 }
+fn unwind_path_alias(num n) {
+    string original = "bit-unwind-missing-{term >> pid}-{n}";
+    dir alias = original;
+    bool present = alias >> exists;
+    if original >> sz == 0 { print("lost-original" >> num); }
+    return alias;
+}
+fn unwind_path_alias_failure(num n) {
+    string original = "bit-unwind-missing-{term >> pid}-{n}";
+    dir alias = original;
+    bool present = alias >> exists;
+    print("invalid-number" >> num);
+}
+fn unwind_file_alias(num n) {
+    string original = "bit-unwind-missing-{term >> pid}-{n}";
+    file alias = original;
+    bool present = alias >> exists;
+    if original >> sz == 0 { print("lost-original" >> num); }
+}
 fn unwind_target(string value, num marker) {
     return value >> sz + marker;
 }
@@ -142,6 +161,9 @@ fn unwind_local_methods(num n) {
     return (trimmed >> sz) + (changed >> sz);
 }
 host {
+    do(unwind_path_alias(7));
+    do(unwind_file_alias(9));
+    recover { do(unwind_path_alias_failure(8)); } else { }
     string process_list = os >> procs;
     if process_list >> sz == 0 { print("empty-process-list" >> num); }
     string temp_base = term >> env("TMPDIR");

@@ -2706,10 +2706,30 @@ fn string_changes(num n, string name) {
     return false;
 }
 
+# A single local path alias owns its own reference when none of its later uses
+# escape. Keep treating aliases captured by shared storage as escapes until
+# containers and records participate in ownership.
+fn safe_path_alias(num n, string source, num rest, num count) {
+    if kind(n) != "decl" or c1(n) != 1 { return false; }
+    num it = item(l1(n), 0);
+    if not is_path(ft(it)) or fm(it) != "value" { return false; }
+    num value = fa(it);
+    string alias = fs(it);
+    if alias == source or kind(value) != "var" or fs(value) != source { return false; }
+    for j in 0:count - 1 {
+        if string_escapes(item(rest, j), alias) { return false; }
+    }
+    return true;
+}
+
 fn own_local(num start, num count, num v, bool fresh, bool parameter) {
     string name = VN >> get(v, "");
     for j in 0:count - 1 {
-        if string_escapes(item(start, j), name) {
+        num use = item(start, j);
+        if string_escapes(use, name) {
+            if j > 0 and safe_path_alias(use, name, start + j + 1, count - j - 1) {
+                next;
+            }
             if parameter {
                 do(op_rt1("_bit_str_retain"));
             }

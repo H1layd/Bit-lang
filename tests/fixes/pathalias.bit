@@ -1,0 +1,18 @@
+host {
+    string original = "original-{term >> pid}";
+    dir alias = original;
+    string expected = original;
+    do(original >> ch("changed"));
+    string observed = alias;
+    if observed != expected { print("alias lost"); }
+    if original != "changed" { print("change lost"); }
+
+    string shared = "shared-{term >> pid}";
+    dir escaped = shared;
+    string saved = shared;
+    mas names = (string);
+    do(names >> add(escaped));
+    do(shared >> ch("replaced"));
+    if (names >> get(0)) != saved { print("container lost"); }
+    print("path aliases work");
+}

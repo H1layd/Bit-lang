@@ -3,12 +3,18 @@
 Reference counting is not fully integrated yet. This document distinguishes the agreed
 contract from behavior already available in ordinary programs.
 
-An unresolved leak occurs when a fresh `string` is assigned to a `dir` variable:
-the string may remain in the registry after the scope ends. For example,
-`string p = "missing-{term >> pid}"; dir d = p;` followed by `d >> exists`
-reproduces it. Conservative escape analysis treats the alias declaration as a
-transfer of ownership. The registry probe confirmed this on macOS ARM64; general
-alias ownership still needs a fix.
+Fixed the leak for a single local `string` → `dir` or `file` alias, for example
+`string p = "missing-{term >> pid}"; dir d = p;`. When the alias does not escape
+into shared storage, both variables retain and release their own references.
+Container and record field ownership remains conservative and may still leak.
+
+Three macOS ARM64 self-builds had medians of 6.519 s before and 6.653 s after;
+median peak `mem >> used` was 820,183,040 and 820,576,256 bytes. That is roughly
+2% in time and 0.4 MiB in memory; the machine was not isolated and sources differ.
+Tests cover normal exit, return, `recover`, source mutation and alias storage in
+an array. The internal registry probe passed on macOS, Windows and Arch Linux.
+Full runs: macOS 272/272 with self-hosting; Arch Linux 144/144 with self-hosting;
+Windows 73/73 executions and 55 expected build errors.
 
 After changing path ownership for `exists` and `remove_all`, three self-builds
 on macOS ARM64 had median times of 5.503 s before and 5.517 s after; peak
