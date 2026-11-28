@@ -142,6 +142,10 @@ wait.
   WinHTTP, validate TLS, and preserve the destination on truncated downloads. URLs
   with embedded credentials are not supported yet. Run `python3 tools/test_http_windows.py --stack-check host`
   for local Windows tests (Python 3 on Windows and OpenSSL for a short-lived test certificate are required). macOS and Linux remain unfinished.
+- [ ] **Binary socket data**: agree on names and add `bytes` send/receive with explicit
+  lengths and correct partial-operation handling. Current `send` and `recv` are text:
+  a local `A\0B` probe sent only `A`, and a reply containing NUL was also truncated.
+  Test TCP/UDP on macOS, Windows, and Linux with NULs, large data, timeouts, and closure.
 
 - [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
   Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected
@@ -190,11 +194,12 @@ Status of the milestones already started. Each change ends with checks and docum
 Before implementing the package manager, stop, report progress, and wait for the author.
 Do not start the package manager or subsequent milestones until instructed.
 
-**Current work:** the Windows-wrapper stack-alignment audit and agreed signals are
-complete. Continue the unfinished memory work:
-strings first, followed by `mas`, `map`, and records. The items below are directions,
-not a commitment to a strictly sequential order; the package-manager checkpoint still
-applies. The author chooses the license and new language decisions.
+**Current work:** remove implicit external utilities from the compiler and runtime;
+HTTP on macOS/Linux and building without `as`/`ld` are unfinished. Binary sockets
+are also needed. Memory work remains unfinished: strings first, followed by `mas`,
+`map`, and records. These are directions, not a strictly sequential order; the
+package-manager checkpoint still applies. The author chooses the license and new
+language decisions.
 
 1. ~~**Finish the current work.**~~ HOME/USERPROFILE ancestor protection passed on
    Windows, macOS, and Linux under QEMU and was committed. Native Linux remains a
@@ -212,14 +217,14 @@ applies. The author chooses the license and new language decisions.
    Shared-data cycles are not reclaimed automatically. See the [memory plan](memory.md).
 4. **Consistent language rules.** Complete the design milestone above: declarations,
    names, values and actions, `do`, `>>`, copying, and shared mutations. Remove ordinary
-   programming limits, including six parameters and mutual-recursion inference.
+   programming limits, including mutual-recursion inference. Passing more than six
+   parameters is already implemented and tested.
    Syntax and new names are decisions for the language author.
-5. **Features for any program.** Concurrency (threads or async — the author decides), so a
-   server serves several clients and a monitor watches several things. Enums and "a value or
-   nothing" (optional). Raw terminal input without Enter — for interfaces such as an editor.
-   Talking to a running process while it works (write its stdin, read its stdout). Built-in HTTP
-   and TLS without an external `curl`. Unsigned numbers if data formats need them. Every new name
-   and syntax is agreed with the author.
+5. **Features for any program.** Threads, locks, and raw terminal input are already
+   available. Still needed: enums and "a value or nothing" (optional), binary socket
+   exchange, and talking to a running process (write stdin, read stdout). HTTP and TLS
+   without external `curl` on macOS/Linux and unsigned numbers where needed also remain.
+   Every new name and syntax is agreed with the author.
 6. **Libraries and convenient package installation.** Extend `use` with module namespaces
    and explicit public interfaces. Add project and dependency metadata, library versions,
    a lockfile, a local cache, and installation with one command.
