@@ -145,8 +145,8 @@ wait.
 - [ ] **Binary socket data**: `send(bytes)` and `recv_bytes(count, timeout)` are
   implemented; TCP/UDP, zero bytes, timeout and closure were tested on macOS and Linux.
   The Windows version builds but still needs to be run and tested on Windows.
-  Also fix `_bit_ip_connect` to preserve the full Windows `SOCKET` value; the shared
-  code currently truncates it to 32 bits.
+  Full-width Windows `SOCKET` values and failure paths were checked with mocked calls
+  in `tools/test_windows_socket_handles.py`; actual Windows testing remains.
 
 - [x] `net >> listen(port, "address")`, `c >> peer`, `SO_REUSEADDR`, and `os >> clock`.
   Checked on both macOS architectures (217/217), Windows (54/54 plus 53 expected

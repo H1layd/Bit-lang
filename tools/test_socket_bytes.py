@@ -33,7 +33,7 @@ def main():
                                stdout=subprocess.DEVNULL)
                 clients.append((arch, binary))
         for arch, client in clients:
-            for mode in ('roundtrip', 'large', 'timeout'):
+            for mode in ('roundtrip', 'large', 'timeout', 'text', 'text_closed'):
                 server = socket.socket()
                 server.bind(('127.0.0.1', 0))
                 server.listen(1)
@@ -47,16 +47,18 @@ def main():
                         with conn:
                             if mode == 'timeout':
                                 time.sleep(0.2)
+                            elif mode == 'text_closed':
+                                conn.shutdown(socket.SHUT_WR)
                             else:
                                 payload = bytearray()
-                                wanted = bytes(range(256)) * 1024 if mode == 'large' else PAYLOAD
+                                wanted = bytes(range(256)) * 1024 if mode == 'large' else (b'hello' if mode == 'text' else PAYLOAD)
                                 while len(payload) < len(wanted):
                                     chunk = conn.recv(len(wanted) - len(payload))
                                     if not chunk:
                                         break
                                     payload.extend(chunk)
                                 received.append(bytes(payload))
-                                conn.sendall(REPLY)
+                                conn.sendall(b'hello' if mode == 'text' else REPLY)
                     except Exception as exc:
                         errors.append(repr(exc))
                     finally:
@@ -66,10 +68,10 @@ def main():
                 result = subprocess.run([str(client), f'127.0.0.1:{port}', mode],
                                         capture_output=True, text=True, timeout=10)
                 thread.join(6)
-                expected = 'timeout:2' if mode == 'timeout' else '<00 80 ff 00 2a>'
-                wanted = bytes(range(256)) * 1024 if mode == 'large' else PAYLOAD
+                expected = {'timeout': 'timeout:2', 'text': 'hello', 'text_closed': 'send-error'}.get(mode, '<00 80 ff 00 2a>')
+                wanted = bytes(range(256)) * 1024 if mode == 'large' else (b'hello' if mode == 'text' else PAYLOAD)
                 if (thread.is_alive() or errors or result.returncode or result.stdout.strip() != expected
-                        or (mode != 'timeout' and received != [wanted])):
+                        or (mode not in ('timeout', 'text_closed') and received != [wanted])):
                     raise RuntimeError(f'{arch} {mode}: exit={result.returncode}, output={result.stdout!r}, '
                                        f'error={result.stderr!r}, received={received!r}, server={errors!r}')
             for mode in ('udp', 'udp_empty'):
@@ -97,7 +99,7 @@ def main():
                         or received != [expected_packet]):
                     raise RuntimeError(f'{arch} {mode}: exit={result.returncode}, output={result.stdout!r}, '
                                        f'error={result.stderr!r}, received={received!r}, server={errors!r}')
-            print(f'{arch}: binary TCP/UDP, empty datagram, partial reads, EOF and timeout passed')
+            print(f'{arch}: TCP/UDP, binary and text data, closed peer, EOF and timeout passed')
 
 
 if __name__ == '__main__':

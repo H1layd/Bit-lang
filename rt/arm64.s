@@ -5537,34 +5537,22 @@ _bit_sock_send:                     // x0 = conn, x1 = строка, x2 = стр
     mov x29, sp
     stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
-    mov w19, w0
+    sub sp, sp, #16
+    mov x19, x0
     mov x20, x1
-    mov x22, x2
+    mov x21, x2
     mov x0, x20
     bl _strlen
-    mov x21, x0
-    mov x20, x20
-1:  cmp x21, #0
-    b.le 3f
-    mov w0, w19
-    mov x1, x20
+    stp x20, x0, [sp]
+    mov x0, x19
+    mov x1, sp
     mov x2, x21
-    mov w3, #0
-    bl _send
-    tbnz x0, #63, 9f
-    add x20, x20, x0
-    sub x21, x21, x0
-    b 1b
-3:  ldp x21, x22, [sp], #16
+    bl _bit_sock_send_bytes
+    add sp, sp, #16
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  adrp x0, Lrt_esend@PAGE
-    add x0, x0, Lrt_esend@PAGEOFF
-    mov x1, x22
-    ldp x21, x22, [sp], #16
-    ldp x19, x20, [sp], #16
-    bl _bit_die
 
 _bit_sock_recv:                     // x0 = conn, x1 = строка -> строка (то, что пришло)
     stp x29, x30, [sp, #-16]!
@@ -5588,7 +5576,9 @@ _bit_sock_recv:                     // x0 = conn, x1 = строка -> стро�
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
-9:  adrp x0, Lrt_erecv@PAGE
+9:  mov x0, x21
+    bl _free
+    adrp x0, Lrt_erecv@PAGE
     add x0, x0, Lrt_erecv@PAGEOFF
     mov x1, x20
     ldp x21, x22, [sp], #16

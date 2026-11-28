@@ -5721,50 +5721,39 @@ _bit_sock_send:                     # rdi = conn, rsi = строка, rdx = ст
     push r12
     push r13
     push r14
-    mov ebx, edi
+    sub rsp, 16
+    mov rbx, rdi
     mov r12, rsi
-    mov r14, rdx
+    mov r13, rdx
     mov rdi, r12
     call strlen@PLT
-    mov r13, rax
-1:  test r13, r13
-    jle 3f
-    mov edi, ebx
-    mov rsi, r12
+    mov [rsp], r12
+    mov [rsp + 8], rax
+    mov rdi, rbx
+    mov rsi, rsp
     mov rdx, r13
-    xor ecx, ecx
-    call send@PLT
-    test rax, rax
-    js 9f
-    add r12, rax
-    sub r13, rax
-    jmp 1b
-3:  pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-9:  lea rdi, [rip + Lrt_esend]
-    mov rsi, r14
+    call _bit_sock_send_bytes
+    add rsp, 16
     pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
-    jmp _bit_die
+    ret
 
 _bit_sock_recv:                     # rdi = conn, rsi = строка -> строка
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    mov ebx, edi
-    mov r12, rsi
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r13, rsi
     mov edi, 65536
     call _bit_alloc
     mov r12, rax
-    mov edi, ebx
+    mov rdi, rbx
     mov rsi, r12
     mov edx, 65535
     xor ecx, ecx
@@ -5773,12 +5762,18 @@ _bit_sock_recv:                     # rdi = conn, rsi = строка -> стро
     js 9f
     mov byte ptr [r12 + rax], 0
     mov rax, r12
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp
     ret
-9:  lea rdi, [rip + Lrt_erecv]
-    mov rsi, r12
+9:  mov rdi, r12
+    call free@PLT
+    lea rdi, [rip + Lrt_erecv]
+    mov rsi, r13
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp

@@ -89,12 +89,28 @@ def extract(name):
     # snprintf is C99 and available as such under mingw
     return body.replace("call _snprintf", "call snprintf")
 
+def replace_once(body, old, new):
+    if body.count(old) != 1:
+        raise ValueError(f"expected one occurrence of {old!r}")
+    return body.replace(old, new, 1)
+
 def extract_net(name):
     b = wrapcalls(extract_raw(name), SOCK)
     if name == "_bit_ip_connect":
         b = b.replace("mov word ptr [rdx], 0x210", "mov word ptr [rdx], 2")
     if name == "_bit_tcp_listen_at":
         b = b.replace("mov word ptr [rsp], 0x210", "mov word ptr [rsp], 2")
+    # Windows SOCKET is pointer-sized; only INVALID_SOCKET (-1) signals failure.
+    if name in ("_bit_ip_connect", "_bit_tcp_listen_at"):
+        b = replace_once(b, "    call _w_socket\n    test eax, eax\n    js 9f\n    mov ebx, eax",
+                         "    call _w_socket\n    cmp rax, -1\n    je 9f\n    mov rbx, rax")
+        b = b.replace("mov edi, ebx", "mov rdi, rbx")
+        b = replace_once(b, "mov eax, ebx", "mov rax, rbx")
+    if name == "_bit_tcp_accept":
+        b = replace_once(b, "    call _w_accept\n    test eax, eax\n    js 9f",
+                         "    call _w_accept\n    cmp rax, -1\n    je 9f")
+    if name == "_bit_sock_recv":
+        b = replace_once(b, "test rax, rax\n    js 9f", "test eax, eax\n    js 9f\n    mov eax, eax")
     b = b.replace("call _close\n", "call _w_closesocket\n")
     b = b.replace("jmp _close\n", "jmp _w_closesocket\n").replace("jmp _close", "jmp _w_closesocket")
     return b
@@ -3812,9 +3828,9 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     mov edx, 1
     xor r8d, r8d
     call socket
-    test eax, eax
-    js 9f
-    mov ebx, eax                      # сокет
+    cmp rax, -1                       # INVALID_SOCKET
+    je 9f
+    mov rbx, rax                      # pointer-sized SOCKET
     mov eax, r12d
     test eax, eax
     jnz 5f
@@ -5334,7 +5350,7 @@ FOOT = FOOT_HEAD + "".join("%s: .asciz %s\n" % (k, octal(v)) for k, v in NEWSTR.
 out = CORE + GENW + "\n" + WINEXTRA + NET_WRAPPERS + "\n" + transformed + "\n" + files_asm + WINPROC + FOOT
 open("rt/x86_64-windows.s", "w").write(out)
 
-defined = set(re.findall(r"^(_[a-z_0-9]+):", CORE + GENW + WINEXTRA + NET_WRAPPERS + transformed + files_asm, re.M))
+defined = set(re.findall(r"^(_[a-z_0-9]+):", CORE + GENW + WINEXTRA + NET_WRAPPERS + transformed + files_asm + WINPROC, re.M))
 left = sorted(set(re.findall(r"call ([a-z_][a-z_0-9]*)", transformed + files_asm)) - defined)
 print("перенесено: массивы", len(NEED), "| сеть", len(NET), "| файлы/ввод/ОС", len(FILES))
 print("неразрешённые вызовы (должны быть только libc/WinAPI):", left)

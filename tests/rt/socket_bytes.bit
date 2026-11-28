@@ -25,6 +25,21 @@ host {
         do(c >> close);
         return;
     }
+    if mode == "text_closed" {
+        string eof = c >> recv;
+        recover {
+            for i in 0:99 { do(c >> send("a")); }
+            print("send unexpectedly succeeded");
+        } else { print("send-error"); }
+        do(c >> close);
+        return;
+    }
+    if mode == "text" {
+        do(c >> send("hello"));
+        print(c >> recv);
+        do(c >> close);
+        return;
+    }
     bytes data = mem >> take(5);
     if mode == "large" {
         do(data >> set(0, 0) >> set(1, 1) >> set(2, 2) >> set(3, 3) >> set(4, 4));

@@ -3801,9 +3801,9 @@ _bit_tcp_connect_timed:               // rdi = "ip:port", rsi = таймаут �
     mov edx, 1
     xor r8d, r8d
     call socket
-    test eax, eax
-    js 9f
-    mov ebx, eax                      # сокет
+    cmp rax, -1                       # INVALID_SOCKET
+    je 9f
+    mov rbx, rax                      # pointer-sized SOCKET
     mov eax, r12d
     test eax, eax
     jnz 5f
@@ -6615,16 +6615,16 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
     mov esi, [rsp + 96]
     xor edx, edx
     call _w_socket
-    test eax, eax
-    js 9f
-    mov ebx, eax
-    mov edi, ebx
+    cmp rax, -1
+    je 9f
+    mov rbx, rax
+    mov rdi, rbx
     lea rsi, [rsp + 80]
     mov edx, 16
     call _w_connect
     test eax, eax
     jnz 8f
-    mov eax, ebx
+    mov rax, rbx
     add rsp, 120
     pop r13
     pop r12
@@ -6634,7 +6634,7 @@ _bit_ip_connect:                    // rdi = адрес, rsi = строка, rdx
 8:  call _bit_errno_code
     mov rdi, rax
     call _bit_set_errcode
-    mov edi, ebx
+    mov rdi, rbx
     call _w_closesocket
     jmp 10f
 9:  xor edi, edi
@@ -6689,11 +6689,11 @@ _bit_tcp_listen_at:                 // port, IPv4 address or null, line -> serve
     mov esi, 1
     xor edx, edx
     call _w_socket
-    test eax, eax
-    js 9f
-    mov ebx, eax
+    cmp rax, -1
+    je 9f
+    mov rbx, rax
     mov dword ptr [rsp + 16], 1
-    mov edi, ebx
+    mov rdi, rbx
     mov esi, 0xffff                 # Darwin SOL_SOCKET
     mov edx, 4                      # Darwin SO_REUSEADDR
     lea rcx, [rsp + 16]
@@ -6701,18 +6701,18 @@ _bit_tcp_listen_at:                 // port, IPv4 address or null, line -> serve
     call _w_setsockopt
     test eax, eax
     jnz 7f
-    mov edi, ebx
+    mov rdi, rbx
     mov rsi, rsp
     mov edx, 16
     call _w_bind
     test eax, eax
     jnz 7f
-    mov edi, ebx
+    mov rdi, rbx
     mov esi, 16
     call _w_listen
     test eax, eax
     jnz 7f
-    mov eax, ebx
+    mov rax, rbx
     add rsp, 40
     pop r15
     pop r14
@@ -6721,7 +6721,7 @@ _bit_tcp_listen_at:                 // port, IPv4 address or null, line -> serve
     pop rbx
     pop rbp
     ret
-7:  mov edi, ebx
+7:  mov rdi, rbx
     call _w_closesocket
 9:  lea rdi, [rip + Lrt_elisten]
     jmp 6f
@@ -6738,8 +6738,8 @@ _bit_tcp_accept:                    // rdi = server, rsi = строка -> conn
     xor esi, esi
     xor edx, edx
     call _w_accept
-    test eax, eax
-    js 9f
+    cmp rax, -1
+    je 9f
     add rsp, 8
     pop rbx
     pop rbp
@@ -6811,64 +6811,60 @@ _bit_sock_send:                     // rdi = conn, rsi = строка, rdx = с�
     push r12
     push r13
     push r14
-    mov ebx, edi
+    sub rsp, 16
+    mov rbx, rdi
     mov r12, rsi
-    mov r14, rdx
+    mov r13, rdx
     mov rdi, r12
     call _w_strlen
-    mov r13, rax
-1:  test r13, r13
-    jle 3f
-    mov edi, ebx
-    mov rsi, r12
+    mov [rsp], r12
+    mov [rsp + 8], rax
+    mov rdi, rbx
+    mov rsi, rsp
     mov rdx, r13
-    xor ecx, ecx
-    call _w_send
-    test rax, rax
-    js 9f
-    add r12, rax
-    sub r13, rax
-    jmp 1b
-3:  pop r14
-    pop r13
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-9:  lea rdi, [rip + Lrt_esend]
-    mov rsi, r14
+    call _bit_sock_send_bytes
+    add rsp, 16
     pop r14
     pop r13
     pop r12
     pop rbx
     pop rbp
-    jmp _bit_die
+    ret
 
 _bit_sock_recv:                     // rdi = conn, rsi = строка -> строка
     push rbp
     mov rbp, rsp
     push rbx
     push r12
-    mov ebx, edi
-    mov r12, rsi
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r13, rsi
     mov edi, 65536
     call _bit_alloc
     mov r12, rax
-    mov edi, ebx
+    mov rdi, rbx
     mov rsi, r12
     mov edx, 65535
     xor ecx, ecx
     call _w_recv
-    test rax, rax
+    test eax, eax
     js 9f
+    mov eax, eax
     mov byte ptr [r12 + rax], 0
     mov rax, r12
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp
     ret
-9:  lea rdi, [rip + Lrt_erecv]
-    mov rsi, r12
+9:  mov rdi, r12
+    call _w_free
+    lea rdi, [rip + Lrt_erecv]
+    mov rsi, r13
+    pop r14
+    pop r13
     pop r12
     pop rbx
     pop rbp
