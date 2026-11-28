@@ -7,7 +7,7 @@ not external utility processes.
 
 | Area | Current behavior | Remaining work |
 |---|---|---|
-| `fetch`, `post`, `download` | Linux launches `curl`; macOS uses the system libcurl library and Windows uses WinHTTP | Remove the external program on Linux; an in-project HTTP transport remains separate work. |
+| `fetch`, `post`, `download` | macOS and Linux use the libcurl library, Windows uses WinHTTP; no program is launched | Test on native Linux; an in-project HTTP transport remains separate work. Linux requires `libcurl.so.4`. |
 | `os >> procs` | No utility: operating-system interfaces on macOS, Linux and Windows | Keep the regression test for absence of `ps` and `tasklist`; output is `PID name` lines. |
 | `os >> cpus` | No utility: `sysconf` on macOS/Linux, `GetSystemInfo` on Windows | Keep the regression test for absence of `getconf`. |
 | `bitc asm` | The compiler's platform and architecture are embedded at build time; the working directory comes from an OS API | Keep checking that no external commands are started. |

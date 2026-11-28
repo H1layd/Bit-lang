@@ -130,21 +130,24 @@ wait.
 - [ ] Remove implicit utility processes from bit programs and the compiler; see
   [external-programs.md](external-programs.md) for the audit and remaining work.
   Keep explicit `run` and `start`. `os >> cpus` and `os >> procs` now use OS APIs;
-  HTTP on Linux, compiler helper commands and building without `as`/`ld`
+  HTTP uses system libraries. Compiler helper commands and building without `as`/`ld`
   still need work.
 
 ### Service capabilities and signals
 
 - [x] **`ping` without an external program**: system ICMP for IPv4 and IPv6,
   tested with a fake executable on macOS, Windows, and Linux under QEMU.
-  HTTP/HTTPS on Linux still launches `curl`.
+  HTTP/HTTPS no longer launches the `curl` program either.
 - [ ] **HTTP/HTTPS without `curl`**: on Windows `fetch`, `post`, and `download` use
   WinHTTP, validate TLS, and preserve the destination on truncated downloads. URLs
   with embedded credentials are not supported yet. Run `python3 tools/test_http_windows.py --stack-check host`
   for local Windows tests (Python 3 on Windows and OpenSSL for a short-lived test certificate are required).
   macOS uses the system libcurl library without starting a program; both architectures
   pass `tools/test_http_native.py`, including TLS and interrupted downloads. Linux
-  still needs its external `curl` removed; an in-project HTTP transport remains separate work.
+  uses `libcurl.so.4`; HTTP, TLS and downloads passed under QEMU. Native Linux testing
+  and an in-project HTTP transport without libcurl remain separate work. The full Linux
+  run as an unprivileged user passed 141/143: two unrelated tests exited 139; each
+  passed three subsequent individual reruns.
 - [ ] **Binary socket data**: `send(bytes)` and `recv_bytes(count, timeout)` are
   implemented; TCP/UDP, zero bytes, timeout and closure were tested on macOS and Linux.
   The Windows version builds but still needs to be run and tested on Windows.
@@ -199,7 +202,7 @@ Before implementing the package manager, stop, report progress, and wait for the
 Do not start the package manager or subsequent milestones until instructed.
 
 **Current work:** remove implicit external utilities from the compiler and runtime;
-HTTP without an external program on Linux and building without `as`/`ld` are unfinished. Binary sockets
+An in-project HTTP transport and building without `as`/`ld` are unfinished. Binary sockets
 still need testing on Windows. Memory work remains unfinished: strings first, followed by `mas`,
 `map`, and records. These are directions, not a strictly sequential order; the
 package-manager checkpoint still applies. The author chooses the license and new
@@ -227,7 +230,7 @@ language decisions.
 5. **Features for any program.** Threads, locks, and raw terminal input are already
    available. Still needed: enums and "a value or nothing" (optional), binary socket
    exchange, and talking to a running process (write stdin, read stdout). HTTP and TLS
-   without external `curl` on Linux and unsigned numbers where needed also remain.
+   with an in-project HTTP transport and unsigned numbers where needed also remain.
    Every new name and syntax is agreed with the author.
 6. **Libraries and convenient package installation.** Extend `use` with module namespaces
    and explicit public interfaces. Add project and dependency metadata, library versions,

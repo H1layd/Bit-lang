@@ -15,7 +15,7 @@ if [ "$OS" = Linux ]; then
     L=$(for d in /usr/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu; do [ -f "$d/crt1.o" ] && echo "$d" && break; done)
     echo "1/3 as + ld: $SEED -> bitc0"
     as --64 -o "$TMP/bitc0.o" "$SEED"
-    ld -o "$TMP/bitc0" -dynamic-linker /lib64/ld-linux-x86-64.so.2 "$L/crt1.o" "$L/crti.o" "$TMP/bitc0.o" -lc "$L/crtn.o"
+    ld -o "$TMP/bitc0" -dynamic-linker /lib64/ld-linux-x86-64.so.2 "$L/crt1.o" "$L/crti.o" "$TMP/bitc0.o" -ldl -lpthread -lc "$L/crtn.o"
     OSFLAG="--os linux"
 else
     SEED="bootstrap/bitc_$ARCH.s"

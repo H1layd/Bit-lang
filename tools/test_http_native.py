@@ -202,7 +202,7 @@ def main():
                      ('post', '/post', POST.decode()), ('post', '/post-redirect', POST.decode()),
                      ('download', '/binary', '<00 01 7f 80 ff 0a>'),
                      ('download_size', '/large-binary', str(len(LARGE)))]
-            if platform.system() == 'Darwin' and not args.allow_external:
+            if platform.system() in ('Darwin', 'Linux') and not args.allow_external:
                 cases += [('tls_invalid', '/unsupported-transfer', 'rejected'),
                           ('tls_invalid', '/credential-redirect', 'rejected')]
             openssl = shutil.which('openssl')

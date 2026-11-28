@@ -9,15 +9,15 @@ def func_replace(text, name, body):
     return text[:i + 1] + body.strip("\n") + "\n\n" + text[j + 1:]
 
 t = src
-# The macOS bridge uses a macOS system library. Linux retains its existing
-# transport until the independent Linux HTTP/TLS implementation is ready.
+# Substitute the independently compiled Linux HTTP bridge after all Darwin
+# assembly transformations, so they cannot alter its generated instructions.
 begin = '// BEGIN GENERATED MACOS HTTP BRIDGE'
 end = '// END GENERATED MACOS HTTP BRIDGE'
 if begin in t:
     assert t.count(begin) == t.count(end) == 1
-    legacy_http = open('rt/http/linux_curl_legacy.s').read()
+    linux_http = '// LINUX_HTTP_BRIDGE_PLACEHOLDER'
     start = t.index(begin)
-    t = t[:start] + legacy_http + t[t.index(end) + len(end):]
+    t = t[:start] + linux_http + t[t.index(end) + len(end):]
 # процессы macOS (libproc) Linux не нужны: ниже свой блок PROC через /proc
 t = re.sub(r"// ── proc \(macOS\).*?// ── конец proc \(macOS\) ──\n", "", t, flags=re.S)
 t = t.replace(".section __TEXT,__text,regular,pure_instructions", ".text")
@@ -883,6 +883,8 @@ strs = {"Lrt_colon": ": ", "Lrt_sh": "sh", "Lrt_dashc": "-c", "Lrt_binsh": "/bin
         "Lrt_espawn": "не могу запустить: ", "Lrt_epread": "не могу прочитать память ",
         "Lrt_epwrite": "не могу записать в память ", "Lrt_ekill": "не могу остановить "}
 t = t.replace(".section .rodata\n", ".section .rodata\n" + "".join(f"{k}: .asciz {octal(v)}\n" for k, v in strs.items()), 1)
+if '// LINUX_HTTP_BRIDGE_PLACEHOLDER' in t:
+    t = t.replace('// LINUX_HTTP_BRIDGE_PLACEHOLDER', open('rt/http/linux_native.s').read(), 1)
 t += '\n.section .note.GNU-stack,"",@progbits\n'
 
 # Darwin's assembler accepts // comments. GNU as treats inline // as a

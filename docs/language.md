@@ -874,11 +874,11 @@ On Windows two worker threads read the output streams.
 
 ### Network
 
-On Windows, `fetch`, `post`, and `download` use system WinHTTP; on macOS they use the
-system libcurl library. Neither launches another program. HTTPS verifies the certificate
+On Windows, `fetch`, `post`, and `download` use system WinHTTP; on macOS and Linux they use
+the libcurl library. No external program is launched. Linux requires the shared library
+`libcurl.so.4`; if unavailable, the operation raises an error for `recover`. HTTPS verifies the certificate
 and server name. URLs with embedded usernames or passwords fail. Downloads first write a
-temporary sibling file, replacing the destination only after the complete response. On
-Linux these methods still launch the `curl` program without a shell.
+temporary sibling file, replacing the destination only after the complete response.
 
 `ping` uses system ICMP facilities without launching a program: IPv4 and IPv6, with one
 wait of up to one second after name resolution. On macOS and Linux the system must permit

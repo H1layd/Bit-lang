@@ -8,7 +8,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 BEGIN = '// BEGIN GENERATED MACOS HTTP BRIDGE'
 END = '// END GENERATED MACOS HTTP BRIDGE'
-SOURCE = ROOT / 'rt/http/macos_native.c'
+SOURCE = ROOT / 'rt/http/native.c'
 
 
 def generate(arch):

@@ -1,6 +1,5 @@
-/* macOS HTTP bridge: use the system libcurl as a library, never the curl program.
- * Compiled to checked-in assembly by tools/make_macos_http.py; bit programs do
- * not need a C compiler or a curl executable. */
+/* HTTP bridge: use libcurl as a library, never the curl program.
+ * Compiled to checked-in assembly; bit programs do not need a C compiler. */
 #include <curl/curl.h>
 #include <dlfcn.h>
 #include <pthread.h>
@@ -11,7 +10,14 @@
 #include <strings.h>
 #include <unistd.h>
 
+#ifdef BIT_HTTP_LINUX
+extern void bit_die(const char *, long) __asm__("_bit_die") __attribute__((noreturn));
+char *bit_fetch(const char *, long) __asm__("_bit_fetch");
+char *bit_http_post(const char *, const char *, long) __asm__("_bit_http_post");
+void bit_download(const char *, const char *, long) __asm__("_bit_download");
+#else
 extern void bit_die(const char *, long) __attribute__((noreturn));
+#endif
 
 static pthread_once_t http_once = PTHREAD_ONCE_INIT;
 static CURL *(*easy_init_fn)(void);
@@ -21,7 +27,11 @@ static void (*easy_cleanup_fn)(CURL *);
 static int http_available;
 
 static void http_initialize(void) {
+#ifdef BIT_HTTP_LINUX
+    void *library = dlopen("libcurl.so.4", RTLD_NOW | RTLD_LOCAL);
+#else
     void *library = dlopen("/usr/lib/libcurl.4.dylib", RTLD_NOW | RTLD_LOCAL);
+#endif
     if (!library) return;
     CURLcode (*global_init_fn)(long) = dlsym(library, "curl_global_init");
     easy_init_fn = dlsym(library, "curl_easy_init");
@@ -133,7 +143,14 @@ static char *http_request(const char *url, const char *post, const char *path, l
     int fd = -1, ok = 0, temporary_created = 0;
     if (!url_allowed(url)) goto done;
     pthread_once(&http_once, http_initialize);
-    if (!http_available || !(easy = easy_init_fn())) goto done;
+    if (!http_available) {
+#ifdef BIT_HTTP_LINUX
+        bit_die("HTTP: не удалось загрузить системную библиотеку libcurl.so.4", line);
+#else
+        bit_die("HTTP: не удалось загрузить системную библиотеку libcurl", line);
+#endif
+    }
+    if (!(easy = easy_init_fn())) goto done;
     if (path) {
         const char *slash = strrchr(path, '/');
         size_t prefix = slash ? (size_t)(slash - path + 1) : 0;

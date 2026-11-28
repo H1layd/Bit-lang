@@ -7539,41 +7539,41 @@ _http_request:                          ## @http_request
 	push	r13
 	push	r12
 	push	rbx
-	sub	rsp, 104
-	mov	r13, rcx
+	sub	rsp, 88
+	mov	r12, rcx
 	mov	r14, rdx
-	mov	r15, rsi
+	mov	r13, rsi
 	mov	rbx, rdi
 	xorps	xmm0, xmm0
+	movaps	xmmword ptr [rbp - 96], xmm0
 	movaps	xmmword ptr [rbp - 112], xmm0
 	movaps	xmmword ptr [rbp - 128], xmm0
-	movaps	xmmword ptr [rbp - 144], xmm0
-	mov	qword ptr [rbp - 96], 0
-	lea	rsi, [rip + L_.str.2]
-	mov	r12d, 8
+	mov	qword ptr [rbp - 80], 0
+	lea	rsi, [rip + L_.str.3]
+	mov	r15d, 8
 	mov	edx, 8
 	call	_strncasecmp
 	test	eax, eax
-	mov	qword ptr [rbp - 80], r13       ## 8-byte Spill
+	mov	qword ptr [rbp - 72], r12       ## 8-byte Spill
 	je	LBB1_3
 ## %bb.1:
-	lea	rsi, [rip + L_.str.3]
-	mov	r12d, 7
+	lea	rsi, [rip + L_.str.4]
+	mov	r15d, 7
 	mov	edx, 7
 	mov	rdi, rbx
 	call	_strncasecmp
 	test	eax, eax
 	je	LBB1_3
 ## %bb.2:
-	xor	r13d, r13d
-	mov	r15b, 1
+	xor	r15d, r15d
+	mov	r13b, 1
 	mov	r14d, -1
 	jmp	LBB1_6
 LBB1_3:
-	mov	qword ptr [rbp - 64], r15       ## 8-byte Spill
+	mov	qword ptr [rbp - 64], r13       ## 8-byte Spill
 	mov	qword ptr [rbp - 56], r14       ## 8-byte Spill
-	movzx	edx, byte ptr [rbx + r12]
-	mov	r15b, 1
+	movzx	edx, byte ptr [rbx + r15]
+	mov	r13b, 1
 	mov	r14d, -1
 	cmp	rdx, 63
 	ja	LBB1_19
@@ -7582,7 +7582,7 @@ LBB1_3:
 	bt	rax, rdx
 	jae	LBB1_19
 LBB1_5:
-	xor	r13d, r13d
+	xor	r15d, r15d
 LBB1_6:
 	xor	r12d, r12d
 	xor	edi, edi
@@ -7592,7 +7592,7 @@ LBB1_7:
 ## %bb.8:
 	call	qword ptr [rip + _easy_cleanup_fn]
 LBB1_9:
-	mov	rdi, qword ptr [rbp - 112]
+	mov	rdi, qword ptr [rbp - 96]
 	test	rdi, rdi
 	je	LBB1_11
 ## %bb.10:
@@ -7607,9 +7607,9 @@ LBB1_13:
 	test	r12, r12
 	je	LBB1_17
 ## %bb.14:
-	test	r13d, r13d
+	test	r15d, r15d
 	sete	al
-	mov	ecx, r15d
+	mov	ecx, r13d
 	xor	cl, 1
 	or	cl, al
 	jne	LBB1_16
@@ -7620,11 +7620,11 @@ LBB1_16:
 	mov	rdi, r12
 	call	_free
 LBB1_17:
-	mov	rax, qword ptr [rbp - 144]
-	test	r15b, r15b
+	mov	rax, qword ptr [rbp - 128]
+	test	r13b, r13b
 	jne	LBB1_63
 ## %bb.18:
-	add	rsp, 104
+	add	rsp, 88
 	pop	rbx
 	pop	r12
 	pop	r13
@@ -7644,8 +7644,8 @@ LBB1_21:
 	lea	rdi, [rip + _http_once]
 	lea	rsi, [rip + _http_initialize]
 	call	_pthread_once
-	cmp	byte ptr [rip + _http_available], 1
-	jne	LBB1_5
+	cmp	byte ptr [rip + _http_available], 0
+	je	LBB1_70
 ## %bb.23:
 	call	qword ptr [rip + _easy_init_fn]
 	test	rax, rax
@@ -7660,17 +7660,16 @@ LBB1_21:
 	mov	rdi, r14
 	mov	esi, 47
 	call	_strrchr
-	mov	rcx, rax
-	sub	rcx, r14
-	inc	rcx
+	mov	r15, rax
+	sub	r15, r14
+	inc	r15
 	test	rax, rax
-	cmove	rcx, rax
+	cmove	r15, rax
 	mov	r14d, -1
-	cmp	rcx, -18
+	cmp	r15, -18
 	ja	LBB1_45
 ## %bb.26:
-	mov	qword ptr [rbp - 72], rcx       ## 8-byte Spill
-	lea	rdi, [rcx + 17]
+	lea	rdi, [r15 + 17]
 	call	_malloc
 	test	rax, rax
 	je	LBB1_45
@@ -7678,40 +7677,39 @@ LBB1_21:
 	mov	r12, rax
 	mov	rdi, rax
 	mov	rsi, qword ptr [rbp - 56]       ## 8-byte Reload
-	mov	r14, qword ptr [rbp - 72]       ## 8-byte Reload
-	mov	rdx, r14
+	mov	rdx, r15
 	call	_memcpy
 	movaps	xmm0, xmmword ptr [rip + L___const.http_request.suffix]
-	movups	xmmword ptr [r12 + r14], xmm0
-	mov	byte ptr [r12 + r14 + 16], 0
+	movups	xmmword ptr [r12 + r15], xmm0
+	mov	byte ptr [r12 + r15 + 16], 0
 	mov	rdi, r12
 	call	_mkstemp
 	mov	r14d, eax
 	test	eax, eax
 	js	LBB1_62
 ## %bb.28:
-	lea	rsi, [rip + L_.str]
+	lea	rsi, [rip + L_.str.1]
 	mov	edi, r14d
 	call	_fdopen
-	mov	qword ptr [rbp - 112], rax
+	mov	qword ptr [rbp - 96], rax
 	test	rax, rax
 	setne	cl
 	xor	edx, edx
 	neg	rax
 	sbb	edx, edx
 	or	r14d, edx
-	mov	r13d, 1
+	mov	r15d, 1
 	jmp	LBB1_47
 LBB1_29:
-	add	r12, rbx
+	add	r15, rbx
 	mov	eax, 1
 	movabs	rcx, -9223231265006682112
 	jmp	LBB1_32
 LBB1_30:                                ##   in Loop: Header=BB1_32 Depth=1
-	mov	r12, rdx
+	mov	r15, rdx
 LBB1_31:                                ##   in Loop: Header=BB1_32 Depth=1
-	movzx	edx, byte ptr [r12 + 1]
-	inc	r12
+	movzx	edx, byte ptr [r15 + 1]
+	inc	r15
 	mov	esi, edx
 	cmp	dl, 32
 	jbe	LBB1_21
@@ -7743,18 +7741,18 @@ LBB1_38:                                ##   in Loop: Header=BB1_32 Depth=1
 	cmp	dl, 37
 	jne	LBB1_31
 ## %bb.39:                              ##   in Loop: Header=BB1_32 Depth=1
-	cmp	byte ptr [r12 + 1], 0
+	cmp	byte ptr [r15 + 1], 0
 	je	LBB1_21
 ## %bb.40:                              ##   in Loop: Header=BB1_32 Depth=1
-	cmp	byte ptr [r12 + 2], 0
+	cmp	byte ptr [r15 + 2], 0
 	je	LBB1_21
 ## %bb.41:                              ##   in Loop: Header=BB1_32 Depth=1
-	lea	rdx, [r12 + 2]
+	lea	rdx, [r15 + 2]
 	xor	esi, esi
 	.p2align	4
 LBB1_42:                                ##   Parent Loop BB1_32 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
-	movzx	edi, byte ptr [r12 + rsi + 1]
+	movzx	edi, byte ptr [r15 + rsi + 1]
 	or	dil, 32
 	lea	r8d, [rdi - 48]
 	cmp	r8b, 10
@@ -7770,11 +7768,11 @@ LBB1_42:                                ##   Parent Loop BB1_32 Depth=1
 	jne	LBB1_42
 	jmp	LBB1_30
 LBB1_44:
-	xor	r13d, r13d
-	mov	r15b, 1
+	xor	r15d, r15d
+	mov	r13b, 1
 	jmp	LBB1_6
 LBB1_45:
-	xor	r13d, r13d
+	xor	r15d, r15d
 	xor	r12d, r12d
 LBB1_46:
 	xor	ecx, ecx
@@ -7784,7 +7782,7 @@ LBB1_47:
 	je	LBB1_7
 	jmp	LBB1_49
 LBB1_48:
-	xor	r13d, r13d
+	xor	r15d, r15d
 	mov	r14d, -1
 	xor	r12d, r12d
 LBB1_49:
@@ -7859,7 +7857,7 @@ LBB1_49:
 	test	eax, eax
 	jne	LBB1_61
 ## %bb.58:
-	lea	rdx, [rbp - 144]
+	lea	rdx, [rbp - 128]
 	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
 	mov	esi, 10001
 	xor	eax, eax
@@ -7875,7 +7873,7 @@ LBB1_49:
 	test	eax, eax
 	jne	LBB1_61
 ## %bb.60:
-	lea	rdx, [rbp - 144]
+	lea	rdx, [rbp - 128]
 	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
 	mov	esi, 10029
 	xor	eax, eax
@@ -7886,13 +7884,13 @@ LBB1_61:
 	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
 	jmp	LBB1_7
 LBB1_62:
-	xor	r13d, r13d
+	xor	r15d, r15d
 	jmp	LBB1_46
 LBB1_63:
 	mov	rdi, rax
 	call	_free
-	lea	rdi, [rip + L_.str.1]
-	mov	rsi, qword ptr [rbp - 80]       ## 8-byte Reload
+	lea	rdi, [rip + L_.str.2]
+	mov	rsi, qword ptr [rbp - 72]       ## 8-byte Reload
 	call	_bit_die
 LBB1_64:
 	cmp	qword ptr [rbp - 64], 0         ## 8-byte Folded Reload
@@ -7911,12 +7909,12 @@ LBB1_66:
 	test	eax, eax
 	jne	LBB1_61
 ## %bb.67:
-	mov	rdi, qword ptr [rbp - 112]
+	mov	rdi, qword ptr [rbp - 96]
 	test	rdi, rdi
-	je	LBB1_70
+	je	LBB1_71
 ## %bb.68:
 	call	_fclose
-	mov	qword ptr [rbp - 112], 0
+	mov	qword ptr [rbp - 96], 0
 	test	eax, eax
 	jne	LBB1_61
 ## %bb.69:
@@ -7925,19 +7923,23 @@ LBB1_66:
 	call	_rename
 	test	eax, eax
 	jne	LBB1_61
-	jmp	LBB1_72
+	jmp	LBB1_73
 LBB1_70:
-	cmp	qword ptr [rbp - 144], 0
-	jne	LBB1_72
-## %bb.71:
+	lea	rdi, [rip + L_.str]
+	mov	rsi, r12
+	call	_bit_die
+LBB1_71:
+	cmp	qword ptr [rbp - 128], 0
+	jne	LBB1_73
+## %bb.72:
 	mov	edi, 1
 	mov	esi, 1
 	call	_calloc
-	mov	qword ptr [rbp - 144], rax
+	mov	qword ptr [rbp - 128], rax
 	test	rax, rax
 	je	LBB1_61
-LBB1_72:
-	xor	r15d, r15d
+LBB1_73:
+	xor	r13d, r13d
 	jmp	LBB1_61
                                         ## -- End function
 	.globl	_bit_http_post                  ## -- Begin function bit_http_post
@@ -7970,30 +7972,30 @@ _http_initialize:                       ## @http_initialize
 	mov	rbp, rsp
 	push	r14
 	push	rbx
-	lea	rdi, [rip + L_.str.4]
+	lea	rdi, [rip + L_.str.5]
 	mov	esi, 6
 	call	_dlopen
 	test	rax, rax
 	je	LBB4_4
 ## %bb.1:
 	mov	r14, rax
-	lea	rsi, [rip + L_.str.5]
+	lea	rsi, [rip + L_.str.6]
 	mov	rdi, rax
 	call	_dlsym
 	mov	rbx, rax
-	lea	rsi, [rip + L_.str.6]
-	mov	rdi, r14
-	call	_dlsym
-	mov	qword ptr [rip + _easy_init_fn], rax
 	lea	rsi, [rip + L_.str.7]
 	mov	rdi, r14
 	call	_dlsym
-	mov	qword ptr [rip + _easy_setopt_fn], rax
+	mov	qword ptr [rip + _easy_init_fn], rax
 	lea	rsi, [rip + L_.str.8]
 	mov	rdi, r14
 	call	_dlsym
-	mov	qword ptr [rip + _easy_perform_fn], rax
+	mov	qword ptr [rip + _easy_setopt_fn], rax
 	lea	rsi, [rip + L_.str.9]
+	mov	rdi, r14
+	call	_dlsym
+	mov	qword ptr [rip + _easy_perform_fn], rax
+	lea	rsi, [rip + L_.str.10]
 	mov	rdi, r14
 	call	_dlsym
 	test	rbx, rbx
@@ -8171,7 +8173,7 @@ LBB6_7:
 	cmp	byte ptr [rdi + 14], 58
 	jne	LBB6_13
 ## %bb.9:
-	lea	rsi, [rip + L_.str.11]
+	lea	rsi, [rip + L_.str.12]
 	mov	edx, 14
 	mov	rdi, r14
 	call	_strncasecmp
@@ -8185,7 +8187,7 @@ LBB6_13:
 	cmp	byte ptr [rdi + 17], 58
 	jne	LBB6_30
 ## %bb.15:
-	lea	rsi, [rip + L_.str.12]
+	lea	rsi, [rip + L_.str.13]
 	mov	edx, 17
 	mov	rdi, r14
 	call	_strncasecmp
@@ -8193,7 +8195,7 @@ LBB6_13:
 	test	eax, eax
 	je	LBB6_16
 LBB6_30:
-	lea	rdx, [rip + L_.str.14]
+	lea	rdx, [rip + L_.str.15]
 	mov	rsi, rbx
 	call	_header_name
 	test	eax, eax
@@ -8256,7 +8258,7 @@ LBB6_40:
 	cmp	r15, 7
 	jl	LBB6_43
 ## %bb.41:
-	lea	rsi, [rip + L_.str.3]
+	lea	rsi, [rip + L_.str.4]
 	mov	edx, 7
 	mov	r12, rcx
 	mov	rdi, r14
@@ -8268,7 +8270,7 @@ LBB6_43:
 	cmp	r15, 8
 	jl	LBB6_44
 ## %bb.45:
-	lea	rsi, [rip + L_.str.2]
+	lea	rsi, [rip + L_.str.3]
 	mov	edx, 8
 	mov	r15, rcx
 	mov	rdi, r14
@@ -8338,7 +8340,7 @@ LBB6_28:
 	cmp	rdi, 7
 	jne	LBB6_12
 ## %bb.29:
-	lea	rsi, [rip + L_.str.13]
+	lea	rsi, [rip + L_.str.14]
 	mov	edx, 7
 	mov	rdi, rax
 	call	_strncasecmp
@@ -8421,57 +8423,60 @@ _http_once:
 	.space	8
 
 .zerofill __DATA,__bss,_http_available,1,2 ## @http_available
-.zerofill __DATA,__bss,_easy_init_fn,8,3 ## @easy_init_fn
 	.section	__TEXT,__cstring,cstring_literals
+L_.str:                                 ## @.str
+	.asciz	"HTTP: \320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \320\267\320\260\320\263\321\200\321\203\320\267\320\270\321\202\321\214 \321\201\320\270\321\201\321\202\320\265\320\274\320\275\321\203\321\216 \320\261\320\270\320\261\320\273\320\270\320\276\321\202\320\265\320\272\321\203 libcurl"
+
+.zerofill __DATA,__bss,_easy_init_fn,8,3 ## @easy_init_fn
 	.p2align	4, 0x0                          ## @__const.http_request.suffix
 L___const.http_request.suffix:
 	.asciz	".bit-copy-XXXXXX"
 
-L_.str:                                 ## @.str
+L_.str.1:                               ## @.str.1
 	.asciz	"wb"
 
 .zerofill __DATA,__bss,_easy_setopt_fn,8,3 ## @easy_setopt_fn
 .zerofill __DATA,__bss,_easy_perform_fn,8,3 ## @easy_perform_fn
 .zerofill __DATA,__bss,_easy_cleanup_fn,8,3 ## @easy_cleanup_fn
-L_.str.1:                               ## @.str.1
+L_.str.2:                               ## @.str.2
 	.asciz	"\320\276\321\210\320\270\320\261\320\272\320\260 HTTP-\320\267\320\260\320\277\321\200\320\276\321\201\320\260"
 
-L_.str.2:                               ## @.str.2
+L_.str.3:                               ## @.str.3
 	.asciz	"https://"
 
-L_.str.3:                               ## @.str.3
+L_.str.4:                               ## @.str.4
 	.asciz	"http://"
 
-L_.str.4:                               ## @.str.4
+L_.str.5:                               ## @.str.5
 	.asciz	"/usr/lib/libcurl.4.dylib"
 
-L_.str.5:                               ## @.str.5
+L_.str.6:                               ## @.str.6
 	.asciz	"curl_global_init"
 
-L_.str.6:                               ## @.str.6
+L_.str.7:                               ## @.str.7
 	.asciz	"curl_easy_init"
 
-L_.str.7:                               ## @.str.7
+L_.str.8:                               ## @.str.8
 	.asciz	"curl_easy_setopt"
 
-L_.str.8:                               ## @.str.8
+L_.str.9:                               ## @.str.9
 	.asciz	"curl_easy_perform"
 
-L_.str.9:                               ## @.str.9
+L_.str.10:                              ## @.str.10
 	.asciz	"curl_easy_cleanup"
 
-L_.str.10:                              ## @.str.10
+L_.str.11:                              ## @.str.11
 	.asciz	"HTTP/"
 
-L_.str.11:                              ## @.str.11
+L_.str.12:                              ## @.str.12
 	.asciz	"content-length"
 
-L_.str.12:                              ## @.str.12
+L_.str.13:                              ## @.str.13
 	.asciz	"transfer-encoding"
 
-L_.str.13:                              ## @.str.13
+L_.str.14:                              ## @.str.14
 	.asciz	"chunked"
 
-L_.str.14:                              ## @.str.14
+L_.str.15:                              ## @.str.15
 	.asciz	"location"
 // END GENERATED MACOS HTTP BRIDGE

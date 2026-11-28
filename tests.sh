@@ -62,6 +62,13 @@ if command -v python3 >/dev/null 2>&1; then
     if python3 tools/test_windows_socket_handles.py; then pass; else fail "размер сокетов Windows"; fi
     if [ "$(uname -s)" = Darwin ]; then
         if python3 tools/test_http_native.py; then pass; else fail "HTTP без внешней программы"; fi
+    elif [ "$(uname -s)" = Linux ]; then
+        if python3 tools/test_http_linux_missing.py; then pass; else fail "HTTP без библиотеки"; fi
+        if python3 -c 'import ctypes; ctypes.CDLL("libcurl.so.4")' >/dev/null 2>&1; then
+            if python3 tools/test_http_native.py; then pass; else fail "HTTP без внешней программы"; fi
+        else
+            echo "проверка HTTP пропущена: нет libcurl.so.4"
+        fi
     fi
     if python3 tools/test_os_cpus_native.py; then pass; else fail "число ядер без внешней программы"; fi
     if python3 tools/test_os_procs_native.py; then pass; else fail "список процессов без внешней программы"; fi
