@@ -11,7 +11,7 @@ not external utility processes.
 | `os >> procs` | No utility: operating-system interfaces on macOS, Linux and Windows | Keep the regression test for absence of `ps` and `tasklist`; output is `PID name` lines. |
 | `os >> cpus` | No utility: `sysconf` on macOS/Linux, `GetSystemInfo` on Windows | Keep the regression test for absence of `getconf`. |
 | `bitc asm` | The compiler's platform and architecture are embedded at build time; the working directory comes from an OS API | Keep checking that no external commands are started. |
-| `bitc build` and `bitc run` | A shell, `as`, `ld`, and on macOS `xcrun`; cross-compiling for Windows invokes `x86_64-w64-mingw32-gcc`. Temporary directories are created and removed without `mktemp` or `rm`. | Replace helper commands with OS APIs, then implement native object and executable generation to remove the assembler and linker. |
+| `bitc build` and `bitc run` | `as` and `ld` are started directly; cross-compiling for Windows invokes `x86_64-w64-mingw32-gcc`. The compiler finds the macOS SDK itself and does not launch `uname`, `pwd`, `mktemp`, `rm`, or `xcrun`. | Implement native object and executable generation to remove the assembler and linker. |
 | `bootstrap.sh` | Shell, `uname`, `mkdir`, `as`, `ld`, `xcrun` on macOS, then compiler and `cmp` | Provide a self-contained initial installation path; the current script requires development tools. |
 
 `bitc run` intentionally starts the compiled program selected by the user,

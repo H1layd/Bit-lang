@@ -8118,8 +8118,17 @@ fn clean_tmp(dir d) {
     } else { }
 }
 
+fn run_tool(mas command) {
+    string out = command >> run;
+    string err = term >> stderr;
+    if out == "" { return err; }
+    if err == "" { return out; }
+    return out + "\n" + err;
+}
+
 fn link_linux(string s, string o, string exe, string d) {
-    string r = "as --64 -o {quote(o)} {quote(s)} 2>&1" >> run;
+    mas command = ("as", "--64", "-o", o, s);
+    string r = run_tool(command);
     if term >> status != 0 {
         do(clean_tmp(d));
         do(stop("внутренняя ошибка bit (ассемблер):\n{r}"));
@@ -8136,7 +8145,8 @@ fn link_linux(string s, string o, string exe, string d) {
         do(clean_tmp(d));
         do(stop("не нашёл crt1.o — нужен пакет glibc для сборки (обычно уже стоит вместе с binutils)"));
     }
-    string r2 = "ld -o {quote(exe)} -dynamic-linker /lib64/ld-linux-x86-64.so.2 {quote(lib)}/crt1.o {quote(lib)}/crti.o {quote(o)} -lc {quote(lib)}/crtn.o 2>&1" >> run;
+    mas linker = ("ld", "-o", exe, "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", lib + "/crt1.o", lib + "/crti.o", o, "-lc", lib + "/crtn.o");
+    string r2 = run_tool(linker);
     if term >> status != 0 {
         do(clean_tmp(d));
         do(stop("внутренняя ошибка bit (линковщик):\n{r2}"));
@@ -8144,11 +8154,46 @@ fn link_linux(string s, string o, string exe, string d) {
 }
 
 fn link_windows(string s, string exe, string d) {
-    string r = "x86_64-w64-mingw32-gcc -static {quote(s)} -o {quote(exe)} -lws2_32 -lbcrypt 2>&1" >> run;
+    mas command = ("x86_64-w64-mingw32-gcc", "-static", s, "-o", exe, "-lws2_32", "-lbcrypt");
+    string r = run_tool(command);
     if term >> status != 0 {
         do(clean_tmp(d));
         do(stop("ошибка сборки Windows (mingw):\n{r}"));
     }
+}
+
+# Find the selected macOS SDK without invoking xcrun.
+fn mac_sdk_in(string developer, string sdk_name) {
+    dir xcode = developer + "/Platforms/MacOSX.platform/Developer/SDKs/" + sdk_name;
+    if xcode >> exists { return xcode >> path; }
+    dir command_line = developer + "/SDKs/" + sdk_name;
+    if command_line >> exists { return command_line >> path; }
+    return "";
+}
+
+fn mac_sdk() {
+    string setting = term >> env("SDKROOT");
+    if starts(setting, "/") { return setting; }
+    string sdk_name = "MacOSX.sdk";
+    if starts(setting, "macosx") and setting != "macosx" {
+        mas letters = setting >> bytes;
+        do(sdk_name >> ch("MacOSX" + (letters >> text(6, letters >> sz)) + ".sdk"));
+    }
+    string developer = term >> env("DEVELOPER_DIR");
+    if ends(developer, ".app/") { do(developer >> ch(developer + "Contents/Developer")); }
+    else if ends(developer, ".app") { do(developer >> ch(developer + "/Contents/Developer")); }
+    string found = "";
+    if developer != "" {
+        do(found >> ch(mac_sdk_in(developer, sdk_name)));
+        if found != "" { return found; }
+    }
+    do(found >> ch(mac_sdk_in("/var/db/xcode_select_link", sdk_name)));
+    if found != "" { return found; }
+    do(found >> ch(mac_sdk_in("/Library/Developer/CommandLineTools", sdk_name)));
+    if found != "" { return found; }
+    do(found >> ch(mac_sdk_in("/Applications/Xcode.app/Contents/Developer", sdk_name)));
+    if found != "" { return found; }
+    return "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk";
 }
 
 fn link(string asm, string exe, string arch, string d) {
@@ -8163,16 +8208,15 @@ fn link(string asm, string exe, string arch, string d) {
         do(link_linux(s >> path, o, exe, d));
         return;
     }
-    string r = "as -arch {arch} -mmacosx-version-min=13.0 -o {quote(o)} {quote(s >> path)} 2>&1" >> run;
+    mas assembler = ("as", "-arch", arch, "-mmacosx-version-min=13.0", "-o", o, s >> path);
+    string r = run_tool(assembler);
     if term >> status != 0 {
         do(clean_tmp(d));
         do(stop("внутренняя ошибка bit (ассемблер):\n{r}"));
     }
-    string sdk = "xcrun --show-sdk-path 2>/dev/null" >> run;
-    if term >> status != 0 or sdk == "" {
-        do(sdk >> ch("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"));
-    }
-    string r2 = "ld -arch {arch} -platform_version macos 13.0 13.0 -syslibroot {quote(sdk)} -lSystem -e _main -o {quote(exe)} {quote(o)} 2>&1" >> run;
+    string sdk = mac_sdk();
+    mas linker = ("ld", "-arch", arch, "-platform_version", "macos", "13.0", "13.0", "-syslibroot", sdk, "-lSystem", "-e", "_main", "-o", exe, o);
+    string r2 = run_tool(linker);
     if term >> status != 0 {
         do(clean_tmp(d));
         do(stop("внутренняя ошибка bit (линковщик):\n{r2}"));

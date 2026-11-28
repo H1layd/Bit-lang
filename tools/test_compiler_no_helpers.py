@@ -24,17 +24,22 @@ def main():
         tmpdir.mkdir()
         marker = work / 'ran-rm'
         mktemp_marker = work / 'ran-mktemp'
+        xcrun_marker = work / 'ran-xcrun'
         rm = trapdir / 'rm'
         rm.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_RM_MARKER"\nexec /bin/rm "$@"\n')
         rm.chmod(0o755)
         mktemp = trapdir / 'mktemp'
         mktemp.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_MKTEMP_MARKER"\nexit 97\n')
         mktemp.chmod(0o755)
+        xcrun = trapdir / 'xcrun'
+        xcrun.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_XCRUN_MARKER"\nexit 97\n')
+        xcrun.chmod(0o755)
         (work / 'lib файл.bit').write_text('fn helper() { return "работает https://example.test/a//b"; }\n', encoding='utf-8')
         (work / 'main.bit').write_text('use "lib файл.bit";\nhost { print(helper()); }\n', encoding='utf-8')
         env = dict(os.environ, PATH=str(trapdir) + os.pathsep + os.environ.get('PATH', ''),
                    TMPDIR=str(tmpdir), BIT_COMPILER_RM_MARKER=str(marker),
-                   BIT_COMPILER_MKTEMP_MARKER=str(mktemp_marker))
+                   BIT_COMPILER_MKTEMP_MARKER=str(mktemp_marker),
+                   BIT_COMPILER_XCRUN_MARKER=str(xcrun_marker))
         uname_marker = work / 'ran-uname'
         uname = trapdir / 'uname'
         uname.write_text('#!/bin/sh\nprintf called > "$BIT_COMPILER_UNAME_MARKER"\nexit 97\n')
@@ -49,10 +54,12 @@ def main():
         binary = work / 'built program'
         result = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
                                 cwd=work, env=env, capture_output=True, text=True, timeout=60)
-        if result.returncode or marker.exists() or mktemp_marker.exists() or list(tmpdir.iterdir()):
+        if (result.returncode or marker.exists() or mktemp_marker.exists() or xcrun_marker.exists()
+                or list(tmpdir.iterdir())):
             raise RuntimeError(f'normal build: exit={result.returncode}, stdout={result.stdout!r}, '
                                f'stderr={result.stderr!r}, rm={marker.exists()}, '
                                f'mktemp={mktemp_marker.exists()}, '
+                               f'xcrun={xcrun_marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
         actual = subprocess.run([str(binary)], cwd=work, env=env, capture_output=True,
                                 text=True, timeout=10, check=True)
@@ -69,7 +76,7 @@ def main():
                              text=True, timeout=60)
         expected = 'input:вход\n' + ''.join('arg:' + value + '\n' for value in values)
         if (run.returncode != 37 or run.stdout != expected or run.stderr or marker.exists()
-                or mktemp_marker.exists() or list(tmpdir.iterdir())):
+                or mktemp_marker.exists() or xcrun_marker.exists() or list(tmpdir.iterdir())):
             raise RuntimeError(f'direct run: exit={run.returncode}, output={run.stdout!r}, '
                                f'expected={expected!r}, stderr={run.stderr!r}')
         (work / 'interrupt.bit').write_text(
@@ -96,15 +103,28 @@ def main():
                 os.killpg(child.pid, signal.SIGKILL)
                 child.communicate()
         fake_as = trapdir / 'as'
-        fake_as.write_text('#!/bin/sh\nprintf "intentional assembler failure\\n" >&2\nexit 1\n')
+        fake_as.write_text('#!/bin/sh\nprintf "assembler stdout\\n"\nprintf "intentional assembler failure\\n" >&2\nexit 1\n')
         fake_as.chmod(0o755)
         failure = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
                                  cwd=work, env=env, capture_output=True, text=True, timeout=60)
-        if not failure.returncode or marker.exists() or mktemp_marker.exists() or list(tmpdir.iterdir()):
+        if (not failure.returncode or 'assembler stdout' not in failure.stdout
+                or 'intentional assembler failure' not in failure.stdout or marker.exists()
+                or mktemp_marker.exists() or xcrun_marker.exists() or list(tmpdir.iterdir())):
             raise RuntimeError(f'failed build cleanup: exit={failure.returncode}, '
                                f'output={failure.stdout!r}, rm={marker.exists()}, '
                                f'temporary files={list(tmpdir.iterdir())}')
-        print('compiler: helper-free paths, direct run and interrupt cleanup passed')
+        fake_as.unlink()
+        fake_ld = trapdir / 'ld'
+        fake_ld.write_text('#!/bin/sh\nprintf "linker stdout\\n"\nprintf "intentional linker failure\\n" >&2\nexit 1\n')
+        fake_ld.chmod(0o755)
+        failure = subprocess.run([str(compiler), 'build', 'main.bit', '-o', str(binary)],
+                                 cwd=work, env=env, capture_output=True, text=True, timeout=60)
+        if (not failure.returncode or 'linker stdout' not in failure.stdout
+                or 'intentional linker failure' not in failure.stdout or marker.exists()
+                or mktemp_marker.exists() or xcrun_marker.exists() or list(tmpdir.iterdir())):
+            raise RuntimeError(f'linker failure cleanup: exit={failure.returncode}, '
+                               f'output={failure.stdout!r}, stderr={failure.stderr!r}')
+        print('compiler: helper-free paths, diagnostics, direct run and interrupt cleanup passed')
 
 
 if __name__ == '__main__':
