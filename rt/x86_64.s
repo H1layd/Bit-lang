@@ -6473,91 +6473,6 @@ _bit_spawn_status:                  // rdi = argv, rsi = тихо(0/1), rdx = с
     mov rsi, r13
     call _bit_die
 
-_bit_fetch:                         // rdi = url, rsi = строка -> тело
-    push rbp
-    mov rbp, rsp
-    push rbx
-    sub rsp, 56
-    mov rbx, rsi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rdi
-    mov qword ptr [rsp + 40], 0
-    mov rdi, rsp
-    mov rsi, rbx
-    call _bit_spawn_capture
-    add rsp, 56
-    pop rbx
-    pop rbp
-    ret
-
-_bit_http_post:                     // rdi = url, rsi = данные, rdx = строка -> ответ
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    sub rsp, 64
-    mov rbx, rdx
-    mov r12, rdi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_d]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rsi
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 40], rax
-    mov [rsp + 48], r12
-    mov qword ptr [rsp + 56], 0
-    mov rdi, rsp
-    mov rsi, rbx
-    call _bit_spawn_capture
-    add rsp, 64
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
-_bit_download:                      // rdi = url, rsi = файл, rdx = строка
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push r12
-    sub rsp, 64
-    mov rbx, rdx
-    mov r12, rdi
-    lea rax, [rip + Lrt_curl]
-    mov [rsp], rax
-    lea rax, [rip + Lrt_sS]
-    mov [rsp + 8], rax
-    lea rax, [rip + Lrt_L]
-    mov [rsp + 16], rax
-    lea rax, [rip + Lrt_o]
-    mov [rsp + 24], rax
-    mov [rsp + 32], rsi
-    lea rax, [rip + Lrt_ddp]
-    mov [rsp + 40], rax
-    mov [rsp + 48], r12
-    mov qword ptr [rsp + 56], 0
-    mov rdi, rsp
-    xor esi, esi
-    mov rdx, rbx
-    call _bit_spawn_status
-    add rsp, 64
-    pop r12
-    pop rbx
-    pop rbp
-    ret
-
 _bit_resolve:                       // rdi = имя хоста, rsi = строка -> IP-адрес строкой
     push rbp
     mov rbp, rsp
@@ -7598,3 +7513,965 @@ Lrt_emk: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\
 Lrt_edir: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \320\277\320\260\320\277\320\272\321\203: "
 Lrt_erun: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\321\203\321\201\321\202\320\270\321\202\321\214 \320\272\320\276\320\274\320\260\320\275\320\264\321\203: "
 .section __TEXT,__text,regular,pure_instructions
+
+// BEGIN GENERATED MACOS HTTP BRIDGE
+	.section	__TEXT,__text,regular,pure_instructions
+	.intel_syntax noprefix
+	.globl	_bit_fetch                      ## -- Begin function bit_fetch
+	.p2align	4
+_bit_fetch:                             ## @bit_fetch
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	mov	rcx, rsi
+	xor	esi, esi
+	xor	edx, edx
+	pop	rbp
+	jmp	_http_request                   ## TAILCALL
+                                        ## -- End function
+	.p2align	4                               ## -- Begin function http_request
+_http_request:                          ## @http_request
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	push	r15
+	push	r14
+	push	r13
+	push	r12
+	push	rbx
+	sub	rsp, 104
+	mov	r13, rcx
+	mov	r14, rdx
+	mov	r15, rsi
+	mov	rbx, rdi
+	xorps	xmm0, xmm0
+	movaps	xmmword ptr [rbp - 112], xmm0
+	movaps	xmmword ptr [rbp - 128], xmm0
+	movaps	xmmword ptr [rbp - 144], xmm0
+	mov	qword ptr [rbp - 96], 0
+	lea	rsi, [rip + L_.str.2]
+	mov	r12d, 8
+	mov	edx, 8
+	call	_strncasecmp
+	test	eax, eax
+	mov	qword ptr [rbp - 80], r13       ## 8-byte Spill
+	je	LBB1_3
+## %bb.1:
+	lea	rsi, [rip + L_.str.3]
+	mov	r12d, 7
+	mov	edx, 7
+	mov	rdi, rbx
+	call	_strncasecmp
+	test	eax, eax
+	je	LBB1_3
+## %bb.2:
+	xor	r13d, r13d
+	mov	r15b, 1
+	mov	r14d, -1
+	jmp	LBB1_6
+LBB1_3:
+	mov	qword ptr [rbp - 64], r15       ## 8-byte Spill
+	mov	qword ptr [rbp - 56], r14       ## 8-byte Spill
+	movzx	edx, byte ptr [rbx + r12]
+	mov	r15b, 1
+	mov	r14d, -1
+	cmp	rdx, 63
+	ja	LBB1_19
+## %bb.4:
+	movabs	rax, -9223231265006682111
+	bt	rax, rdx
+	jae	LBB1_19
+LBB1_5:
+	xor	r13d, r13d
+LBB1_6:
+	xor	r12d, r12d
+	xor	edi, edi
+LBB1_7:
+	test	rdi, rdi
+	je	LBB1_9
+## %bb.8:
+	call	qword ptr [rip + _easy_cleanup_fn]
+LBB1_9:
+	mov	rdi, qword ptr [rbp - 112]
+	test	rdi, rdi
+	je	LBB1_11
+## %bb.10:
+	call	_fclose
+LBB1_11:
+	test	r14d, r14d
+	js	LBB1_13
+## %bb.12:
+	mov	edi, r14d
+	call	_close
+LBB1_13:
+	test	r12, r12
+	je	LBB1_17
+## %bb.14:
+	test	r13d, r13d
+	sete	al
+	mov	ecx, r15d
+	xor	cl, 1
+	or	cl, al
+	jne	LBB1_16
+## %bb.15:
+	mov	rdi, r12
+	call	_unlink
+LBB1_16:
+	mov	rdi, r12
+	call	_free
+LBB1_17:
+	mov	rax, qword ptr [rbp - 144]
+	test	r15b, r15b
+	jne	LBB1_63
+## %bb.18:
+	add	rsp, 104
+	pop	rbx
+	pop	r12
+	pop	r13
+	pop	r14
+	pop	r15
+	pop	rbp
+	ret
+LBB1_19:
+	cmp	dl, 33
+	jae	LBB1_29
+## %bb.20:
+	mov	esi, edx
+LBB1_21:
+	test	sil, sil
+	jne	LBB1_5
+## %bb.22:
+	lea	rdi, [rip + _http_once]
+	lea	rsi, [rip + _http_initialize]
+	call	_pthread_once
+	cmp	byte ptr [rip + _http_available], 1
+	jne	LBB1_5
+## %bb.23:
+	call	qword ptr [rip + _easy_init_fn]
+	test	rax, rax
+	je	LBB1_5
+## %bb.24:
+	mov	rdi, rax
+	mov	r14, qword ptr [rbp - 56]       ## 8-byte Reload
+	test	r14, r14
+	mov	qword ptr [rbp - 48], rax       ## 8-byte Spill
+	je	LBB1_48
+## %bb.25:
+	mov	rdi, r14
+	mov	esi, 47
+	call	_strrchr
+	mov	rcx, rax
+	sub	rcx, r14
+	inc	rcx
+	test	rax, rax
+	cmove	rcx, rax
+	mov	r14d, -1
+	cmp	rcx, -18
+	ja	LBB1_45
+## %bb.26:
+	mov	qword ptr [rbp - 72], rcx       ## 8-byte Spill
+	lea	rdi, [rcx + 17]
+	call	_malloc
+	test	rax, rax
+	je	LBB1_45
+## %bb.27:
+	mov	r12, rax
+	mov	rdi, rax
+	mov	rsi, qword ptr [rbp - 56]       ## 8-byte Reload
+	mov	r14, qword ptr [rbp - 72]       ## 8-byte Reload
+	mov	rdx, r14
+	call	_memcpy
+	movaps	xmm0, xmmword ptr [rip + L___const.http_request.suffix]
+	movups	xmmword ptr [r12 + r14], xmm0
+	mov	byte ptr [r12 + r14 + 16], 0
+	mov	rdi, r12
+	call	_mkstemp
+	mov	r14d, eax
+	test	eax, eax
+	js	LBB1_62
+## %bb.28:
+	lea	rsi, [rip + L_.str]
+	mov	edi, r14d
+	call	_fdopen
+	mov	qword ptr [rbp - 112], rax
+	test	rax, rax
+	setne	cl
+	xor	edx, edx
+	neg	rax
+	sbb	edx, edx
+	or	r14d, edx
+	mov	r13d, 1
+	jmp	LBB1_47
+LBB1_29:
+	add	r12, rbx
+	mov	eax, 1
+	movabs	rcx, -9223231265006682112
+	jmp	LBB1_32
+LBB1_30:                                ##   in Loop: Header=BB1_32 Depth=1
+	mov	r12, rdx
+LBB1_31:                                ##   in Loop: Header=BB1_32 Depth=1
+	movzx	edx, byte ptr [r12 + 1]
+	inc	r12
+	mov	esi, edx
+	cmp	dl, 32
+	jbe	LBB1_21
+LBB1_32:                                ## =>This Loop Header: Depth=1
+                                        ##     Child Loop BB1_42 Depth 2
+	mov	sil, 1
+	cmp	dl, 92
+	je	LBB1_21
+## %bb.33:                              ##   in Loop: Header=BB1_32 Depth=1
+	movzx	edi, dl
+	cmp	edi, 127
+	je	LBB1_21
+## %bb.34:                              ##   in Loop: Header=BB1_32 Depth=1
+	test	eax, eax
+	setne	r8b
+	cmp	dl, 64
+	sete	r9b
+	test	r9b, r8b
+	jne	LBB1_21
+## %bb.35:                              ##   in Loop: Header=BB1_32 Depth=1
+	cmp	dl, 63
+	ja	LBB1_38
+## %bb.36:                              ##   in Loop: Header=BB1_32 Depth=1
+	bt	rcx, rdi
+	jae	LBB1_38
+## %bb.37:                              ##   in Loop: Header=BB1_32 Depth=1
+	xor	eax, eax
+LBB1_38:                                ##   in Loop: Header=BB1_32 Depth=1
+	cmp	dl, 37
+	jne	LBB1_31
+## %bb.39:                              ##   in Loop: Header=BB1_32 Depth=1
+	cmp	byte ptr [r12 + 1], 0
+	je	LBB1_21
+## %bb.40:                              ##   in Loop: Header=BB1_32 Depth=1
+	cmp	byte ptr [r12 + 2], 0
+	je	LBB1_21
+## %bb.41:                              ##   in Loop: Header=BB1_32 Depth=1
+	lea	rdx, [r12 + 2]
+	xor	esi, esi
+	.p2align	4
+LBB1_42:                                ##   Parent Loop BB1_32 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	movzx	edi, byte ptr [r12 + rsi + 1]
+	or	dil, 32
+	lea	r8d, [rdi - 48]
+	cmp	r8b, 10
+	setb	r8b
+	add	dil, -97
+	cmp	dil, 6
+	setb	dil
+	or	dil, r8b
+	je	LBB1_44
+## %bb.43:                              ##   in Loop: Header=BB1_42 Depth=2
+	inc	rsi
+	cmp	rsi, 2
+	jne	LBB1_42
+	jmp	LBB1_30
+LBB1_44:
+	xor	r13d, r13d
+	mov	r15b, 1
+	jmp	LBB1_6
+LBB1_45:
+	xor	r13d, r13d
+	xor	r12d, r12d
+LBB1_46:
+	xor	ecx, ecx
+LBB1_47:
+	test	cl, cl
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	je	LBB1_7
+	jmp	LBB1_49
+LBB1_48:
+	xor	r13d, r13d
+	mov	r14d, -1
+	xor	r12d, r12d
+LBB1_49:
+	mov	esi, 10002
+	mov	rdx, rbx
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.50:
+	mov	edx, 1
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 52
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.51:
+	mov	edx, 20
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 68
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.52:
+	mov	edx, 3
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 181
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.53:
+	mov	edx, 3
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 182
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.54:
+	mov	edx, 1
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 99
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.55:
+	mov	edx, 1
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 64
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.56:
+	mov	edx, 2
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 81
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.57:
+	lea	rdx, [rip + _http_body]
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 20011
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.58:
+	lea	rdx, [rbp - 144]
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 10001
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.59:
+	lea	rdx, [rip + _http_header]
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 20079
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.60:
+	lea	rdx, [rbp - 144]
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 10029
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	je	LBB1_64
+LBB1_61:
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	jmp	LBB1_7
+LBB1_62:
+	xor	r13d, r13d
+	jmp	LBB1_46
+LBB1_63:
+	mov	rdi, rax
+	call	_free
+	lea	rdi, [rip + L_.str.1]
+	mov	rsi, qword ptr [rbp - 80]       ## 8-byte Reload
+	call	_bit_die
+LBB1_64:
+	cmp	qword ptr [rbp - 64], 0         ## 8-byte Folded Reload
+	je	LBB1_66
+## %bb.65:
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	mov	esi, 10015
+	mov	rdx, qword ptr [rbp - 64]       ## 8-byte Reload
+	xor	eax, eax
+	call	qword ptr [rip + _easy_setopt_fn]
+	test	eax, eax
+	jne	LBB1_61
+LBB1_66:
+	mov	rdi, qword ptr [rbp - 48]       ## 8-byte Reload
+	call	qword ptr [rip + _easy_perform_fn]
+	test	eax, eax
+	jne	LBB1_61
+## %bb.67:
+	mov	rdi, qword ptr [rbp - 112]
+	test	rdi, rdi
+	je	LBB1_70
+## %bb.68:
+	call	_fclose
+	mov	qword ptr [rbp - 112], 0
+	test	eax, eax
+	jne	LBB1_61
+## %bb.69:
+	mov	rdi, r12
+	mov	rsi, qword ptr [rbp - 56]       ## 8-byte Reload
+	call	_rename
+	test	eax, eax
+	jne	LBB1_61
+	jmp	LBB1_72
+LBB1_70:
+	cmp	qword ptr [rbp - 144], 0
+	jne	LBB1_72
+## %bb.71:
+	mov	edi, 1
+	mov	esi, 1
+	call	_calloc
+	mov	qword ptr [rbp - 144], rax
+	test	rax, rax
+	je	LBB1_61
+LBB1_72:
+	xor	r15d, r15d
+	jmp	LBB1_61
+                                        ## -- End function
+	.globl	_bit_http_post                  ## -- Begin function bit_http_post
+	.p2align	4
+_bit_http_post:                         ## @bit_http_post
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	mov	rcx, rdx
+	xor	edx, edx
+	pop	rbp
+	jmp	_http_request                   ## TAILCALL
+                                        ## -- End function
+	.globl	_bit_download                   ## -- Begin function bit_download
+	.p2align	4
+_bit_download:                          ## @bit_download
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	mov	rcx, rdx
+	mov	rdx, rsi
+	xor	esi, esi
+	pop	rbp
+	jmp	_http_request                   ## TAILCALL
+                                        ## -- End function
+	.p2align	4                               ## -- Begin function http_initialize
+_http_initialize:                       ## @http_initialize
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	push	r14
+	push	rbx
+	lea	rdi, [rip + L_.str.4]
+	mov	esi, 6
+	call	_dlopen
+	test	rax, rax
+	je	LBB4_4
+## %bb.1:
+	mov	r14, rax
+	lea	rsi, [rip + L_.str.5]
+	mov	rdi, rax
+	call	_dlsym
+	mov	rbx, rax
+	lea	rsi, [rip + L_.str.6]
+	mov	rdi, r14
+	call	_dlsym
+	mov	qword ptr [rip + _easy_init_fn], rax
+	lea	rsi, [rip + L_.str.7]
+	mov	rdi, r14
+	call	_dlsym
+	mov	qword ptr [rip + _easy_setopt_fn], rax
+	lea	rsi, [rip + L_.str.8]
+	mov	rdi, r14
+	call	_dlsym
+	mov	qword ptr [rip + _easy_perform_fn], rax
+	lea	rsi, [rip + L_.str.9]
+	mov	rdi, r14
+	call	_dlsym
+	test	rbx, rbx
+	setne	cl
+	cmp	qword ptr [rip + _easy_init_fn], 0
+	setne	dl
+	and	dl, cl
+	cmp	qword ptr [rip + _easy_setopt_fn], 0
+	setne	cl
+	cmp	qword ptr [rip + _easy_perform_fn], 0
+	mov	qword ptr [rip + _easy_cleanup_fn], rax
+	setne	sil
+	and	sil, cl
+	and	sil, dl
+	test	rax, rax
+	setne	al
+	and	al, sil
+	cmp	al, 1
+	jne	LBB4_4
+## %bb.2:
+	mov	edi, 3
+	call	rbx
+	test	eax, eax
+	jne	LBB4_4
+## %bb.3:
+	mov	byte ptr [rip + _http_available], 1
+LBB4_4:
+	pop	rbx
+	pop	r14
+	pop	rbp
+	ret
+                                        ## -- End function
+	.p2align	4                               ## -- Begin function http_body
+_http_body:                             ## @http_body
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	push	r15
+	push	r14
+	push	r12
+	push	rbx
+	mov	rbx, rdx
+	test	rdx, rdx
+	je	LBB5_3
+## %bb.1:
+	mov	rax, rbx
+	mul	rsi
+	jo	LBB5_2
+LBB5_3:
+	imul	rbx, rsi
+	mov	rax, qword ptr [rcx + 32]
+	test	rax, rax
+	je	LBB5_5
+## %bb.4:
+	mov	esi, 1
+	mov	rdx, rbx
+	mov	rcx, rax
+	pop	rbx
+	pop	r12
+	pop	r14
+	pop	r15
+	pop	rbp
+	jmp	_fwrite                         ## TAILCALL
+LBB5_5:
+	mov	rax, qword ptr [rcx + 8]
+	mov	rdx, -2
+	sub	rdx, rax
+	cmp	rbx, rdx
+	jbe	LBB5_7
+LBB5_2:
+	xor	ebx, ebx
+LBB5_15:
+	mov	rax, rbx
+	pop	rbx
+	pop	r12
+	pop	r14
+	pop	r15
+	pop	rbp
+	ret
+LBB5_7:
+	add	rax, rbx
+	inc	rax
+	mov	rdx, qword ptr [rcx + 16]
+	cmp	rax, rdx
+	jbe	LBB5_14
+## %bb.8:
+	test	rdx, rdx
+	mov	r14d, 4096
+	cmovne	r14, rdx
+	mov	r15, rdi
+	cmp	r14, rax
+	jae	LBB5_12
+	.p2align	4
+LBB5_9:                                 ## =>This Inner Loop Header: Depth=1
+	test	r14, r14
+	js	LBB5_11
+## %bb.10:                              ##   in Loop: Header=BB5_9 Depth=1
+	add	r14, r14
+	cmp	r14, rax
+	jb	LBB5_9
+	jmp	LBB5_12
+LBB5_11:
+	mov	r14, rax
+LBB5_12:
+	mov	r12, rcx
+	mov	rdi, qword ptr [rcx]
+	mov	rsi, r14
+	call	_realloc
+	test	rax, rax
+	je	LBB5_2
+## %bb.13:
+	mov	rcx, r12
+	mov	qword ptr [r12], rax
+	mov	qword ptr [r12 + 16], r14
+	mov	rdi, r15
+LBB5_14:
+	mov	rax, qword ptr [rcx]
+	add	rax, qword ptr [rcx + 8]
+	mov	rsi, rdi
+	mov	rdi, rax
+	mov	rdx, rbx
+	mov	r14, rcx
+	call	_memcpy
+	mov	rax, qword ptr [r14 + 8]
+	add	rax, rbx
+	mov	qword ptr [r14 + 8], rax
+	mov	rcx, qword ptr [r14]
+	mov	byte ptr [rcx + rax], 0
+	jmp	LBB5_15
+                                        ## -- End function
+	.p2align	4                               ## -- Begin function http_header
+_http_header:                           ## @http_header
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	push	r15
+	push	r14
+	push	r12
+	push	rbx
+	mov	rbx, rdx
+	test	rdx, rdx
+	je	LBB6_2
+## %bb.1:
+	mov	rax, rbx
+	mul	rsi
+	jo	LBB6_12
+LBB6_2:
+	imul	rbx, rsi
+	cmp	rbx, 8192
+	ja	LBB6_12
+## %bb.3:
+	mov	rax, qword ptr [rcx + 24]
+	mov	edx, 65536
+	sub	rdx, rax
+	cmp	rbx, rdx
+	ja	LBB6_12
+## %bb.4:
+	add	rax, rbx
+	mov	qword ptr [rcx + 24], rax
+	cmp	rbx, 5
+	jb	LBB6_7
+## %bb.5:
+	mov	eax, 1347703880
+	xor	eax, dword ptr [rdi]
+	movzx	edx, byte ptr [rdi + 4]
+	xor	edx, 47
+	or	edx, eax
+	je	LBB6_6
+LBB6_7:
+	mov	r15, rcx
+	cmp	rbx, 15
+	mov	r14, rdi
+	jb	LBB6_13
+## %bb.8:
+	cmp	byte ptr [rdi + 14], 58
+	jne	LBB6_13
+## %bb.9:
+	lea	rsi, [rip + L_.str.11]
+	mov	edx, 14
+	mov	rdi, r14
+	call	_strncasecmp
+	mov	rdi, r14
+	test	eax, eax
+	je	LBB6_10
+LBB6_13:
+	cmp	rbx, 18
+	jb	LBB6_30
+## %bb.14:
+	cmp	byte ptr [rdi + 17], 58
+	jne	LBB6_30
+## %bb.15:
+	lea	rsi, [rip + L_.str.12]
+	mov	edx, 17
+	mov	rdi, r14
+	call	_strncasecmp
+	mov	rdi, r14
+	test	eax, eax
+	je	LBB6_16
+LBB6_30:
+	lea	rdx, [rip + L_.str.14]
+	mov	rsi, rbx
+	call	_header_name
+	test	eax, eax
+	je	LBB6_52
+## %bb.31:
+	mov	eax, dword ptr [r15 + 52]
+	lea	ecx, [rax + 1]
+	mov	dword ptr [r15 + 52], ecx
+	test	eax, eax
+	je	LBB6_32
+LBB6_12:
+	xor	ebx, ebx
+LBB6_52:
+	mov	rax, rbx
+	pop	rbx
+	pop	r12
+	pop	r14
+	pop	r15
+	pop	rbp
+	ret
+LBB6_6:
+	mov	qword ptr [rcx + 24], rbx
+	mov	dword ptr [rcx + 52], 0
+	mov	qword ptr [rcx + 44], 0
+	jmp	LBB6_52
+LBB6_32:
+	mov	rcx, r14
+	add	r14, 9
+	add	rcx, rbx
+	cmp	rbx, 10
+	jae	LBB6_33
+	jmp	LBB6_36
+	.p2align	4
+LBB6_35:                                ##   in Loop: Header=BB6_33 Depth=1
+	inc	r14
+	cmp	r14, rcx
+	jae	LBB6_36
+LBB6_33:                                ## =>This Inner Loop Header: Depth=1
+	movzx	eax, byte ptr [r14]
+	cmp	eax, 32
+	je	LBB6_35
+## %bb.34:                              ##   in Loop: Header=BB6_33 Depth=1
+	cmp	eax, 9
+	je	LBB6_35
+LBB6_36:
+	mov	r15, rcx
+	sub	r15, r14
+	cmp	r15, 2
+	jl	LBB6_40
+## %bb.37:
+	cmp	byte ptr [r14], 47
+	jne	LBB6_40
+## %bb.38:
+	cmp	byte ptr [r14 + 1], 47
+	jne	LBB6_40
+## %bb.39:
+	add	r14, 2
+	jmp	LBB6_46
+LBB6_40:
+	cmp	r15, 7
+	jl	LBB6_43
+## %bb.41:
+	lea	rsi, [rip + L_.str.3]
+	mov	edx, 7
+	mov	r12, rcx
+	mov	rdi, r14
+	call	_strncasecmp
+	mov	rcx, r12
+	test	eax, eax
+	je	LBB6_42
+LBB6_43:
+	cmp	r15, 8
+	jl	LBB6_44
+## %bb.45:
+	lea	rsi, [rip + L_.str.2]
+	mov	edx, 8
+	mov	r15, rcx
+	mov	rdi, r14
+	call	_strncasecmp
+	mov	rcx, r15
+	add	r14, 8
+	xor	edx, edx
+	test	eax, eax
+	cmovne	r14, rdx
+	jmp	LBB6_46
+LBB6_10:
+	mov	eax, dword ptr [r15 + 44]
+	lea	ecx, [rax + 1]
+	mov	dword ptr [r15 + 44], ecx
+	test	eax, eax
+	jne	LBB6_12
+## %bb.11:
+	cmp	dword ptr [r15 + 48], 0
+	jne	LBB6_12
+	jmp	LBB6_52
+LBB6_16:
+	mov	eax, dword ptr [r15 + 48]
+	lea	ecx, [rax + 1]
+	mov	dword ptr [r15 + 48], ecx
+	test	eax, eax
+	jne	LBB6_12
+## %bb.17:
+	cmp	dword ptr [r15 + 44], 0
+	jne	LBB6_12
+## %bb.18:
+	lea	rax, [rdi + 18]
+	add	rdi, rbx
+	cmp	rbx, 18
+	jne	LBB6_19
+	jmp	LBB6_22
+LBB6_21:                                ##   in Loop: Header=BB6_19 Depth=1
+	inc	rax
+	cmp	rax, rdi
+	jae	LBB6_22
+LBB6_19:                                ## =>This Inner Loop Header: Depth=1
+	movzx	ecx, byte ptr [rax]
+	cmp	ecx, 32
+	je	LBB6_21
+## %bb.20:                              ##   in Loop: Header=BB6_19 Depth=1
+	cmp	ecx, 9
+	je	LBB6_21
+LBB6_22:
+	cmp	rdi, rax
+	jbe	LBB6_28
+## %bb.23:
+	movabs	rcx, 4294977024
+LBB6_24:                                ## =>This Inner Loop Header: Depth=1
+	movzx	edx, byte ptr [rdi - 1]
+	cmp	rdx, 32
+	ja	LBB6_28
+## %bb.25:                              ##   in Loop: Header=BB6_24 Depth=1
+	bt	rcx, rdx
+	jae	LBB6_28
+## %bb.26:                              ##   in Loop: Header=BB6_24 Depth=1
+	dec	rdi
+	cmp	rdi, rax
+	ja	LBB6_24
+## %bb.27:
+	mov	rdi, rax
+LBB6_28:
+	sub	rdi, rax
+	cmp	rdi, 7
+	jne	LBB6_12
+## %bb.29:
+	lea	rsi, [rip + L_.str.13]
+	mov	edx, 7
+	mov	rdi, rax
+	call	_strncasecmp
+	test	eax, eax
+	jne	LBB6_12
+	jmp	LBB6_52
+LBB6_44:
+	xor	r14d, r14d
+	jmp	LBB6_46
+LBB6_42:
+	add	r14, 7
+LBB6_46:
+	test	r14, r14
+	sete	al
+	cmp	r14, rcx
+	setae	dl
+	or	dl, al
+	jne	LBB6_52
+## %bb.47:
+	movabs	rax, 9007336727248905
+	jmp	LBB6_48
+LBB6_51:                                ##   in Loop: Header=BB6_48 Depth=1
+	inc	r14
+	cmp	r14, rcx
+	jae	LBB6_52
+LBB6_48:                                ## =>This Inner Loop Header: Depth=1
+	movzx	edx, byte ptr [r14]
+	add	edx, -10
+	cmp	edx, 54
+	ja	LBB6_51
+## %bb.49:                              ##   in Loop: Header=BB6_48 Depth=1
+	bt	rax, rdx
+	jb	LBB6_52
+## %bb.50:                              ##   in Loop: Header=BB6_48 Depth=1
+	cmp	rdx, 54
+	jne	LBB6_51
+	jmp	LBB6_12
+                                        ## -- End function
+	.p2align	4                               ## -- Begin function header_name
+_header_name:                           ## @header_name
+## %bb.0:
+	push	rbp
+	mov	rbp, rsp
+	push	r15
+	push	r14
+	push	rbx
+	push	rax
+	mov	rbx, rdx
+	mov	r15, rsi
+	mov	r14, rdi
+	mov	rdi, rdx
+	call	_strlen
+	mov	rdx, rax
+	xor	eax, eax
+	cmp	r15, rdx
+	jbe	LBB7_3
+## %bb.1:
+	cmp	byte ptr [r14 + rdx], 58
+	jne	LBB7_3
+## %bb.2:
+	mov	rdi, r14
+	mov	rsi, rbx
+	call	_strncasecmp
+	mov	ecx, eax
+	xor	eax, eax
+	test	ecx, ecx
+	sete	al
+LBB7_3:
+	add	rsp, 8
+	pop	rbx
+	pop	r14
+	pop	r15
+	pop	rbp
+	ret
+                                        ## -- End function
+	.section	__DATA,__data
+	.p2align	3, 0x0                          ## @http_once
+_http_once:
+	.quad	816954554                       ## 0x30b1bcba
+	.space	8
+
+.zerofill __DATA,__bss,_http_available,1,2 ## @http_available
+.zerofill __DATA,__bss,_easy_init_fn,8,3 ## @easy_init_fn
+	.section	__TEXT,__cstring,cstring_literals
+	.p2align	4, 0x0                          ## @__const.http_request.suffix
+L___const.http_request.suffix:
+	.asciz	".bit-copy-XXXXXX"
+
+L_.str:                                 ## @.str
+	.asciz	"wb"
+
+.zerofill __DATA,__bss,_easy_setopt_fn,8,3 ## @easy_setopt_fn
+.zerofill __DATA,__bss,_easy_perform_fn,8,3 ## @easy_perform_fn
+.zerofill __DATA,__bss,_easy_cleanup_fn,8,3 ## @easy_cleanup_fn
+L_.str.1:                               ## @.str.1
+	.asciz	"\320\276\321\210\320\270\320\261\320\272\320\260 HTTP-\320\267\320\260\320\277\321\200\320\276\321\201\320\260"
+
+L_.str.2:                               ## @.str.2
+	.asciz	"https://"
+
+L_.str.3:                               ## @.str.3
+	.asciz	"http://"
+
+L_.str.4:                               ## @.str.4
+	.asciz	"/usr/lib/libcurl.4.dylib"
+
+L_.str.5:                               ## @.str.5
+	.asciz	"curl_global_init"
+
+L_.str.6:                               ## @.str.6
+	.asciz	"curl_easy_init"
+
+L_.str.7:                               ## @.str.7
+	.asciz	"curl_easy_setopt"
+
+L_.str.8:                               ## @.str.8
+	.asciz	"curl_easy_perform"
+
+L_.str.9:                               ## @.str.9
+	.asciz	"curl_easy_cleanup"
+
+L_.str.10:                              ## @.str.10
+	.asciz	"HTTP/"
+
+L_.str.11:                              ## @.str.11
+	.asciz	"content-length"
+
+L_.str.12:                              ## @.str.12
+	.asciz	"transfer-encoding"
+
+L_.str.13:                              ## @.str.13
+	.asciz	"chunked"
+
+L_.str.14:                              ## @.str.14
+	.asciz	"location"
+// END GENERATED MACOS HTTP BRIDGE

@@ -5993,108 +5993,6 @@ _bit_spawn_status:                  // x0 = argv, x1 = тихо(0/1), x2 = ст�
     mov x1, x21
     bl _bit_die
 
-_bit_fetch:                         // x0 = url, x1 = строка -> тело ответа
-    stp x29, x30, [sp, #-16]!
-    mov x29, sp
-    stp x19, x20, [sp, #-16]!
-    sub sp, sp, #48
-    mov x19, x1
-    mov x20, x0
-    adrp x2, Lrt_curl@PAGE
-    add x2, x2, Lrt_curl@PAGEOFF
-    str x2, [sp]
-    adrp x2, Lrt_sS@PAGE
-    add x2, x2, Lrt_sS@PAGEOFF
-    str x2, [sp, #8]
-    adrp x2, Lrt_L@PAGE
-    add x2, x2, Lrt_L@PAGEOFF
-    str x2, [sp, #16]
-    adrp x2, Lrt_ddp@PAGE
-    add x2, x2, Lrt_ddp@PAGEOFF
-    str x2, [sp, #24]
-    str x20, [sp, #32]
-    str xzr, [sp, #40]
-    mov x0, sp
-    mov x1, x19
-    bl _bit_spawn_capture
-    add sp, sp, #48
-    ldp x19, x20, [sp], #16
-    ldp x29, x30, [sp], #16
-    ret
-
-_bit_http_post:                     // x0 = url, x1 = данные, x2 = строка -> ответ
-    stp x29, x30, [sp, #-16]!
-    mov x29, sp
-    stp x19, x20, [sp, #-16]!
-    stp x21, x22, [sp, #-16]!
-    sub sp, sp, #64
-    mov x19, x0
-    mov x20, x1
-    mov x21, x2
-    adrp x2, Lrt_curl@PAGE
-    add x2, x2, Lrt_curl@PAGEOFF
-    str x2, [sp]
-    adrp x2, Lrt_sS@PAGE
-    add x2, x2, Lrt_sS@PAGEOFF
-    str x2, [sp, #8]
-    adrp x2, Lrt_L@PAGE
-    add x2, x2, Lrt_L@PAGEOFF
-    str x2, [sp, #16]
-    adrp x2, Lrt_d@PAGE
-    add x2, x2, Lrt_d@PAGEOFF
-    str x2, [sp, #24]
-    str x20, [sp, #32]
-    adrp x2, Lrt_ddp@PAGE
-    add x2, x2, Lrt_ddp@PAGEOFF
-    str x2, [sp, #40]
-    str x19, [sp, #48]
-    str xzr, [sp, #56]
-    mov x0, sp
-    mov x1, x21
-    bl _bit_spawn_capture
-    add sp, sp, #64
-    ldp x21, x22, [sp], #16
-    ldp x19, x20, [sp], #16
-    ldp x29, x30, [sp], #16
-    ret
-
-_bit_download:                      // x0 = url, x1 = файл, x2 = строка
-    stp x29, x30, [sp, #-16]!
-    mov x29, sp
-    stp x19, x20, [sp, #-16]!
-    stp x21, x22, [sp, #-16]!
-    sub sp, sp, #64
-    mov x19, x0
-    mov x20, x1
-    mov x21, x2
-    adrp x2, Lrt_curl@PAGE
-    add x2, x2, Lrt_curl@PAGEOFF
-    str x2, [sp]
-    adrp x2, Lrt_sS@PAGE
-    add x2, x2, Lrt_sS@PAGEOFF
-    str x2, [sp, #8]
-    adrp x2, Lrt_L@PAGE
-    add x2, x2, Lrt_L@PAGEOFF
-    str x2, [sp, #16]
-    adrp x2, Lrt_o@PAGE
-    add x2, x2, Lrt_o@PAGEOFF
-    str x2, [sp, #24]
-    str x20, [sp, #32]
-    adrp x2, Lrt_ddp@PAGE
-    add x2, x2, Lrt_ddp@PAGEOFF
-    str x2, [sp, #40]
-    str x19, [sp, #48]
-    str xzr, [sp, #56]
-    mov x0, sp
-    mov x1, #0
-    mov x2, x21
-    bl _bit_spawn_status
-    add sp, sp, #64
-    ldp x21, x22, [sp], #16
-    ldp x19, x20, [sp], #16
-    ldp x29, x30, [sp], #16
-    ret
-
 _bit_resolve:                       // x0 = имя хоста, x1 = строка -> IP-адрес строкой
     stp x29, x30, [sp, #-16]!
     mov x29, sp
@@ -7101,3 +6999,1036 @@ Lrt_emk: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \321\201\320\
 Lrt_edir: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\276\321\202\320\272\321\200\321\213\321\202\321\214 \320\277\320\260\320\277\320\272\321\203: "
 Lrt_erun: .asciz "\320\275\320\265 \320\274\320\276\320\263\321\203 \320\267\320\260\320\277\321\203\321\201\321\202\320\270\321\202\321\214 \320\272\320\276\320\274\320\260\320\275\320\264\321\203: "
 .section __TEXT,__text,regular,pure_instructions
+
+// BEGIN GENERATED MACOS HTTP BRIDGE
+	.section	__TEXT,__text,regular,pure_instructions
+	.globl	_bit_fetch                      ; -- Begin function bit_fetch
+	.p2align	2
+_bit_fetch:                             ; @bit_fetch
+; %bb.0:
+	mov	x3, x1
+	mov	x1, #0                          ; =0x0
+	mov	x2, #0                          ; =0x0
+	b	_http_request
+                                        ; -- End function
+	.p2align	2                               ; -- Begin function http_request
+_http_request:                          ; @http_request
+; %bb.0:
+	sub	sp, sp, #176
+	stp	x28, x27, [sp, #80]             ; 16-byte Folded Spill
+	stp	x26, x25, [sp, #96]             ; 16-byte Folded Spill
+	stp	x24, x23, [sp, #112]            ; 16-byte Folded Spill
+	stp	x22, x21, [sp, #128]            ; 16-byte Folded Spill
+	stp	x20, x19, [sp, #144]            ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #160]            ; 16-byte Folded Spill
+	add	x29, sp, #160
+	mov	x19, x3
+	mov	x22, x2
+	mov	x23, x1
+	mov	x24, x0
+	str	xzr, [sp, #64]
+	movi.2d	v0, #0000000000000000
+	stp	q0, q0, [sp, #32]
+	str	q0, [sp, #16]
+Lloh0:
+	adrp	x1, l_.str.2@PAGE
+Lloh1:
+	add	x1, x1, l_.str.2@PAGEOFF
+	mov	w20, #8                         ; =0x8
+	mov	w2, #8                          ; =0x8
+	bl	_strncasecmp
+	cbz	w0, LBB1_2
+; %bb.1:
+Lloh2:
+	adrp	x1, l_.str.3@PAGE
+Lloh3:
+	add	x1, x1, l_.str.3@PAGEOFF
+	mov	w20, #7                         ; =0x7
+	mov	x0, x24
+	mov	w2, #7                          ; =0x7
+	bl	_strncasecmp
+	cbnz	w0, LBB1_3
+LBB1_2:
+	add	x10, x24, x20
+	ldrb	w12, [x10]
+	mov	w8, #1                          ; =0x1
+	lsl	x8, x8, x12
+                                        ; kill: def $w12 killed $w12 killed $x12 def $x12
+	cmp	w12, #63
+	mov	x9, #-9223372036854775807       ; =0x8000000000000001
+	movk	x9, #32776, lsl #32
+	and	x8, x8, x9
+	ccmp	x8, #0, #4, ls
+	b.eq	LBB1_17
+LBB1_3:
+	mov	w25, #0                         ; =0x0
+	mov	x20, #0                         ; =0x0
+	mov	x0, #0                          ; =0x0
+LBB1_4:
+	mov	w26, #1                         ; =0x1
+	mov	w21, #-1                        ; =0xffffffff
+LBB1_5:
+	cbz	x0, LBB1_7
+; %bb.6:
+Lloh4:
+	adrp	x8, _easy_cleanup_fn@PAGE
+Lloh5:
+	ldr	x8, [x8, _easy_cleanup_fn@PAGEOFF]
+	blr	x8
+LBB1_7:
+	ldr	x0, [sp, #48]
+	cbz	x0, LBB1_9
+; %bb.8:
+	bl	_fclose
+LBB1_9:
+	tbnz	w21, #31, LBB1_11
+; %bb.10:
+	mov	x0, x21
+	bl	_close
+LBB1_11:
+	cbz	x20, LBB1_15
+; %bb.12:
+	cmp	w25, #0
+	eor	w8, w26, #0x1
+	csinc	w8, w8, wzr, ne
+	tbnz	w8, #0, LBB1_14
+; %bb.13:
+	mov	x0, x20
+	bl	_unlink
+LBB1_14:
+	mov	x0, x20
+	bl	_free
+LBB1_15:
+	ldr	x0, [sp, #16]
+	cbnz	w26, LBB1_68
+; %bb.16:
+	ldp	x29, x30, [sp, #160]            ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #144]            ; 16-byte Folded Reload
+	ldp	x22, x21, [sp, #128]            ; 16-byte Folded Reload
+	ldp	x24, x23, [sp, #112]            ; 16-byte Folded Reload
+	ldp	x26, x25, [sp, #96]             ; 16-byte Folded Reload
+	ldp	x28, x27, [sp, #80]             ; 16-byte Folded Reload
+	add	sp, sp, #176
+	ret
+LBB1_17:
+	cmp	w12, #33
+	b.hs	LBB1_25
+; %bb.18:
+	mov	x13, x12
+LBB1_19:
+	tst	w13, #0xff
+	b.ne	LBB1_3
+; %bb.20:
+Lloh6:
+	adrp	x0, _http_once@PAGE
+Lloh7:
+	add	x0, x0, _http_once@PAGEOFF
+Lloh8:
+	adrp	x1, _http_initialize@PAGE
+Lloh9:
+	add	x1, x1, _http_initialize@PAGEOFF
+	bl	_pthread_once
+	adrp	x8, _http_available@PAGE
+	ldrb	w8, [x8, _http_available@PAGEOFF]
+	cmp	w8, #1
+	b.ne	LBB1_3
+; %bb.21:
+Lloh10:
+	adrp	x8, _easy_init_fn@PAGE
+Lloh11:
+	ldr	x8, [x8, _easy_init_fn@PAGEOFF]
+	blr	x8
+	cbz	x0, LBB1_39
+; %bb.22:
+	cbz	x22, LBB1_40
+; %bb.23:
+	mov	x26, x0
+	mov	x0, x22
+	mov	w1, #47                         ; =0x2f
+	bl	_strrchr
+	sub	x8, x0, x22
+	cmp	x0, #0
+	csinc	x21, xzr, x8, eq
+	cmn	x21, #18
+	b.ls	LBB1_41
+; %bb.24:
+	mov	w25, #0                         ; =0x0
+	mov	x20, #0                         ; =0x0
+	b	LBB1_46
+LBB1_25:
+	mov	w8, #1                          ; =0x1
+	mov	x9, #140771848093696            ; =0x800800000000
+	movk	x9, #32768, lsl #48
+	mov	w11, #1                         ; =0x1
+	b	LBB1_28
+LBB1_26:                                ;   in Loop: Header=BB1_28 Depth=1
+	mov	x10, x12
+LBB1_27:                                ;   in Loop: Header=BB1_28 Depth=1
+	ldrb	w12, [x10, #1]!
+	and	w14, w12, #0xff
+	mov	x13, x12
+	cmp	w14, #32
+	b.ls	LBB1_19
+LBB1_28:                                ; =>This Loop Header: Depth=1
+                                        ;     Child Loop BB1_36 Depth 2
+	and	w14, w12, #0xff
+	mov	w13, #1                         ; =0x1
+	cmp	w14, #92
+	b.eq	LBB1_19
+; %bb.29:                               ;   in Loop: Header=BB1_28 Depth=1
+	cmp	w14, #127
+	b.eq	LBB1_19
+; %bb.30:                               ;   in Loop: Header=BB1_28 Depth=1
+	and	w13, w12, #0xff
+	cmp	w13, #64
+	b.ne	LBB1_32
+; %bb.31:                               ;   in Loop: Header=BB1_28 Depth=1
+	cbnz	w11, LBB1_38
+LBB1_32:                                ;   in Loop: Header=BB1_28 Depth=1
+	and	x12, x12, #0xff
+	lsl	x12, x8, x12
+	tst	x12, x9
+	csel	w12, wzr, w11, ne
+	cmp	w13, #63
+	csel	w11, w11, w12, hi
+	cmp	w13, #37
+	b.ne	LBB1_27
+; %bb.33:                               ;   in Loop: Header=BB1_28 Depth=1
+	ldrb	w12, [x10, #1]
+	cbz	w12, LBB1_38
+; %bb.34:                               ;   in Loop: Header=BB1_28 Depth=1
+	mov	x12, x10
+	ldrb	w13, [x12, #2]!
+	cbz	w13, LBB1_38
+; %bb.35:                               ;   in Loop: Header=BB1_28 Depth=1
+	mov	x13, #0                         ; =0x0
+	add	x10, x10, #1
+LBB1_36:                                ;   Parent Loop BB1_28 Depth=1
+                                        ; =>  This Inner Loop Header: Depth=2
+	ldrb	w14, [x10, x13]
+	orr	w14, w14, #0x20
+	sub	w15, w14, #48
+	sub	w14, w14, #97
+	cmp	w15, #10
+	ccmp	w14, #6, #0, hs
+	b.hs	LBB1_3
+; %bb.37:                               ;   in Loop: Header=BB1_36 Depth=2
+	add	x13, x13, #1
+	cmp	x13, #2
+	b.ne	LBB1_36
+	b	LBB1_26
+LBB1_38:
+	mov	w13, #1                         ; =0x1
+	b	LBB1_19
+LBB1_39:
+	mov	w25, #0                         ; =0x0
+	mov	x20, #0                         ; =0x0
+	b	LBB1_4
+LBB1_40:
+	mov	w25, #0                         ; =0x0
+	mov	x20, #0                         ; =0x0
+	mov	w21, #-1                        ; =0xffffffff
+	b	LBB1_47
+LBB1_41:
+	add	x0, x21, #17
+	bl	_malloc
+	mov	x20, x0
+	cbz	x0, LBB1_45
+; %bb.42:
+	mov	x0, x20
+	mov	x1, x22
+	mov	x2, x21
+	bl	_memcpy
+	add	x8, x20, x21
+	strb	wzr, [x8, #16]
+Lloh12:
+	adrp	x9, l___const.http_request.suffix@PAGE
+Lloh13:
+	add	x9, x9, l___const.http_request.suffix@PAGEOFF
+Lloh14:
+	ldr	q0, [x9]
+	str	q0, [x8]
+	mov	x0, x20
+	bl	_mkstemp
+	mov	x21, x0
+	tbnz	w0, #31, LBB1_67
+; %bb.43:
+Lloh15:
+	adrp	x1, l_.str@PAGE
+Lloh16:
+	add	x1, x1, l_.str@PAGEOFF
+	mov	x0, x21
+	bl	_fdopen
+	str	x0, [sp, #48]
+	cmp	x0, #0
+	cset	w8, ne
+	csinv	w21, w21, wzr, eq
+	mov	w25, #1                         ; =0x1
+	mov	x0, x26
+	cbnz	w8, LBB1_47
+LBB1_44:
+	mov	w26, #1                         ; =0x1
+	b	LBB1_5
+LBB1_45:
+	mov	w25, #0                         ; =0x0
+LBB1_46:
+	mov	w8, #0                          ; =0x0
+	mov	w21, #-1                        ; =0xffffffff
+	mov	x0, x26
+	cbz	w8, LBB1_44
+LBB1_47:
+	adrp	x27, _easy_setopt_fn@PAGE
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	str	x24, [sp]
+	mov	x24, x0
+	mov	w1, #10002                      ; =0x2712
+	blr	x8
+	cbz	w0, LBB1_49
+LBB1_48:
+	mov	w26, #1                         ; =0x1
+	b	LBB1_50
+LBB1_49:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w26, #1                         ; =0x1
+	str	x26, [sp]
+	mov	x0, x24
+	mov	w1, #52                         ; =0x34
+	blr	x8
+	cbz	w0, LBB1_51
+LBB1_50:
+	mov	x0, x24
+	b	LBB1_5
+LBB1_51:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w9, #20                         ; =0x14
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #68                         ; =0x44
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.52:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w9, #3                          ; =0x3
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #181                        ; =0xb5
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.53:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w9, #3                          ; =0x3
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #182                        ; =0xb6
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.54:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w26, #1                         ; =0x1
+	str	x26, [sp]
+	mov	x0, x24
+	mov	w1, #99                         ; =0x63
+	blr	x8
+                                        ; kill: def $w26 killed $w26 killed $x26 def $x26
+	cbnz	w0, LBB1_50
+; %bb.55:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w26, #1                         ; =0x1
+	str	x26, [sp]
+	mov	x0, x24
+	mov	w1, #64                         ; =0x40
+	blr	x8
+                                        ; kill: def $w26 killed $w26 killed $x26 def $x26
+	cbnz	w0, LBB1_50
+; %bb.56:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	mov	w9, #2                          ; =0x2
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #81                         ; =0x51
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.57:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+Lloh17:
+	adrp	x9, _http_body@PAGE
+Lloh18:
+	add	x9, x9, _http_body@PAGEOFF
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #20011                      ; =0x4e2b
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.58:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	add	x9, sp, #16
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #10001                      ; =0x2711
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.59:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+Lloh19:
+	adrp	x9, _http_header@PAGE
+Lloh20:
+	add	x9, x9, _http_header@PAGEOFF
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #20079                      ; =0x4e6f
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.60:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	add	x9, sp, #16
+	str	x9, [sp]
+	mov	x0, x24
+	mov	w1, #10029                      ; =0x272d
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.61:
+	cbz	x23, LBB1_63
+; %bb.62:
+	ldr	x8, [x27, _easy_setopt_fn@PAGEOFF]
+	str	x23, [sp]
+	mov	x0, x24
+	mov	w1, #10015                      ; =0x271f
+	blr	x8
+	cbnz	w0, LBB1_48
+LBB1_63:
+Lloh21:
+	adrp	x8, _easy_perform_fn@PAGE
+Lloh22:
+	ldr	x8, [x8, _easy_perform_fn@PAGEOFF]
+	mov	x0, x24
+	blr	x8
+	cbnz	w0, LBB1_48
+; %bb.64:
+	ldr	x0, [sp, #48]
+	cbz	x0, LBB1_69
+; %bb.65:
+	bl	_fclose
+	str	xzr, [sp, #48]
+	cbnz	w0, LBB1_48
+; %bb.66:
+	mov	x0, x20
+	mov	x1, x22
+	bl	_rename
+	cbnz	w0, LBB1_48
+	b	LBB1_71
+LBB1_67:
+	mov	w25, #0                         ; =0x0
+	mov	w8, #0                          ; =0x0
+	mov	x0, x26
+	cbnz	w8, LBB1_47
+	b	LBB1_44
+LBB1_68:
+	bl	_free
+Lloh23:
+	adrp	x0, l_.str.1@PAGE
+Lloh24:
+	add	x0, x0, l_.str.1@PAGEOFF
+	mov	x1, x19
+	bl	_bit_die
+LBB1_69:
+	ldr	x8, [sp, #16]
+	cbnz	x8, LBB1_71
+; %bb.70:
+	mov	w26, #1                         ; =0x1
+	mov	w0, #1                          ; =0x1
+	mov	w1, #1                          ; =0x1
+	bl	_calloc
+	str	x0, [sp, #16]
+	cbz	x0, LBB1_72
+LBB1_71:
+	mov	w26, #0                         ; =0x0
+	b	LBB1_50
+LBB1_72:
+                                        ; kill: def $w26 killed $w26 killed $x26 def $x26
+	b	LBB1_50
+	.loh AdrpAdd	Lloh0, Lloh1
+	.loh AdrpAdd	Lloh2, Lloh3
+	.loh AdrpLdr	Lloh4, Lloh5
+	.loh AdrpAdd	Lloh8, Lloh9
+	.loh AdrpAdd	Lloh6, Lloh7
+	.loh AdrpLdr	Lloh10, Lloh11
+	.loh AdrpAddLdr	Lloh12, Lloh13, Lloh14
+	.loh AdrpAdd	Lloh15, Lloh16
+	.loh AdrpAdd	Lloh17, Lloh18
+	.loh AdrpAdd	Lloh19, Lloh20
+	.loh AdrpLdr	Lloh21, Lloh22
+	.loh AdrpAdd	Lloh23, Lloh24
+                                        ; -- End function
+	.globl	_bit_http_post                  ; -- Begin function bit_http_post
+	.p2align	2
+_bit_http_post:                         ; @bit_http_post
+; %bb.0:
+	mov	x3, x2
+	mov	x2, #0                          ; =0x0
+	b	_http_request
+                                        ; -- End function
+	.globl	_bit_download                   ; -- Begin function bit_download
+	.p2align	2
+_bit_download:                          ; @bit_download
+; %bb.0:
+	mov	x3, x2
+	mov	x2, x1
+	mov	x1, #0                          ; =0x0
+	b	_http_request
+                                        ; -- End function
+	.p2align	2                               ; -- Begin function http_initialize
+_http_initialize:                       ; @http_initialize
+; %bb.0:
+	stp	x24, x23, [sp, #-64]!           ; 16-byte Folded Spill
+	stp	x22, x21, [sp, #16]             ; 16-byte Folded Spill
+	stp	x20, x19, [sp, #32]             ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #48]             ; 16-byte Folded Spill
+	add	x29, sp, #48
+Lloh25:
+	adrp	x0, l_.str.4@PAGE
+Lloh26:
+	add	x0, x0, l_.str.4@PAGEOFF
+	mov	w1, #6                          ; =0x6
+	bl	_dlopen
+	cbz	x0, LBB4_8
+; %bb.1:
+Lloh27:
+	adrp	x1, l_.str.5@PAGE
+Lloh28:
+	add	x1, x1, l_.str.5@PAGEOFF
+	mov	x20, x0
+	bl	_dlsym
+	mov	x19, x0
+Lloh29:
+	adrp	x1, l_.str.6@PAGE
+Lloh30:
+	add	x1, x1, l_.str.6@PAGEOFF
+	mov	x0, x20
+	bl	_dlsym
+	adrp	x21, _easy_init_fn@PAGE
+	str	x0, [x21, _easy_init_fn@PAGEOFF]
+Lloh31:
+	adrp	x1, l_.str.7@PAGE
+Lloh32:
+	add	x1, x1, l_.str.7@PAGEOFF
+	mov	x0, x20
+	bl	_dlsym
+	adrp	x22, _easy_setopt_fn@PAGE
+	str	x0, [x22, _easy_setopt_fn@PAGEOFF]
+Lloh33:
+	adrp	x1, l_.str.8@PAGE
+Lloh34:
+	add	x1, x1, l_.str.8@PAGEOFF
+	mov	x0, x20
+	bl	_dlsym
+	adrp	x23, _easy_perform_fn@PAGE
+	str	x0, [x23, _easy_perform_fn@PAGEOFF]
+Lloh35:
+	adrp	x1, l_.str.9@PAGE
+Lloh36:
+	add	x1, x1, l_.str.9@PAGEOFF
+	mov	x0, x20
+	bl	_dlsym
+	adrp	x8, _easy_cleanup_fn@PAGE
+	str	x0, [x8, _easy_cleanup_fn@PAGEOFF]
+	cbz	x19, LBB4_8
+; %bb.2:
+	ldr	x8, [x21, _easy_init_fn@PAGEOFF]
+	cbz	x8, LBB4_8
+; %bb.3:
+	ldr	x8, [x22, _easy_setopt_fn@PAGEOFF]
+	cbz	x8, LBB4_8
+; %bb.4:
+	ldr	x8, [x23, _easy_perform_fn@PAGEOFF]
+	cbz	x8, LBB4_8
+; %bb.5:
+	cbz	x0, LBB4_8
+; %bb.6:
+	mov	w0, #3                          ; =0x3
+	blr	x19
+	cbnz	w0, LBB4_8
+; %bb.7:
+	mov	w8, #1                          ; =0x1
+	adrp	x9, _http_available@PAGE
+	strb	w8, [x9, _http_available@PAGEOFF]
+LBB4_8:
+	ldp	x29, x30, [sp, #48]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #32]             ; 16-byte Folded Reload
+	ldp	x22, x21, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x24, x23, [sp], #64             ; 16-byte Folded Reload
+	ret
+	.loh AdrpAdd	Lloh25, Lloh26
+	.loh AdrpAdd	Lloh35, Lloh36
+	.loh AdrpAdd	Lloh33, Lloh34
+	.loh AdrpAdd	Lloh31, Lloh32
+	.loh AdrpAdd	Lloh29, Lloh30
+	.loh AdrpAdd	Lloh27, Lloh28
+                                        ; -- End function
+	.p2align	2                               ; -- Begin function http_body
+_http_body:                             ; @http_body
+; %bb.0:
+	stp	x22, x21, [sp, #-48]!           ; 16-byte Folded Spill
+	stp	x20, x19, [sp, #16]             ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #32]             ; 16-byte Folded Spill
+	add	x29, sp, #32
+	cbz	x2, LBB5_2
+; %bb.1:
+	umulh	x8, x2, x1
+	cmp	xzr, x8
+	b.ne	LBB5_5
+LBB5_2:
+	mul	x19, x2, x1
+	ldr	x8, [x3, #32]
+	cbz	x8, LBB5_4
+; %bb.3:
+	mov	w1, #1                          ; =0x1
+	mov	x2, x19
+	mov	x3, x8
+	ldp	x29, x30, [sp, #32]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x22, x21, [sp], #48             ; 16-byte Folded Reload
+	b	_fwrite
+LBB5_4:
+	ldr	x8, [x3, #8]
+	mov	x9, #-2                         ; =0xfffffffffffffffe
+	sub	x9, x9, x8
+	cmp	x19, x9
+	b.ls	LBB5_7
+LBB5_5:
+	mov	x19, #0                         ; =0x0
+LBB5_6:
+	mov	x0, x19
+	ldp	x29, x30, [sp, #32]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x22, x21, [sp], #48             ; 16-byte Folded Reload
+	ret
+LBB5_7:
+	add	x8, x19, x8
+	add	x8, x8, #1
+	ldr	x9, [x3, #16]
+	cmp	x8, x9
+	b.ls	LBB5_14
+; %bb.8:
+	mov	w10, #4096                      ; =0x1000
+	cmp	x9, #0
+	csel	x20, x10, x9, eq
+	mov	x21, x0
+	cmp	x20, x8
+	b.hs	LBB5_12
+LBB5_9:                                 ; =>This Inner Loop Header: Depth=1
+	tbnz	x20, #63, LBB5_11
+; %bb.10:                               ;   in Loop: Header=BB5_9 Depth=1
+	lsl	x20, x20, #1
+	cmp	x20, x8
+	b.lo	LBB5_9
+	b	LBB5_12
+LBB5_11:
+	mov	x20, x8
+LBB5_12:
+	mov	x22, x3
+	ldr	x0, [x3]
+	mov	x1, x20
+	bl	_realloc
+	cbz	x0, LBB5_5
+; %bb.13:
+	mov	x3, x22
+	str	x0, [x22]
+	str	x20, [x22, #16]
+	mov	x0, x21
+LBB5_14:
+	ldp	x8, x9, [x3]
+	mov	x1, x0
+	add	x0, x8, x9
+	mov	x2, x19
+	mov	x20, x3
+	bl	_memcpy
+	ldp	x9, x8, [x20]
+	add	x8, x8, x19
+	str	x8, [x20, #8]
+	strb	wzr, [x9, x8]
+	b	LBB5_6
+                                        ; -- End function
+	.p2align	2                               ; -- Begin function http_header
+_http_header:                           ; @http_header
+; %bb.0:
+	mov	x8, x0
+	cbz	x2, LBB6_3
+; %bb.1:
+	umulh	x9, x2, x1
+	cmp	xzr, x9
+	b.eq	LBB6_3
+; %bb.2:
+	mov	x0, #0                          ; =0x0
+	ret
+LBB6_3:
+	mul	x0, x2, x1
+	cmp	x0, #2, lsl #12                 ; =8192
+	b.ls	LBB6_5
+; %bb.4:
+	mov	x0, #0                          ; =0x0
+	ret
+LBB6_5:
+	ldr	x9, [x3, #24]
+	mov	w10, #65536                     ; =0x10000
+	sub	x10, x10, x9
+	cmp	x0, x10
+	b.ls	LBB6_7
+; %bb.6:
+	mov	x0, #0                          ; =0x0
+	ret
+LBB6_7:
+	add	x9, x9, x0
+	str	x9, [x3, #24]
+	cmp	x0, #5
+	b.lo	LBB6_9
+; %bb.8:
+	ldr	w9, [x8]
+	ldrb	w10, [x8, #4]
+	mov	w11, #21576                     ; =0x5448
+	movk	w11, #20564, lsl #16
+	cmp	w9, w11
+	mov	w9, #47                         ; =0x2f
+	ccmp	w10, w9, #0, eq
+	b.eq	LBB6_20
+LBB6_9:
+	stp	x24, x23, [sp, #-64]!           ; 16-byte Folded Spill
+	stp	x22, x21, [sp, #16]             ; 16-byte Folded Spill
+	stp	x20, x19, [sp, #32]             ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #48]             ; 16-byte Folded Spill
+	add	x29, sp, #48
+	mov	x21, x3
+	cmp	x0, #15
+	mov	x20, x8
+	b.lo	LBB6_12
+; %bb.10:
+	ldrb	w9, [x8, #14]
+	cmp	w9, #58
+	b.ne	LBB6_12
+; %bb.11:
+Lloh37:
+	adrp	x1, l_.str.11@PAGE
+Lloh38:
+	add	x1, x1, l_.str.11@PAGEOFF
+	mov	x19, x0
+	mov	x0, x20
+	mov	w2, #14                         ; =0xe
+	bl	_strncasecmp
+	mov	x9, x0
+	mov	x8, x20
+	mov	x0, x19
+	cbz	w9, LBB6_32
+LBB6_12:
+	mov	x19, x0
+	cmp	x0, #18
+	b.lo	LBB6_15
+; %bb.13:
+	ldrb	w9, [x8, #17]
+	cmp	w9, #58
+	b.ne	LBB6_15
+; %bb.14:
+Lloh39:
+	adrp	x1, l_.str.12@PAGE
+Lloh40:
+	add	x1, x1, l_.str.12@PAGEOFF
+	mov	x0, x20
+	mov	w2, #17                         ; =0x11
+	bl	_strncasecmp
+	mov	x8, x20
+	cbz	w0, LBB6_34
+LBB6_15:
+Lloh41:
+	adrp	x2, l_.str.14@PAGE
+Lloh42:
+	add	x2, x2, l_.str.14@PAGEOFF
+	mov	x0, x8
+	mov	x1, x19
+	bl	_header_name
+	cbz	w0, LBB6_18
+; %bb.16:
+	ldr	w8, [x21, #52]
+	add	w9, w8, #1
+	str	w9, [x21, #52]
+	cbz	w8, LBB6_21
+LBB6_17:
+	mov	x0, #0                          ; =0x0
+	b	LBB6_19
+LBB6_18:
+	mov	x0, x19
+LBB6_19:
+	ldp	x29, x30, [sp, #48]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #32]             ; 16-byte Folded Reload
+	ldp	x22, x21, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x24, x23, [sp], #64             ; 16-byte Folded Reload
+	ret
+LBB6_20:
+	str	x0, [x3, #24]
+	str	wzr, [x3, #52]
+	stur	xzr, [x3, #44]
+	ret
+LBB6_21:
+	mov	x9, x20
+	add	x21, x20, #9
+	mov	x0, x19
+	add	x22, x20, x19
+	cmp	x19, #10
+	b.lo	LBB6_24
+LBB6_22:                                ; =>This Inner Loop Header: Depth=1
+	ldrb	w8, [x21]
+	cmp	w8, #32
+	ccmp	w8, #9, #4, ne
+	b.ne	LBB6_24
+; %bb.23:                               ;   in Loop: Header=BB6_22 Depth=1
+	add	x21, x21, #1
+	cmp	x21, x22
+	b.lo	LBB6_22
+LBB6_24:
+	sub	x23, x22, x21
+	cmp	x23, #2
+	b.lt	LBB6_28
+; %bb.25:
+	ldrb	w8, [x21]
+	cmp	w8, #47
+	b.ne	LBB6_28
+; %bb.26:
+	ldrb	w8, [x21, #1]
+	cmp	w8, #47
+	b.ne	LBB6_28
+; %bb.27:
+	add	x8, x21, #2
+	b	LBB6_48
+LBB6_28:
+	cmp	x23, #7
+	b.lt	LBB6_30
+; %bb.29:
+Lloh43:
+	adrp	x1, l_.str.3@PAGE
+Lloh44:
+	add	x1, x1, l_.str.3@PAGEOFF
+	mov	x0, x21
+	mov	w2, #7                          ; =0x7
+	bl	_strncasecmp
+	mov	x8, x0
+	mov	x9, x20
+	mov	x0, x19
+	cbz	w8, LBB6_47
+LBB6_30:
+	cmp	x23, #7
+	b.le	LBB6_46
+; %bb.31:
+Lloh45:
+	adrp	x1, l_.str.2@PAGE
+Lloh46:
+	add	x1, x1, l_.str.2@PAGEOFF
+	mov	x0, x21
+	mov	w2, #8                          ; =0x8
+	bl	_strncasecmp
+	mov	x8, x0
+	mov	x9, x20
+	mov	x0, x19
+	add	x10, x21, #8
+	cmp	w8, #0
+	csel	x8, x10, xzr, eq
+	b	LBB6_48
+LBB6_32:
+	ldr	w8, [x21, #44]
+	add	w9, w8, #1
+	str	w9, [x21, #44]
+	cbnz	w8, LBB6_17
+; %bb.33:
+	ldr	w8, [x21, #48]
+	cbnz	w8, LBB6_17
+	b	LBB6_19
+LBB6_34:
+	ldr	w9, [x21, #48]
+	add	w10, w9, #1
+	str	w10, [x21, #48]
+	cbnz	w9, LBB6_17
+; %bb.35:
+	ldr	w9, [x21, #44]
+	cbnz	w9, LBB6_17
+; %bb.36:
+	add	x0, x8, #18
+	add	x8, x8, x19
+	cmp	x19, #18
+	b.eq	LBB6_39
+LBB6_37:                                ; =>This Inner Loop Header: Depth=1
+	ldrb	w9, [x0]
+	cmp	w9, #32
+	ccmp	w9, #9, #4, ne
+	b.ne	LBB6_39
+; %bb.38:                               ;   in Loop: Header=BB6_37 Depth=1
+	add	x0, x0, #1
+	cmp	x0, x8
+	b.lo	LBB6_37
+LBB6_39:
+	cmp	x8, x0
+	b.ls	LBB6_44
+; %bb.40:
+	mov	w9, #1                          ; =0x1
+	mov	x10, #9728                      ; =0x2600
+	movk	x10, #1, lsl #32
+	mov	x11, x8
+LBB6_41:                                ; =>This Inner Loop Header: Depth=1
+	ldrb	w12, [x11, #-1]!
+	cmp	w12, #32
+	lsl	x12, x9, x12
+	and	x12, x12, x10
+	ccmp	x12, #0, #4, ls
+	b.eq	LBB6_44
+; %bb.42:                               ;   in Loop: Header=BB6_41 Depth=1
+	mov	x8, x11
+	cmp	x11, x0
+	b.hi	LBB6_41
+; %bb.43:
+	mov	x8, x0
+LBB6_44:
+	sub	x8, x8, x0
+	cmp	x8, #7
+	b.ne	LBB6_17
+; %bb.45:
+Lloh47:
+	adrp	x1, l_.str.13@PAGE
+Lloh48:
+	add	x1, x1, l_.str.13@PAGEOFF
+	mov	w2, #7                          ; =0x7
+	bl	_strncasecmp
+	mov	x8, x0
+	mov	x0, x19
+	cbnz	w8, LBB6_17
+	b	LBB6_19
+LBB6_46:
+	mov	x8, #0                          ; =0x0
+	b	LBB6_48
+LBB6_47:
+	add	x8, x21, #7
+LBB6_48:
+	cbz	x8, LBB6_19
+; %bb.49:
+	cmp	x8, x22
+	b.hs	LBB6_19
+; %bb.50:
+	add	x9, x0, x9
+	sub	x9, x9, x8
+	mov	w10, #1                         ; =0x1
+	mov	x11, #9007336695791648          ; =0x20002000200020
+	movk	x11, #9
+	movk	x11, #512, lsl #16
+	b	LBB6_52
+LBB6_51:                                ;   in Loop: Header=BB6_52 Depth=1
+	add	x8, x8, #1
+	subs	x9, x9, #1
+	b.eq	LBB6_19
+LBB6_52:                                ; =>This Inner Loop Header: Depth=1
+	ldrb	w12, [x8]
+	sub	w12, w12, #10
+	cmp	w12, #54
+	b.hi	LBB6_51
+; %bb.53:                               ;   in Loop: Header=BB6_52 Depth=1
+	lsl	x13, x10, x12
+	tst	x13, x11
+	b.ne	LBB6_19
+; %bb.54:                               ;   in Loop: Header=BB6_52 Depth=1
+	cmp	x12, #54
+	b.ne	LBB6_51
+	b	LBB6_17
+	.loh AdrpAdd	Lloh37, Lloh38
+	.loh AdrpAdd	Lloh39, Lloh40
+	.loh AdrpAdd	Lloh41, Lloh42
+	.loh AdrpAdd	Lloh43, Lloh44
+	.loh AdrpAdd	Lloh45, Lloh46
+	.loh AdrpAdd	Lloh47, Lloh48
+                                        ; -- End function
+	.p2align	2                               ; -- Begin function header_name
+_header_name:                           ; @header_name
+; %bb.0:
+	stp	x22, x21, [sp, #-48]!           ; 16-byte Folded Spill
+	stp	x20, x19, [sp, #16]             ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #32]             ; 16-byte Folded Spill
+	add	x29, sp, #32
+	mov	x19, x2
+	mov	x21, x1
+	mov	x20, x0
+	mov	x0, x2
+	bl	_strlen
+	cmp	x21, x0
+	b.ls	LBB7_3
+; %bb.1:
+	mov	x2, x0
+	ldrb	w8, [x20, x0]
+	cmp	w8, #58
+	b.ne	LBB7_3
+; %bb.2:
+	mov	x0, x20
+	mov	x1, x19
+	bl	_strncasecmp
+	cmp	w0, #0
+	cset	w0, eq
+	b	LBB7_4
+LBB7_3:
+	mov	w0, #0                          ; =0x0
+LBB7_4:
+	ldp	x29, x30, [sp, #32]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x22, x21, [sp], #48             ; 16-byte Folded Reload
+	ret
+                                        ; -- End function
+	.section	__DATA,__data
+	.p2align	3, 0x0                          ; @http_once
+_http_once:
+	.quad	816954554                       ; 0x30b1bcba
+	.space	8
+
+.zerofill __DATA,__bss,_http_available,1,2 ; @http_available
+.zerofill __DATA,__bss,_easy_init_fn,8,3 ; @easy_init_fn
+	.section	__TEXT,__cstring,cstring_literals
+l___const.http_request.suffix:          ; @__const.http_request.suffix
+	.asciz	".bit-copy-XXXXXX"
+
+l_.str:                                 ; @.str
+	.asciz	"wb"
+
+.zerofill __DATA,__bss,_easy_setopt_fn,8,3 ; @easy_setopt_fn
+.zerofill __DATA,__bss,_easy_perform_fn,8,3 ; @easy_perform_fn
+.zerofill __DATA,__bss,_easy_cleanup_fn,8,3 ; @easy_cleanup_fn
+l_.str.1:                               ; @.str.1
+	.asciz	"\320\276\321\210\320\270\320\261\320\272\320\260 HTTP-\320\267\320\260\320\277\321\200\320\276\321\201\320\260"
+
+l_.str.2:                               ; @.str.2
+	.asciz	"https://"
+
+l_.str.3:                               ; @.str.3
+	.asciz	"http://"
+
+l_.str.4:                               ; @.str.4
+	.asciz	"/usr/lib/libcurl.4.dylib"
+
+l_.str.5:                               ; @.str.5
+	.asciz	"curl_global_init"
+
+l_.str.6:                               ; @.str.6
+	.asciz	"curl_easy_init"
+
+l_.str.7:                               ; @.str.7
+	.asciz	"curl_easy_setopt"
+
+l_.str.8:                               ; @.str.8
+	.asciz	"curl_easy_perform"
+
+l_.str.9:                               ; @.str.9
+	.asciz	"curl_easy_cleanup"
+
+l_.str.10:                              ; @.str.10
+	.asciz	"HTTP/"
+
+l_.str.11:                              ; @.str.11
+	.asciz	"content-length"
+
+l_.str.12:                              ; @.str.12
+	.asciz	"transfer-encoding"
+
+l_.str.13:                              ; @.str.13
+	.asciz	"chunked"
+
+l_.str.14:                              ; @.str.14
+	.asciz	"location"
+// END GENERATED MACOS HTTP BRIDGE

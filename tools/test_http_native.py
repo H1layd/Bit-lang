@@ -38,6 +38,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
+        if self.path == '/credential-redirect':
+            self.send_response(302)
+            self.send_header('Location', '//bit-user:bit-secret@127.0.0.1:%d/plain' % self.server.server_port)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        if self.path == '/unsupported-transfer':
+            self.send_response(200)
+            self.send_header('Transfer-Encoding', 'gzip, chunked')
+            self.end_headers()
+            self.wfile.write(b'3\r\nabc\r\n0\r\n\r\n')
+            return
         if self.path == '/without-length':
             self.send_response(200)
             self.end_headers()
@@ -190,6 +202,9 @@ def main():
                      ('post', '/post', POST.decode()), ('post', '/post-redirect', POST.decode()),
                      ('download', '/binary', '<00 01 7f 80 ff 0a>'),
                      ('download_size', '/large-binary', str(len(LARGE)))]
+            if platform.system() == 'Darwin' and not args.allow_external:
+                cases += [('tls_invalid', '/unsupported-transfer', 'rejected'),
+                          ('tls_invalid', '/credential-redirect', 'rejected')]
             openssl = shutil.which('openssl')
             tls_server = None
             tls_thread = None

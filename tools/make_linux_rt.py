@@ -9,6 +9,15 @@ def func_replace(text, name, body):
     return text[:i + 1] + body.strip("\n") + "\n\n" + text[j + 1:]
 
 t = src
+# The macOS bridge uses a macOS system library. Linux retains its existing
+# transport until the independent Linux HTTP/TLS implementation is ready.
+begin = '// BEGIN GENERATED MACOS HTTP BRIDGE'
+end = '// END GENERATED MACOS HTTP BRIDGE'
+if begin in t:
+    assert t.count(begin) == t.count(end) == 1
+    legacy_http = open('rt/http/linux_curl_legacy.s').read()
+    start = t.index(begin)
+    t = t[:start] + legacy_http + t[t.index(end) + len(end):]
 # процессы macOS (libproc) Linux не нужны: ниже свой блок PROC через /proc
 t = re.sub(r"// ── proc \(macOS\).*?// ── конец proc \(macOS\) ──\n", "", t, flags=re.S)
 t = t.replace(".section __TEXT,__text,regular,pure_instructions", ".text")
